@@ -1,0 +1,8 @@
+rootProject.name = 'msa'
+
+include(
+        'infrastructure:discovery-server',
+        'infrastructure:api-gateway',
+        'services:user-service',
+        'services:order-service'
+)
