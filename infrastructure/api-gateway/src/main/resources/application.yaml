@@ -1,9 +1,9 @@
 server:
-  port: 8082
+  port: 8080
 
 spring:
   application:
-    name: order-service
+    name: api-gateway
 
 eureka:
   client:
