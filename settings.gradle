@@ -4,5 +4,6 @@ include(
         'discovery-server',
         'api-gateway',
         'user-service',
-        'order-service'
+        'order-service',
+        'common'
 )
