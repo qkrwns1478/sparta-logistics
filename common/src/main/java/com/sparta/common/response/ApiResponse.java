@@ -1,6 +1,6 @@
-package com.example.msa.common.response;
+package com.sparta.common.response;
 
-import com.example.msa.common.exception.ErrorCode;
+import com.sparta.common.exception.ErrorCode;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)

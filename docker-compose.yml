@@ -1,0 +1,63 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: sparta-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-schemas.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sparta-net
+
+  #Redis (JWT Refresh Token + 허브/경로 캐싱)
+  redis:
+    image: redis:7.2
+    container_name: sparta-redis
+    command: redis-server /user/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - redis-data:/data
+    networks:
+      - sparta-net
+
+  #Kafka + Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: sparta-zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - sparta-net
+
+  #Zipkin
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: sparta-zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - sparta-net
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  sparta-net:
+    driver: bridge

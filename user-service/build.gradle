@@ -17,10 +17,6 @@ repositories {
 	mavenCentral()
 }
 
-ext {
-	set('springCloudVersion', "2025.0.2")
-}
-
 dependencies {
 	// ArchUnit 테스트 의존성
 	testImplementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"

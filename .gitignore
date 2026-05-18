@@ -12,3 +12,10 @@ out/
 
 # Logs
 *.log
+
+#Environment
+.env
+
+#Docker volumes
+postgres-data/
+redis-data/

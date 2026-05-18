@@ -1,4 +1,4 @@
-package com.example.msa.common.domain;
+package com.sparta.common.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
@@ -11,7 +11,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Getter
 @MappedSuperclass
@@ -20,38 +19,38 @@ public abstract class BaseEntity {
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
-    private LocalDateTime created_at;
+    private LocalDateTime createdAt;
 
     @CreatedBy
     @Column(nullable = false, updatable = false)
-    private String created_by;
+    private String createdBy;
 
     @LastModifiedDate
     @Column(nullable = false)
-    private LocalDateTime updated_at;
+    private LocalDateTime updatedAt;
 
     @LastModifiedBy
     @Column(nullable = false)
-    private String updated_by;
+    private String updatedBy;
 
     @Column
-    private LocalDateTime deleted_at;
+    private LocalDateTime deletedAt;
 
     @Column
-    private String deleted_by;
+    private String deletedBy;
 
-    protected void softDeleted(String deleted_by){
-        this.deleted_at = LocalDateTime.now();
-        this.deleted_by = deleted_by;
+    protected void softDelete(String deleted_by){
+        this.deletedAt = LocalDateTime.now();
+        this.deletedBy = deleted_by;
     }
 
     protected void restore(){
-        this.deleted_at = null;
-        this.deleted_by = null;
+        this.deletedAt = null;
+        this.deletedBy = null;
     }
 
     public boolean isDeleted(){ // 외부에서 상태 확인 용도로 쓰이기 때문에 public이 맞음
-        return this.deleted_at != null;
+        return this.deletedAt != null;
     }
 
 }

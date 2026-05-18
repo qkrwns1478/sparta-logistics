@@ -1,6 +1,6 @@
-package com.example.msa.common.exception;
+package com.sparta.common.exception;
 
-import com.example.msa.common.response.ApiResponse;
+import com.sparta.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +14,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.example.msa.common.exception.CommonErrorCode.*;
+import static com.sparta.common.exception.CommonErrorCode.*;
 
 @Slf4j
 @RestControllerAdvice
