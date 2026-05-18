@@ -5,5 +5,9 @@ include(
         'api-gateway',
         'user-service',
         'order-service',
-        'arch-rules'
+        'arch-rules',
+        'common'
+
+
+
 )

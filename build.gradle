@@ -13,8 +13,8 @@ subprojects {
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
 
-    group = 'com.example'
-    version = '1.0.0'
+    group = 'com.example.msa'
+    version = '0.0.1-SNAPSHOT'
 
     java {
         toolchain {
