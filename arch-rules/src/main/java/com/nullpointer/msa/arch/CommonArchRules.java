@@ -28,13 +28,21 @@ public class CommonArchRules {
         boolean hasEntity = classes.stream()
                 .anyMatch(c -> c.getPackageName().contains(basePackage + ".entity"));
 
+        // dto 패키지 존재 여부 확인
+        boolean hasRequestDto = classes.stream()
+                .anyMatch(c -> c.getPackageName().contains(basePackage + ".dto.request"));
+
+        boolean hasResponseDto = classes.stream()
+                .anyMatch(c -> c.getPackageName().contains(basePackage + ".dto.response"));
+
         LayeredArchitecture rule = layeredArchitecture()
                 .consideringAllDependencies()
                 .layer("Controller").definedBy(basePackage + "..controller..")
                 .layer("Service").definedBy(basePackage + "..service..")
                 .layer("DTO").definedBy(basePackage + "..dto..")
                 .whereLayer("Controller").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller");
+                .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller")
+                .whereLayer("DTO").mayOnlyBeAccessedByLayers("Controller", "Service");
 
         // client 패키지가 있을 때만 레이어 추가
         if (hasClient) {
@@ -55,6 +63,20 @@ public class CommonArchRules {
             rule = rule
                     .layer("Entity").definedBy(basePackage + "..entity..")
                     .whereLayer("Entity").mayOnlyBeAccessedByLayers("Service", "Repository");
+        }
+
+        // RequestDto 패키지가 있을 때만 레이어 추가
+        if (hasRequestDto) {
+            rule = rule
+                    .layer("DTO-Request").definedBy(basePackage + "..dto..request..")
+                    .whereLayer("DTO-Request").mayOnlyBeAccessedByLayers("Controller");
+        }
+
+        // ResponseDto 패키지가 있을 때만 레이어 추가
+        if (hasResponseDto) {
+            rule = rule
+                    .layer("DTO-Response").definedBy(basePackage + "..dto..response..")
+                    .whereLayer("DTO-Response").mayOnlyBeAccessedByLayers("Controller", "Service");
         }
 
         rule.check(classes);
@@ -98,6 +120,26 @@ public class CommonArchRules {
                 .that().resideInAPackage(basePackage + "..entity..")
                 .should().haveSimpleNameEndingWith("Entity")
                 .as("Entity 패키지의 클래스는 'Entity'로 끝나야 합니다.");
+    }
+
+    /**
+     * Request DTO 네이밍 규칙: 클래스명이 Request로 끝나야 합니다.
+     */
+    public static ArchRule requestDtoNamingRule(String basePackage) {
+        return classes()
+                .that().resideInAPackage(basePackage + "..dto..request..")
+                .should().haveSimpleNameEndingWith("Request")
+                .as("Request DTO 클래스명은 'Request'로 끝나야 합니다.");
+    }
+
+    /**
+     * Response DTO 네이밍 규칙: 클래스명이 Response로 끝나야 합니다.
+     */
+    public static ArchRule responseDtoNamingRule(String basePackage) {
+        return classes()
+                .that().resideInAPackage(basePackage + "..dto..response..")
+                .should().haveSimpleNameEndingWith("Response")
+                .as("Response DTO 클래스명은 'Response'로 끝나야 합니다.");
     }
 
     /**
@@ -164,5 +206,20 @@ public class CommonArchRules {
                 .should().dependOnClassesThat()
                 .resideInAPackage(forbiddenPackage + "..")
                 .as(sourcePackage + "는 " + forbiddenPackage + "를 직접 참조할 수 없습니다.");
+    }
+
+    /**
+     * DTO 접근 제한 규칙
+     * DTO는 Controller와 Service에서만 접근할 수 있습니다.
+     */
+    public static ArchRule dtoAccessRule(String basePackage) {
+        return classes()
+                .that().resideInAPackage(basePackage + "..dto..")
+                .should().onlyBeAccessed().byClassesThat()
+                .resideInAnyPackage(
+                        basePackage + "..controller..",
+                        basePackage + "..service.."
+                )
+                .as("DTO는 Controller 또는 Service에서만 접근 가능합니다.");
     }
 }
