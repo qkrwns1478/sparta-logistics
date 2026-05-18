@@ -1,4 +1,4 @@
-package com.example.msa.common.exception;
+package com.sparta.common.exception;
 
 import lombok.Getter;
 

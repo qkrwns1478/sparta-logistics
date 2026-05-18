@@ -1,4 +1,4 @@
-package com.example.msa.common.domain;
+package com.sparta.common.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
