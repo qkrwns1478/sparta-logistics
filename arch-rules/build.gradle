@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    // ArchUnit 핵심 라이브러리
+    implementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"
+
+    // JUnit5
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+}
+
+// arch-rules는 Boot 앱이 아니므로 bootJar 비활성화
+tasks.withType(Jar) {
+    enabled = true
+}
