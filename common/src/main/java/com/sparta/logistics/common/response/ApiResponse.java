@@ -1,13 +1,13 @@
 package com.sparta.logistics.common.response;
 
-import com.sparta.common.exception.ErrorCode;
+import com.sparta.logistics.common.exception.ErrorCode;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ApiResponse<T>(
         boolean success,
         int status,
-        String erroCode,
+        String errorCode,
         String message,
         T data
 ) {

@@ -1,6 +1,6 @@
 package com.sparta.logistics.common.exception;
 
-import com.sparta.common.response.ApiResponse;
+import com.sparta.logistics.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
