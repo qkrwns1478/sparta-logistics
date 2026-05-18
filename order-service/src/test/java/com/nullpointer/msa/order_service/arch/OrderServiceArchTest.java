@@ -55,6 +55,20 @@ public class OrderServiceArchTest {
 //        CommonArchRules.entityNamingRule(BASE_PACKAGE)
 //                .check(importedClasses);
 //    }
+    // dto/request, dto/response 패키지 생성 시 주석 해제 후 테스트 진행합니다.
+//    @Test
+//    @DisplayName("Request DTO 클래스명은 'Request'로 끝나야 합니다.")
+//    void requestDtoNamingTest() {
+//        CommonArchRules.requestDtoNamingRule(BASE_PACKAGE)
+//                .check(importedClasses);
+//    }
+//
+//    @Test
+//    @DisplayName("Response DTO 클래스명은 'Response'로 끝나야 합니다.")
+//    void responseDtoNamingTest() {
+//        CommonArchRules.responseDtoNamingRule(BASE_PACKAGE)
+//                .check(importedClasses);
+//    }
 
     @Test
     @DisplayName("Controller는 @RestController 어노테이션이 있어야 합니다.")
@@ -97,6 +111,13 @@ public class OrderServiceArchTest {
     void noDirectCrossServiceImportTest() {
         CommonArchRules.noDirectServiceCrossImport(
                 "com.nullpointer.msa.order_service", "com.nullpointer.msa.user_service")
+                .check(importedClasses);
+    }
+
+    @Test
+    @DisplayName("DTO는 Controller 또는 Service에서만 접근 가능합니다.")
+    void dtoAccessTest() {
+        CommonArchRules.dtoAccessRule(BASE_PACKAGE)
                 .check(importedClasses);
     }
 }
