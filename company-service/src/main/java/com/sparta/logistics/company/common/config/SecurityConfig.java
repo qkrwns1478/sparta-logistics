@@ -1,4 +1,4 @@
-package com.spartalogistics.company.common.config;
+package com.sparta.logistics.company.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
