@@ -1,0 +1,140 @@
+package com.sparta.logistics.user.application.service;
+
+import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.user.application.dto.request.LoginCommand;
+import com.sparta.logistics.user.application.dto.request.SignupCommand;
+import com.sparta.logistics.user.application.dto.response.TokenDto;
+import com.sparta.logistics.user.application.dto.response.UserResult;
+import com.sparta.logistics.user.domain.model.entity.UserEntity;
+import com.sparta.logistics.user.domain.model.enums.UserStatus;
+import com.sparta.logistics.user.domain.repository.UserRepository;
+import com.sparta.logistics.user.exception.UserErrorCode;
+import com.sparta.logistics.user.security.JwtUtil;
+import io.jsonwebtoken.Claims;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.UUID;
+
+@RequiredArgsConstructor
+@Service
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+
+    //회원가입
+    @Transactional
+    public UserResult signUp(SignupCommand command) {
+        if (userRepository.existsByUsername(command.username())) {
+            throw new BusinessException(UserErrorCode.USER_ALREADY_EXISTS);
+        }
+
+        String encodedPassword = passwordEncoder.encode(command.password());
+
+        UserEntity user = command.toEntity(encodedPassword);
+
+        UserEntity saveUser = userRepository.save(user);
+
+        return UserResult.from(saveUser);
+    }
+
+
+    // 로그인
+    @Transactional(readOnly = true)
+    public TokenDto login(LoginCommand command) {
+
+        UserEntity user = userRepository.findByUsername(command.username()) //username 조회
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND) {
+                });
+
+        if (!passwordEncoder.matches(command.password(), user.getPassword())) { // password 검사
+            throw new BusinessException(UserErrorCode.PASSWORD_NOT_MATCH) {
+            };
+        }
+
+        if (user.getStatus() != UserStatus.APPROVED) { // 승인된 유저인지
+            throw new BusinessException(UserErrorCode.USER_NOT_APPROVED){
+            };
+        }
+
+        return issueToken(user);
+
+    }
+
+    public TokenDto issueToken(UserEntity user) {
+        String userId = user.getId().toString();
+        String accessToken = jwtUtil.createAccessToken(userId, user.getRole());
+        String refreshToken = jwtUtil.createRefreshToken(userId, user.getRole());
+
+        return new TokenDto(UserResult.from(user), accessToken, refreshToken);
+    }
+
+
+    // 토큰 갱신
+    @Transactional
+    public TokenDto refresh(String bearerRefreshToken) {
+
+        if (!StringUtils.hasText(bearerRefreshToken)) {
+            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
+        }
+
+        String refreshToken = jwtUtil.substringToken(bearerRefreshToken);
+        if (refreshToken == null) {
+            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
+        }
+
+        // 토큰 유효한지 체크
+        if(!jwtUtil.validateRefreshToken(refreshToken)){
+            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
+        }
+
+        Claims claims = jwtUtil.getUserInfoFromToken(refreshToken);
+
+        // 토큰 타입 확인
+        if(!jwtUtil.REFRESH_TOKEN_TYPE.equals(claims.get(JwtUtil.TOKEN_TYPE_KEY))){
+            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
+        }
+
+        // subject = 사용자 UUID
+        UUID userId;
+        try {
+            userId = UUID.fromString(claims.getSubject());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
+        }
+
+        // redis
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(()-> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getStatus() != UserStatus.APPROVED){
+            throw new BusinessException(UserErrorCode.USER_NOT_APPROVED);
+        }
+
+        String accessToken = jwtUtil.createAccessToken(userId.toString(), user.getRole());
+        String newRefreshToken = jwtUtil.createRefreshToken(userId.toString(), user.getRole());
+
+        return new TokenDto(UserResult.from(user), accessToken, newRefreshToken);
+    }
+
+    @Transactional
+    public void appoveUser(UUID id) {
+        UserEntity user = userRepository.findById(id)
+                .orElseThrow(()->new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        user.approve();
+    }
+
+    @Transactional
+    public void rejectUser(UUID id) {
+        UserEntity user = userRepository.findById(id)
+                .orElseThrow(()->new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        user.reject();
+    }
+
+}
