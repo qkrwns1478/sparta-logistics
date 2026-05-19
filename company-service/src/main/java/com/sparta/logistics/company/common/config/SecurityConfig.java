@@ -9,9 +9,9 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * Company Service 보안 설정
- * 1. Gateway에서 이미 JWT 검증 완료 → 각 서비스는 X-User-Id, X-User-Role 헤더만 신뢰합니다.
- * 2. Spring Security는 CSRF 비활성화 + Stateless 세션 정책으로만 설정합니다.
- * 3. 실제 권한 검증은 CompanyService 비즈니스 로직에서 처리합니다.
+ * 1. Gateway에서 이미 JWT 검증 완료 → 각 서비스는 X-User-Id, X-User-Role 헤더 기반 인증 정보 사용
+ * 2. Spring Security는 CSRF 비활성화 + Stateless 세션 정책 적용
+ * 3. 실제 권한 검증은 CompanyService 비즈니스 로직에서 처리
  */
 
 @Configuration
