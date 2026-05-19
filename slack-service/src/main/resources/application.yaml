@@ -1,9 +1,9 @@
 server:
-  port: 19095
+  port: 19097
 
 spring:
   application:
-    name: order-service
+    name: slack-service
   config:
     import: optional:configserver:http://localhost:8888
 
@@ -12,4 +12,4 @@ eureka:
     service-url:
       defaultZone: http://localhost:8761/eureka/
   instance:
-    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    instance-id: ${spring.application.name}:${random.value}

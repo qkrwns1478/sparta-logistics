@@ -17,5 +17,5 @@ include 'user-service'
 //include 'product=service'
 include 'order-service'
 //include 'delivery-service'
-//include 'slack-service'
+include 'slack-service'
 
