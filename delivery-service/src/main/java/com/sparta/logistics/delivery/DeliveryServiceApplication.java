@@ -1,14 +1,16 @@
-package com.nullpointer.msa.order_service;
+package com.sparta.logistics.delivery;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 @SpringBootApplication
 @EnableFeignClients
-public class OrderServiceApplication {
+@EnableJpaAuditing
+public class DeliveryServiceApplication {
 	public static void main(String[] args) {
-		SpringApplication.run(OrderServiceApplication.class, args);
+		SpringApplication.run(DeliveryServiceApplication.class, args);
 	}
 
 }
