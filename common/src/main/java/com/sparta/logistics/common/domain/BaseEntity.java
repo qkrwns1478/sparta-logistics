@@ -24,7 +24,7 @@ public abstract class BaseEntity {
 
     @CreatedBy
     @Column(nullable = false, updatable = false)
-    private String createdBy;
+    private UUID createdBy;
 
     @LastModifiedDate
     @Column(nullable = false)
@@ -32,15 +32,15 @@ public abstract class BaseEntity {
 
     @LastModifiedBy
     @Column(nullable = false)
-    private String updatedBy;
+    private UUID updatedBy;
 
     @Column
     private LocalDateTime deletedAt;
 
     @Column
-    private String deletedBy;
+    private UUID deletedBy;
 
-    protected void softDelete(String deleted_by){
+    protected void softDelete(UUID deleted_by){
         this.deletedAt = LocalDateTime.now();
         this.deletedBy = deleted_by;
     }
