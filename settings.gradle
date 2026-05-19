@@ -3,7 +3,7 @@ rootProject.name = 'sparta-logistics'
 
 //인프라
 include 'discovery-server'
-//include 'config-server'
+include 'config-server'
 include 'api-gateway'
 
 //공통 모듈
