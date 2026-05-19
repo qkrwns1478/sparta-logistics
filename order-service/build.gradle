@@ -14,10 +14,4 @@ dependencies {
 	// 3. Feign Client (다른 MSA 모듈과 통신하기 위함)
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
-	// 4. ArchUnit 공통 규칙 테스트 연동
-	testImplementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"
-	testImplementation project(':arch-rules')
-
-	// (선택) 만약 common 모듈의 BaseEntity나 예외처리를 쓴다면 아래 주석을 푸세요!
-	// implementation project(':common')
 }
