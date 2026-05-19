@@ -26,10 +26,6 @@ dependencies {
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
 	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
 
-	// ArchUnit 및 테스트 의존성
-	testImplementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"
-	testImplementation project(':arch-rules')
-
 	// WebFlux(Reactor) 테스트용 (게이트웨이는 WebFlux 기반)
 	testImplementation 'io.projectreactor:reactor-test'
 }
