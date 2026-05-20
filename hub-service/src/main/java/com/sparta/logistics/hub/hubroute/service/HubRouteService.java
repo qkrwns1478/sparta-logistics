@@ -7,10 +7,13 @@ import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteCreateResponse;
+import com.sparta.logistics.hub.hubroute.dto.response.HubRouteListResponse;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,8 +36,10 @@ public class HubRouteService {
         Hub sourceHub = findHubById(request.getSourceHubId());
         Hub destinationHub = findHubById(request.getDestinationHubId());
 
-        if (hubRouteRepository
-                .existsBySourceHubAndDestinationHubAndDeletedAtIsNull(sourceHub, destinationHub)) {
+        boolean exists = hubRouteRepository
+                .existsBySourceHubAndDestinationHubAndDeletedAtIsNull(sourceHub, destinationHub);
+
+        if (exists) {
             throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_ALREADY_EXISTS);
         }
 
@@ -52,6 +57,13 @@ public class HubRouteService {
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_ALREADY_EXISTS);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Page<HubRouteListResponse> getHubRouteList(UUID sourceHubId, UUID destinationHubId, Pageable pageable) {
+
+        return hubRouteRepository.findAllByCondition(sourceHubId, destinationHubId, pageable)
+                .map(HubRouteListResponse::from);
     }
 
     private Hub findHubById(UUID hubId) {
