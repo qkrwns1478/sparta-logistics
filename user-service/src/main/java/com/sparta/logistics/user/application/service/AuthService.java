@@ -48,16 +48,16 @@ public class AuthService {
     @Transactional(readOnly = true)
     public TokenDto login(LoginCommand command) {
 
-        UserEntity user = userRepository.findByUsername(command.username()) //username 조회
+        UserEntity user = userRepository.findByUsername(command.username())
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND) {
                 });
 
-        if (!passwordEncoder.matches(command.password(), user.getPassword())) { // password 검사
+        if (!passwordEncoder.matches(command.password(), user.getPassword())) {
             throw new BusinessException(UserErrorCode.PASSWORD_NOT_MATCH) {
             };
         }
 
-        if (user.getStatus() != UserStatus.APPROVED) { // 승인된 유저인지
+        if (user.getStatus() != UserStatus.APPROVED) {
             throw new BusinessException(UserErrorCode.USER_NOT_APPROVED){
             };
         }
@@ -65,15 +65,6 @@ public class AuthService {
         return issueToken(user);
 
     }
-
-    public TokenDto issueToken(UserEntity user) {
-        String userId = user.getId().toString();
-        String accessToken = jwtUtil.createAccessToken(userId, user.getRole());
-        String refreshToken = jwtUtil.createRefreshToken(userId, user.getRole());
-
-        return new TokenDto(UserResult.from(user), accessToken, refreshToken);
-    }
-
 
     // 토큰 갱신
     @Transactional
@@ -83,22 +74,13 @@ public class AuthService {
             throw new BusinessException(UserErrorCode.INVALID_TOKEN);
         }
 
-        String refreshToken = jwtUtil.substringToken(bearerRefreshToken);
+        String refreshToken = jwtUtil.substringToken(bearerRefreshToken); // 안전장치
         if (refreshToken == null) {
             throw new BusinessException(UserErrorCode.INVALID_TOKEN);
         }
 
-        // 토큰 유효한지 체크
-        if(!jwtUtil.validateRefreshToken(refreshToken)){
-            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
-        }
-
-        Claims claims = jwtUtil.getUserInfoFromToken(refreshToken);
-
-        // 토큰 타입 확인
-        if(!jwtUtil.REFRESH_TOKEN_TYPE.equals(claims.get(JwtUtil.TOKEN_TYPE_KEY))){
-            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
-        }
+        Claims claims = jwtUtil.parseClaimsIfMatchType(refreshToken, JwtUtil.REFRESH_TOKEN_TYPE)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_TOKEN));
 
         // subject = 사용자 UUID
         UUID userId;
@@ -135,6 +117,15 @@ public class AuthService {
         UserEntity user = userRepository.findById(id)
                 .orElseThrow(()->new BusinessException(UserErrorCode.USER_NOT_FOUND));
         user.reject();
+    }
+
+    //토큰 생성
+    public TokenDto issueToken(UserEntity user) {
+        String userId = user.getId().toString();
+        String accessToken = jwtUtil.createAccessToken(userId, user.getRole());
+        String refreshToken = jwtUtil.createRefreshToken(userId, user.getRole());
+
+        return new TokenDto(UserResult.from(user), accessToken, refreshToken);
     }
 
 }

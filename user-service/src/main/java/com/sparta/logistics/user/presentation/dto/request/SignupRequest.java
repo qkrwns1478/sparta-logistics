@@ -1,9 +1,15 @@
-package com.sparta.logistics.user.dto;
+package com.sparta.logistics.user.presentation.dto.request;
 
+import com.sparta.logistics.user.application.dto.request.SignupCommand;
+import com.sparta.logistics.user.domain.model.enums.UserRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.Builder;
 
+import java.util.UUID;
+
+@Builder
 public record SignupRequest(
         @NotBlank(message = "아이디는 필수 입력값 입니다.")
         @Size(min = 4, max = 10, message = "아이디는 4자 이상, 10자 이하로 입력해주세요.")
@@ -27,11 +33,25 @@ public record SignupRequest(
         @Size(max = 100)
         String slackId,
 
-        @Size(max = 100)
-        String affiliationName,
-
         @NotBlank(message = "권한은 필수  입력 값입니다.")
-        Enum role
+        UserRole role,
+
+        UUID hubId,
+
+        UUID companyId
 
 ) {
+        public SignupCommand toCommand(){
+                return SignupCommand.builder()
+                        .username(username)
+                        .password(password)
+                        .name(name)
+                        .email(email)
+                        .slackId(slackId)
+                        .role(role)
+                        .hubId(hubId)
+                        .companyId(companyId)
+                        .build();
+
+        }
 }

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Component
 @Slf4j
@@ -64,14 +65,14 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
                     //userId 추출
                     String userId = jwt.getSubject();
 
-                    // userId = null or userId가 형식에 맞지 않으면 에러
-                    if (userId == null || !userId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
+                    // userId = null
+                    if (userId == null) {
                         log.error("Invalid User ID format: {}", userId);
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
 
                     // 권한 추출
-                    String finalRole = jwt.getClaimAsString("authorities");
+                    String finalRole = jwt.getClaimAsString("auth");
 
                     // 권한이 null, 빈값, 공백 문자열이면 에러
                     if (!StringUtils.hasText(finalRole)) {
@@ -104,12 +105,12 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
                         log.error("Gateway Auth Error: 토큰 검증 실패 - {}", e.getMessage());
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
-                    if (e instanceof BadJwtException) {
+                    if (e instanceof BadJwtException) { // 토큰 형식 망가짐
                         log.error("Gateway Auth Error: 유효하지 않은 토큰 - {}", e.getMessage());
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
-                    }
+                    } // 그 외
                     log.error("Gateway 내부 인증 시스템 심각한 예외 발생", e);
-                    return Mono.error(e);
+                    return onError(exchange, JwtErrorCode.INTERNAL_SERVER_ERROR);
                 });
     }
 
@@ -123,8 +124,7 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
         return null;
     }
 
-    // 에러 발생 시 응답 처리 로직
-    // WebFlux 방식(Mono)으로 데이터를 스트림에 담아 보냄
+    // 비동기 방식으로 에러 응답 처리
     private Mono<Void> onError(ServerWebExchange exchange, JwtErrorCode errorCode){
         ServerHttpResponse response = exchange.getResponse();
 
@@ -134,8 +134,9 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
         // 1. 공통 ApiResponse.error 구조로 데이터 생성
         ApiResponse<Void> apiResponse = ApiResponse.error(errorCode);
 
-        // 2. Mono 흐름으로 JSON 변환 및 응답 전송
+        // 2. JSON 직렬화는 블로킹이므로 boundedElastic 에서 수행
         return Mono.fromCallable(() -> objectMapper.writeValueAsBytes(apiResponse))
+                .subscribeOn(Schedulers.boundedElastic())
                 .map(bytes -> response.bufferFactory().wrap(bytes))
                 .flatMap(buffer -> {
                     log.error("Gateway Error: {} {}", errorCode.getCode(), errorCode.getMessage());

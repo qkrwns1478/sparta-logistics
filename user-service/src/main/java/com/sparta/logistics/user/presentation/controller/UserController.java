@@ -1,21 +1,29 @@
-package com.sparta.logistics.user.presentation;
+package com.sparta.logistics.user.presentation.controller;
 
+import com.sparta.logistics.common.response.ApiResponse;
+import com.sparta.logistics.user.application.dto.response.UserResult;
+import com.sparta.logistics.user.application.service.UserService;
+import com.sparta.logistics.user.presentation.dto.response.UserResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.env.Environment;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
+@RequestMapping("/api/v1/users")
 public class UserController {
 
-    //현재 서버의 환경 설정 정보
-    private final Environment env;
+    private final UserService userService;
 
-    @GetMapping("/api/users/data")
-    public String getUserData(){
+    @GetMapping
+    public ResponseEntity<ApiResponse<UserResponse>> getUser() {
 
-        String port = env.getProperty("local.server.port");
-        return String.format("user-service(실제 할당된 랜덤 포트: %s)에서 정상적으로 처리해서 보낸 응답 데이터", port);
+        UserResult userResult = userService.getUser();
+
+
+
     }
 }

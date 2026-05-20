@@ -27,7 +27,7 @@ public class AuthController {
 
     // 회원가입
     @PostMapping("/signup")
-    public ResponseEntity<ApiResponse<UserResponse>> signUp(@Valid @RequestBody SignupRequest request) { // User 객체는 프로젝트 내 정의된 위치 확인 필요
+    public ResponseEntity<ApiResponse<UserResponse>> signUp(@Valid @RequestBody SignupRequest request) {
 
         UserResult userResult = authService.signUp(request.toCommand());
 
