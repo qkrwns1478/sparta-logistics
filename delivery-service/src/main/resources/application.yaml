@@ -9,8 +9,8 @@ spring:
   datasource:
     # schema_delivery 설정
     url: jdbc:postgresql://localhost:5432/logistics?currentSchema=schema_delivery
-    username: ${DB_USERNAME:POSTGRES_USER}
-    password: ${DB_PASSWORD:POSTGRES_PASSWORD}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
