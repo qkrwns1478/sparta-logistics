@@ -77,7 +77,13 @@ public class HubService {
                 request.getStatus()
         );
 
-        return hub;
+        // 동시 요청으로 인한 레이스 컨디션 처리
+        try {
+            hubRepository.flush();
+            return hub;
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+        }
     }
 
     // todo: 연관 허브 경로 비활성화
