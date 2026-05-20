@@ -24,6 +24,9 @@ ext {
 dependencies {
 
 	implementation(project(':common'))
+	testImplementation project(':arch-rules')
+
+	testImplementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"
 
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.8'
 
