@@ -41,4 +41,9 @@ public class HubService {
         return hubRepository.findById(hubId)
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
     }
+
+    public boolean existsHub(UUID hubId) {
+
+        return hubRepository.existsById(hubId);
+    }
 }

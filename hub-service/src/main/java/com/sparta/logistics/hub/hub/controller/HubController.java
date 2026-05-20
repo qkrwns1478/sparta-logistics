@@ -39,4 +39,14 @@ public class HubController {
         ResHubDetailDto response = ResHubDetailDto.from(hubService.getHub(hubId));
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
+    @GetMapping("/{hubId}/exists")
+    public ResponseEntity<Void> isHubExists(@PathVariable UUID hubId) {
+
+        boolean exists = hubService.existsHub(hubId);
+
+        if (!exists)
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        return ResponseEntity.ok().build();
+    }
 }
