@@ -9,7 +9,7 @@ spring:
     import: optional:configserver:http://localhost:8888
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/logistics?currentSchema=schema_order
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}?currentSchema=schema_order
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
