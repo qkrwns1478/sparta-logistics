@@ -18,7 +18,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -84,7 +83,6 @@ public class OrderController {
     }
 
     /** 주문 수정 **/
-    @PreAuthorize("hasAnyRole('MASTER', 'HUB_MANAGER')")
     @PutMapping("/{orderId}")
     public ResponseEntity<ApiResponse<OrderDetailResponse>> updateOrder(
             @PathVariable UUID orderId,
@@ -97,7 +95,6 @@ public class OrderController {
     }
 
     /** 주문 취소 **/
-    @PreAuthorize("hasAnyRole('MASTER', 'HUB_MANAGER')")
     @DeleteMapping("/{orderId}")
     public ResponseEntity<ApiResponse<OrderDetailResponse>> cancelOrder(
             @PathVariable UUID orderId,
