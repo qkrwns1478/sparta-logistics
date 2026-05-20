@@ -4,7 +4,7 @@ import com.sparta.logistics.arch.ArchTestSupport;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 
-@AnalyzeClasses(packages = "com.spara.logistics.order", importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = "com.sparta.logistics.order", importOptions = ImportOption.DoNotIncludeTests.class)
 public class OrderServiceArchTest extends ArchTestSupport {
     @Override
     protected String getBasePackage(){
