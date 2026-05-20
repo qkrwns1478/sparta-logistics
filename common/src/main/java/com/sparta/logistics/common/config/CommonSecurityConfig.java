@@ -1,37 +1,35 @@
-package com.sparta.logistics.company.common.config;
+package com.sparta.logistics.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Company Service 보안 설정
- * 1. Gateway에서 이미 JWT 검증 완료 → 각 서비스는 X-User-Id, X-User-Role 헤더 기반 인증 정보 사용
- * 2. Spring Security는 CSRF 비활성화 + Stateless 세션 정책 적용
- * 3. 실제 권한 검증은 CompanyService 비즈니스 로직에서 처리
- */
-
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig {
+@EnableMethodSecurity // 나중에 각 서비스에서 @PreAuthorize를 쓰기 위해 공통으로 켜둡니다!
+public class CommonSecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // 1. CSRF 비활성화 (JWT 사용하므로 불필요)
                 .csrf(csrf -> csrf.disable())
+                // 2. 기본 로그인 폼 및 HTTP Basic 인증 비활성화
+                .formLogin(form -> form.disable())
+                .httpBasic(basic -> basic.disable())
+                // 3. 세션을 사용하지 않음 (Stateless)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 4. 공통 권한 설정
                 .authorizeHttpRequests(auth -> auth
-                        // 내부 서비스 통신용 exists 엔드포인트는 인증 불필요
-                        .requestMatchers("/api/v1/companies/*/exists").permitAll()
-                        // Swagger
+                        // Swagger 및 Actuator는 인증 없이 통과
                         .requestMatchers("/api-docs/**", "/swagger-ui/**").permitAll()
-                        //Actuator
                         .requestMatchers("/actuator/**").permitAll()
-                        // TODO: 개발 편의용 설정 (배포 전 authenticated()로 변경 필수)
+                        // TODO: 개발 편의용 설정 (배포 전에는 인증 필요하도록 변경 필요)
                         .anyRequest().permitAll()
                 );
         return http.build();
