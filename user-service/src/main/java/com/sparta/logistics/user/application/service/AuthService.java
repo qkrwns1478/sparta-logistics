@@ -9,6 +9,7 @@ import com.sparta.logistics.user.domain.model.entity.UserEntity;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import com.sparta.logistics.user.domain.repository.UserRepository;
 import com.sparta.logistics.user.exception.UserErrorCode;
+import com.sparta.logistics.user.presentation.dto.response.ApproveResponse;
 import com.sparta.logistics.user.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
@@ -79,7 +80,7 @@ public class AuthService {
             throw new BusinessException(UserErrorCode.INVALID_TOKEN);
         }
 
-        Claims claims = jwtUtil.parseClaimsIfMatchType(refreshToken, JwtUtil.REFRESH_TOKEN_TYPE)
+        Claims claims = jwtUtil.parseClaimsIfMatchType(refreshToken, JwtUtil.REFRESH_TOKEN)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_TOKEN));
 
         // subject = 사용자 UUID
@@ -90,7 +91,7 @@ public class AuthService {
             throw new BusinessException(UserErrorCode.INVALID_TOKEN);
         }
 
-        // redis
+        // redis 추가 예정
 
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(()-> new BusinessException(UserErrorCode.USER_NOT_FOUND));
@@ -105,13 +106,16 @@ public class AuthService {
         return new TokenDto(UserResult.from(user), accessToken, newRefreshToken);
     }
 
+    //승인
     @Transactional
-    public void appoveUser(UUID id) {
+    public ApproveResponse approveUser(UUID id) {
         UserEntity user = userRepository.findById(id)
                 .orElseThrow(()->new BusinessException(UserErrorCode.USER_NOT_FOUND));
         user.approve();
+        return ApproveResponse.approveResponse(user);
     }
 
+    // 거절
     @Transactional
     public void rejectUser(UUID id) {
         UserEntity user = userRepository.findById(id)

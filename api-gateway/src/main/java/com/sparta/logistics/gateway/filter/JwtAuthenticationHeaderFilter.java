@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -18,13 +19,18 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
+import java.util.UUID;
+
+/**
+ * 게이트웨이 진입 요청에 대해 {@code Authorization: Bearer} 액세스 JWT를 검증하고,
+ * 하류 서비스용으로 {@code X-User-Id}, {@code X-User-Role} 헤더를 설정한다.
+ */
 @Component
 @Slf4j
 public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
 
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper; // 자바 객체 -> json 형태로 변환
     private final ReactiveJwtDecoder jwtDecoder;
 
     public JwtAuthenticationHeaderFilter(ObjectMapper objectMapper, ReactiveJwtDecoder jwtDecoder){
@@ -37,10 +43,10 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE;
     }
 
-    // 인증 제외
     private boolean isWhiteList(String path){
         return path.startsWith("/api/v1/auth/login") ||
-                path.startsWith("/api/v1/auth/signup");
+                path.startsWith("/api/v1/auth/signup")||
+                path.startsWith("/api/v1/auth/refresh"); // 리프레시토큰은 인증 서비스에서 검증...?
     }
 
     @Override
@@ -62,12 +68,17 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
         return jwtDecoder.decode(token)
                 .flatMap(jwt -> {
 
-                    //userId 추출
                     String userId = jwt.getSubject();
 
-                    // userId = null
-                    if (userId == null) {
-                        log.error("Invalid User ID format: {}", userId);
+                    if (!StringUtils.hasText(userId)) {
+                        log.error("JWT subject(userId) 가 비어 있음");
+                        return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
+                    }
+                    String normalizedUserId = userId.trim(); // 공백 제거
+                    try {
+                        UUID.fromString(normalizedUserId); // UUID 형태인지 검사
+                    } catch (IllegalArgumentException ex) {
+                        log.error("JWT subject 가 UUID 형식이 아님");
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
 
@@ -84,7 +95,7 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
                     builder.headers(headers -> {
                         headers.remove("X-User-Id");
                         headers.remove("X-User-Role");
-                        headers.set("X-User-Id", userId);
+                        headers.set("X-User-Id", normalizedUserId);
                         headers.set("X-User-Role", finalRole);
 
                     });
@@ -124,27 +135,27 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
         return null;
     }
 
-    // 비동기 방식으로 에러 응답 처리
-    private Mono<Void> onError(ServerWebExchange exchange, JwtErrorCode errorCode){
+    //비동기 방식으로 응답 에러 처리
+    private Mono<Void> onError(ServerWebExchange exchange, JwtErrorCode errorCode) {
         ServerHttpResponse response = exchange.getResponse();
 
         response.setStatusCode(errorCode.getStatus());
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON); // 응답헤더 json으로 지정
 
-        // 1. 공통 ApiResponse.error 구조로 데이터 생성
-        ApiResponse<Void> apiResponse = ApiResponse.error(errorCode);
+        log.error("Gateway Error: {} {}", errorCode.getCode(), errorCode.getMessage());
 
-        // 2. JSON 직렬화는 블로킹이므로 boundedElastic 에서 수행
-        return Mono.fromCallable(() -> objectMapper.writeValueAsBytes(apiResponse))
-                .subscribeOn(Schedulers.boundedElastic())
-                .map(bytes -> response.bufferFactory().wrap(bytes))
-                .flatMap(buffer -> {
-                    log.error("Gateway Error: {} {}", errorCode.getCode(), errorCode.getMessage());
-                    return response.writeWith(Mono.just(buffer));
-                })
-                .onErrorResume(e -> {
-                    log.error("JSON 변환 중 예외 발생", e);
-                    return response.setComplete();
-                });
+        return Mono.defer(() -> {
+            try {
+                ApiResponse<Void> apiResponse = ApiResponse.error(errorCode); // 공통 에러 객체 생성
+
+                byte[] jsonBytes = objectMapper.writeValueAsBytes(apiResponse);
+                DataBuffer buffer = response.bufferFactory().wrap(jsonBytes);
+
+                return response.writeWith(Mono.just(buffer));
+            } catch (Exception e) {
+                log.error("JSON 변환 중 예외 발생", e);
+                return response.setComplete();
+            }
+        });
     }
 }

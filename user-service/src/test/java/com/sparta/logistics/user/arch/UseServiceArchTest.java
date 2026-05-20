@@ -5,7 +5,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 
 @AnalyzeClasses(packages = "com.sparta.logistics.user", importOptions = ImportOption.DoNotIncludeTests.class)
-public class SlackServiceArchTest extends ArchTestSupport {
+public class UseServiceArchTest extends ArchTestSupport {
     @Override
     protected String getBasePackage(){
         return "com.sparta.logistics.user";

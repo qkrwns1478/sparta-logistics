@@ -1,7 +1,7 @@
 package com.sparta.logistics.user.domain.model.enums;
 
 public enum UserStatus {
-    PENDING,
-    APPROVED,
-    REJECTED
+    PENDING, // 대기
+    APPROVED, // 승인
+    REJECTED // 거절
 }

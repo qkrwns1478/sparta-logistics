@@ -1,7 +1,7 @@
 package com.sparta.logistics.user.presentation.dto.request;
 
 import com.sparta.logistics.user.application.dto.request.SignupCommand;
-import com.sparta.logistics.user.domain.model.enums.UserRole;
+import com.sparta.logistics.common.domain.Role;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -18,7 +18,7 @@ public record SignupRequest(
 
         @NotBlank(message = "비밀번호는 필수 입력값 입니다.")
         @Size(min = 4, max = 15, message = "비밀번호는 8자 이상, 15자 이하로 입력해주세요.")
-        @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,15}$",
+        @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{4,15}$",
                 message = "비밀번호는 알파벳 대소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함해야 합니다.")
         String password,
 
@@ -34,7 +34,7 @@ public record SignupRequest(
         String slackId,
 
         @NotBlank(message = "권한은 필수  입력 값입니다.")
-        UserRole role,
+        Role role,
 
         UUID hubId,
 

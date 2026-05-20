@@ -1,11 +1,12 @@
 package com.sparta.logistics.user.security;
 
-import com.sparta.logistics.user.domain.model.enums.UserRole;
+import com.sparta.logistics.common.domain.Role;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -19,14 +20,14 @@ import java.util.Optional;
 @Component
 public class JwtUtil {
 
-    public static final String AUTHORIZATION_HEADER = "Authorization";
-    public static final String AUTHORIZATION_KEY = "auth";
+    public static final String AUTH_HEADER = "Authorization";
+    public static final String AUTH_KEY = "auth";
     public static final String TOKEN_TYPE_KEY = "token_type";
-    public static final String ACCESS_TOKEN_TYPE = "ACCESS";
-    public static final String REFRESH_TOKEN_TYPE = "REFRESH";
+    public static final String ACCESS_TOKEN = "access";
+    public static final String REFRESH_TOKEN = "refresh";
     public static final String BEARER_PREFIX = "Bearer ";
-    public static final long ACCESS_TOKEN_VALID_TIME = 15 * 60 * 1000L; // 로그아웃 기능이 따로 없어 유효시간 15분으로 잡음
-    public static final long REFRESH_TOKEN_VALID_TIME = 35L * 24 * 60 * 60 * 1000L; // 리프레시 유효 시간 (15일)
+    public static final long ACCESS_VALID_TIME = 15 * 60 * 1000L; // 로그아웃 기능이 따로 없어 유효시간 15분으로 제한
+    public static final long REFRESH_VALID_TIME = 35L * 24 * 60 * 60 * 1000L; // 리프레시 유효 시간 (15일)
 
     @Value("${jwt.secret-key}")
     private String secretKey;
@@ -38,20 +39,20 @@ public class JwtUtil {
         key = Keys.hmacShaKeyFor(bytes);
     }
 
-    public String createAccessToken(String userId, UserRole role) {
-        return createAccessToken(userId, role, Duration.ofMillis(ACCESS_TOKEN_VALID_TIME));
+    public String createAccessToken(String userId, Role role) {
+        return createAccessToken(userId, role, Duration.ofMillis(ACCESS_VALID_TIME));
     }
 
     // 요청한 만료 시간을 전달받아 엑세스 토큰 생성
-    public String createAccessToken(String userId, UserRole role, Duration validity) {
+    public String createAccessToken(String userId, Role role, Duration validity) {
 
         Date now = new Date();
         Date exp = new Date(now.getTime() + validity.toMillis());
 
         return Jwts.builder()
                 .subject(userId)
-                .claim(AUTHORIZATION_KEY, role)
-                .claim(TOKEN_TYPE_KEY, ACCESS_TOKEN_TYPE)
+                .claim(AUTH_KEY, role)
+                .claim(TOKEN_TYPE_KEY, ACCESS_TOKEN)
                 .expiration(exp)
                 .issuedAt(now)
                 .signWith(key)
@@ -60,26 +61,26 @@ public class JwtUtil {
 
 
     // 리프레시 토큰 생성
-    public String createRefreshToken(String userId, UserRole role) {
+    public String createRefreshToken(String userId, Role role) {
 
         Date now = new Date();
-        Date exp = new Date(now.getTime() + REFRESH_TOKEN_VALID_TIME);
+        Date exp = new Date(now.getTime() + REFRESH_VALID_TIME);
 
         return Jwts.builder()
                 .subject(userId)
-                .claim(AUTHORIZATION_KEY, role)
-                .claim(TOKEN_TYPE_KEY, REFRESH_TOKEN_TYPE)
+                .claim(AUTH_KEY, role)
+                .claim(TOKEN_TYPE_KEY, REFRESH_TOKEN)
                 .expiration(exp)
                 .issuedAt(now)
                 .compact();
     }
 
     public boolean validateAccessToken(String token) {
-        return validateToken(token, ACCESS_TOKEN_TYPE);
+        return validateToken(token, ACCESS_TOKEN);
     }
 
     public boolean validateRefreshToken(String token) {
-        return validateToken(token, REFRESH_TOKEN_TYPE);
+        return validateToken(token, REFRESH_TOKEN);
     }
 
     /**
@@ -118,7 +119,6 @@ public class JwtUtil {
     }
 
 
-    // 순수 JWT 반환
     public String substringToken(String tokenValue) {
         if (!StringUtils.hasText(tokenValue)) {return null;}
         String t = tokenValue.trim();

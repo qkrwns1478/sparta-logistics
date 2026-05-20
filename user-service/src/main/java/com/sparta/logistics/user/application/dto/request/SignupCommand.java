@@ -1,7 +1,7 @@
 package com.sparta.logistics.user.application.dto.request;
 
 import com.sparta.logistics.user.domain.model.entity.UserEntity;
-import com.sparta.logistics.user.domain.model.enums.UserRole;
+import com.sparta.logistics.common.domain.Role;
 import lombok.Builder;
 
 import java.util.UUID;
@@ -13,7 +13,7 @@ public record SignupCommand(
         String name,
         String email,
         String slackId,
-        UserRole role,
+        Role role,
         UUID hubId,
         UUID companyId
 

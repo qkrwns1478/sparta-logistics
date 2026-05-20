@@ -1,12 +1,14 @@
 package com.sparta.logistics.user.domain.model.entity;
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.user.domain.model.enums.UserRole;
+import com.sparta.logistics.user.application.dto.response.UserResult;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import com.sparta.logistics.user.exception.UserErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -25,7 +27,7 @@ public class UserEntity extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID Id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String username;
 
     @Column(nullable = false)
@@ -39,7 +41,7 @@ public class UserEntity extends BaseEntity {
     private String slackId;
 
     @Column(nullable = false)
-    private UserRole role;
+    private Role role;
 
     @Column(nullable = false)
     private UserStatus status;
@@ -52,7 +54,7 @@ public class UserEntity extends BaseEntity {
 
     @Builder
     public UserEntity(String username, String password, String name, String email,
-                      String slackId, UserRole role, UserStatus status, UUID hubId, UUID companyId) {
+                      String slackId, Role role, UserStatus status, UUID hubId, UUID companyId) {
 
         this.username = username;
         this.password = password;
@@ -68,7 +70,6 @@ public class UserEntity extends BaseEntity {
         validateRoleConstraints();
     }
 
-    // 조건 검증 메서드
     public void validateRoleConstraints() {
         if (this.role == null) return;
 
@@ -92,8 +93,7 @@ public class UserEntity extends BaseEntity {
         }
     }
 
-    // 비즈니스 로직에 따른 변경 메서드
-    public void updateRoleAndIds(UserRole role, UUID hubId, UUID companyId) {
+    public void updateRoleAndIds(Role role, UUID hubId, UUID companyId) {
         this.role = role;
         this.hubId = hubId;
         this.companyId = companyId;

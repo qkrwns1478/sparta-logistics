@@ -1,7 +1,7 @@
 package com.sparta.logistics.user.presentation.dto.response;
 
 import com.sparta.logistics.user.application.dto.response.UserResult;
-import com.sparta.logistics.user.domain.model.enums.UserRole;
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import lombok.Builder;
 
@@ -9,11 +9,11 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Builder
-public record UserResponse(
+public record UserResponse( // 회원가입 응답
         UUID userId,
         String username,
         String name,
-        UserRole role,
+        Role role,
         UserStatus status,
         LocalDateTime createdAt
 ) {
