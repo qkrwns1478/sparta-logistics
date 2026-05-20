@@ -49,6 +49,7 @@ public class HubService {
         }
     }
 
+    // todo: 반복적인 조회와 낮은 빈도의 수정을 고려하여 캐싱 적용
     @Transactional(readOnly = true)
     public Page<HubListResponse> getHubList(String name, String address, HubStatus status, Pageable pageable) {
 
@@ -56,24 +57,23 @@ public class HubService {
                 .map(HubListResponse::from);
     }
 
+    // todo: 반복적인 조회와 낮은 빈도의 수정을 고려하여 캐싱 적용
     @Transactional(readOnly = true)
     public HubDetailResponse getHub(UUID hubId) {
 
-        return HubDetailResponse.from(hubRepository.findById(hubId)
-                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND)));
+        return HubDetailResponse.from(findByHubId(hubId));
     }
 
     @Transactional(readOnly = true)
     public boolean existsHub(UUID hubId) {
 
-        return hubRepository.existsById(hubId);
+        return hubRepository.existsByIdAndDeletedAtIsNull(hubId);
     }
 
     @Transactional
     public HubUpdateResponse updateHub(UUID hubId, UpdateHubRequest request) {
 
-        Hub hub = hubRepository.findById(hubId)
-                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+        Hub hub = findByHubId(hubId);
 
         // 허브 이름 중복 본인 제외 체크
         if (hubRepository.existsByNameAndIdNot(request.getName(), hubId)) {
@@ -102,11 +102,16 @@ public class HubService {
     @Transactional
     public HubDeleteResponse deleteHub(UUID hubId, UUID userId) {
 
-        Hub hub = hubRepository.findById(hubId)
-                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+        Hub hub = findByHubId(hubId);
 
         hub.delete(userId);
 
         return HubDeleteResponse.from(hub);
+    }
+
+    private Hub findByHubId(UUID hubId) {
+
+        return hubRepository.findByIdAndDeletedAtIsNull(hubId)
+                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
     }
 }
