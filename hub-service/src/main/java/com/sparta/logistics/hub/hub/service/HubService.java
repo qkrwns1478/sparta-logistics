@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class HubService {
@@ -31,5 +33,12 @@ public class HubService {
         );
 
         return hubRepository.save(hub);
+    }
+
+    @Transactional(readOnly = true)
+    public Hub getHub(UUID hubId) {
+
+        return hubRepository.findById(hubId)
+                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
     }
 }
