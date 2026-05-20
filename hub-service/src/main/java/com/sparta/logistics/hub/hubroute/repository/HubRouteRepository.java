@@ -28,4 +28,12 @@ public interface HubRouteRepository extends JpaRepository<HubRoute, UUID> {
             @Param("sourceHubId") UUID sourceHubId,
             @Param("destinationHubId") UUID destinationHubId,
             Pageable pageable);
+
+    // 허브 경로 단건 조회(허브 이름을 응답해야 하기에 fetch join 사용)
+    @Query("SELECT r FROM HubRoute r " +
+            "JOIN FETCH r.sourceHub " +
+            "JOIN FETCH r.destinationHub " +
+            "WHERE r.id = :routeId " +
+            "AND r.deletedAt IS NULL")
+    Optional<HubRoute> findByIdWithHubs(@Param("routeId") UUID routeId);
 }

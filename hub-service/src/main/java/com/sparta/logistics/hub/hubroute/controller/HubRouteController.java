@@ -3,6 +3,7 @@ package com.sparta.logistics.hub.hubroute.controller;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteCreateResponse;
+import com.sparta.logistics.hub.hubroute.dto.response.HubRouteDetailResponse;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteListResponse;
 import com.sparta.logistics.hub.hubroute.service.HubRouteService;
 import jakarta.validation.Valid;
@@ -40,6 +41,14 @@ public class HubRouteController {
 
         Page<HubRouteListResponse> response = hubRouteService
                 .getHubRouteList(sourceHubId, destinationHubId, pageable);
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @GetMapping("/{routeId}")
+    public ResponseEntity<ApiResponse<HubRouteDetailResponse>> getHubRoute(@PathVariable UUID routeId) {
+
+        HubRouteDetailResponse response = hubRouteService.getHubRoute(routeId);
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }

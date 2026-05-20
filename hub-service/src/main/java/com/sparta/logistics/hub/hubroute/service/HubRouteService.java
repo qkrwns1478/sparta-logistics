@@ -7,6 +7,7 @@ import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteCreateResponse;
+import com.sparta.logistics.hub.hubroute.dto.response.HubRouteDetailResponse;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteListResponse;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
@@ -64,6 +65,15 @@ public class HubRouteService {
 
         return hubRouteRepository.findAllByCondition(sourceHubId, destinationHubId, pageable)
                 .map(HubRouteListResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public HubRouteDetailResponse getHubRoute(UUID routeId) {
+
+        HubRoute hubRoute = hubRouteRepository.findByIdWithHubs(routeId)
+                .orElseThrow(() -> new BusinessException(HubRouteErrorCode.HUB_ROUTE_NOT_FOUND));
+
+        return HubRouteDetailResponse.from(hubRoute);
     }
 
     private Hub findHubById(UUID hubId) {
