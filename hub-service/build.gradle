@@ -2,7 +2,7 @@ plugins {
 	id 'org.springframework.boot'
 }
 
-description = 'order-service'
+description = 'hub-service'
 
 dependencies {
 	implementation project(':common')
@@ -10,4 +10,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 	runtimeOnly 'org.postgresql:postgresql'
+
+	// hub 서비스 고유한 라이브러리 (Kafka 메시지 큐)
+	implementation 'org.springframework.kafka:spring-kafka'
+	testImplementation 'org.springframework.kafka:spring-kafka-test'
 }

@@ -2,7 +2,7 @@ plugins {
 	id 'org.springframework.boot'
 }
 
-description = 'order-service'
+description = 'delivery-service'
 
 dependencies {
 	implementation project(':common')
