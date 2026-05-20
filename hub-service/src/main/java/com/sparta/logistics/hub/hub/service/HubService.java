@@ -7,6 +7,7 @@ import com.sparta.logistics.hub.hub.dto.request.ReqUpdateHubDto;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class HubService {
 
     private final HubRepository hubRepository;
+
 
     @Transactional
     public Hub createHub(ReqCreateHubDto request) {
@@ -33,7 +35,14 @@ public class HubService {
                 request.getLongitude()
         );
 
-        return hubRepository.save(hub);
+        // 동시 요청으로 인한 레이스 컨디션 처리
+        try {
+            Hub savedHub = hubRepository.save(hub);
+            hubRepository.flush();
+            return savedHub;
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+        }
     }
 
     @Transactional(readOnly = true)
