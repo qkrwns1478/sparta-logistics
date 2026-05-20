@@ -5,13 +5,9 @@ plugins {
 description = 'order-service'
 
 dependencies {
-	// 1. 웹(Controller) 기능
+	implementation project(':common')
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-
-	// 2. 유레카 클라이언트 (서비스 디스커버리 등록)
-	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-
-	// 3. Feign Client (다른 MSA 모듈과 통신하기 위함)
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
-
+	runtimeOnly 'org.postgresql:postgresql'
 }
