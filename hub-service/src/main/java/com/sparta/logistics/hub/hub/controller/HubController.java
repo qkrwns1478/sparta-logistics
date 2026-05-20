@@ -2,14 +2,14 @@ package com.sparta.logistics.hub.hub.controller;
 
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.hub.hub.dto.request.UpdateHubRequest;
-import com.sparta.logistics.hub.hub.dto.response.HubDeleteResponse;
-import com.sparta.logistics.hub.hub.dto.response.HubUpdateResponse;
+import com.sparta.logistics.hub.hub.dto.response.*;
 import com.sparta.logistics.hub.hub.dto.request.CreateHubRequest;
-import com.sparta.logistics.hub.hub.dto.response.HubCreateResponse;
-import com.sparta.logistics.hub.hub.dto.response.HubDetailResponse;
+import com.sparta.logistics.hub.hub.enums.HubStatus;
 import com.sparta.logistics.hub.hub.service.HubService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,10 +33,31 @@ public class HubController {
     public ResponseEntity<ApiResponse<HubCreateResponse>> createHub(@RequestBody @Valid CreateHubRequest request) {
 
 
-        HubCreateResponse response = HubCreateResponse.from(hubService.createHub(request));
+        HubCreateResponse response = hubService.createHub(request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("허브가 생성되었습니다.", response));
+    }
+
+    /**
+     * 허브 목록 조회 api
+     * todo: @PreAuthorize("isAuthenticated()") 적용 - X-User-Role 헤더 기반 SecurityContext 세팅 필터 추가 후
+     * @param name
+     * @param address
+     * @param status
+     * @param pageable
+     * @return 허브 목록
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<Page<HubListResponse>>> getHubList(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String address,
+            @RequestParam(required = false) HubStatus status,
+            Pageable pageable) {
+
+        Page<HubListResponse> response = hubService.getHubList(name, address, status, pageable);
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     /**
@@ -48,7 +69,8 @@ public class HubController {
     @GetMapping("/{hubId}")
     public ResponseEntity<ApiResponse<HubDetailResponse>> getHub(@PathVariable UUID hubId) {
 
-        HubDetailResponse response = HubDetailResponse.from(hubService.getHub(hubId));
+        HubDetailResponse response = hubService.getHub(hubId);
+
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
@@ -78,7 +100,7 @@ public class HubController {
     public ResponseEntity<ApiResponse<HubUpdateResponse>> updateHub(@PathVariable UUID hubId,
                                                                     @RequestBody @Valid UpdateHubRequest request) {
 
-        HubUpdateResponse response = HubUpdateResponse.from(hubService.updateHub(hubId, request));
+        HubUpdateResponse response = hubService.updateHub(hubId, request);
 
         return ResponseEntity.ok(ApiResponse.ok("허브가 수정되었습니다.", response));
     }
@@ -95,7 +117,7 @@ public class HubController {
             @PathVariable UUID hubId,
             @RequestHeader("X-User-Id") UUID userId) {
 
-        HubDeleteResponse response = HubDeleteResponse.from(hubService.deleteHub(hubId, userId));
+        HubDeleteResponse response = hubService.deleteHub(hubId, userId);
 
         return ResponseEntity.ok(ApiResponse.ok("허브가 삭제되었습니다.", response));
     }

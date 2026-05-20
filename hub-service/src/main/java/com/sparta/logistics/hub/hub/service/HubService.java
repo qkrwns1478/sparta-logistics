@@ -4,10 +4,14 @@ import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.hub.dto.request.CreateHubRequest;
 import com.sparta.logistics.hub.hub.dto.request.UpdateHubRequest;
+import com.sparta.logistics.hub.hub.dto.response.*;
 import com.sparta.logistics.hub.hub.entity.Hub;
+import com.sparta.logistics.hub.hub.enums.HubStatus;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +25,7 @@ public class HubService {
 
 
     @Transactional
-    public Hub createHub(CreateHubRequest request) {
+    public HubCreateResponse createHub(CreateHubRequest request) {
 
         // 허브 이름 중복 체크
         if (hubRepository.existsByName(request.getName())) {
@@ -39,17 +43,24 @@ public class HubService {
         try {
             Hub savedHub = hubRepository.save(hub);
             hubRepository.flush();
-            return savedHub;
+            return HubCreateResponse.from(savedHub);
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
         }
     }
 
     @Transactional(readOnly = true)
-    public Hub getHub(UUID hubId) {
+    public Page<HubListResponse> getHubList(String name, String address, HubStatus status, Pageable pageable) {
 
-        return hubRepository.findById(hubId)
-                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+        return hubRepository.findAllByCondition(name, address, status, pageable)
+                .map(HubListResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public HubDetailResponse getHub(UUID hubId) {
+
+        return HubDetailResponse.from(hubRepository.findById(hubId)
+                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND)));
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +70,7 @@ public class HubService {
     }
 
     @Transactional
-    public Hub updateHub(UUID hubId, UpdateHubRequest request) {
+    public HubUpdateResponse updateHub(UUID hubId, UpdateHubRequest request) {
 
         Hub hub = hubRepository.findById(hubId)
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
@@ -80,7 +91,7 @@ public class HubService {
         // 동시 요청으로 인한 레이스 컨디션 처리
         try {
             hubRepository.flush();
-            return hub;
+            return HubUpdateResponse.from(hub);
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
         }
@@ -89,13 +100,13 @@ public class HubService {
     // todo: 연관 허브 경로 비활성화
     // todo: 배송 담당자 논리 삭제 연동
     @Transactional
-    public Hub deleteHub(UUID hubId, UUID userId) {
+    public HubDeleteResponse deleteHub(UUID hubId, UUID userId) {
 
         Hub hub = hubRepository.findById(hubId)
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
 
         hub.delete(userId);
 
-        return hub;
+        return HubDeleteResponse.from(hub);
     }
 }
