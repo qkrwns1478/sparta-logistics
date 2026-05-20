@@ -43,6 +43,7 @@ public class HubService {
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
     }
 
+    @Transactional(readOnly = true)
     public boolean existsHub(UUID hubId) {
 
         return hubRepository.existsById(hubId);
@@ -66,6 +67,19 @@ public class HubService {
                 request.getLongitude(),
                 request.getStatus()
         );
+
+        return hub;
+    }
+
+    // todo: 연관 허브 경로 비활성화
+    // todo: 배송 담당자 논리 삭제 연동
+    @Transactional
+    public Hub deleteHub(UUID hubId, UUID userId) {
+
+        Hub hub = hubRepository.findById(hubId)
+                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+
+        hub.delete(userId);
 
         return hub;
     }

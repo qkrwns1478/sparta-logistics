@@ -55,4 +55,8 @@ public class Hub extends BaseEntity {
         this.longitude = longitude;
         this.status = status;
     }
+
+    public void delete(UUID userId) {
+        super.softDelete(userId);
+    }
 }
