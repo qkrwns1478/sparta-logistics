@@ -1,9 +1,6 @@
 package com.sparta.logistics.hub.hub.dto.request;
 
-import com.sparta.logistics.hub.hub.enums.HubStatus;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -11,7 +8,7 @@ import java.math.BigDecimal;
 
 @Getter
 @NoArgsConstructor
-public class ReqUpdateHubDto {
+public class CreateHubRequest {
 
     @NotBlank
     @Size(max = 100)
@@ -22,11 +19,10 @@ public class ReqUpdateHubDto {
     private String address;
 
     @NotNull
+    @DecimalMin("-90.000000") @DecimalMax("90.000000")
     private BigDecimal latitude;
 
     @NotNull
+    @DecimalMin("-180.000000") @DecimalMax("180.000000")
     private BigDecimal longitude;
-
-    @NotNull
-    private HubStatus status;
 }

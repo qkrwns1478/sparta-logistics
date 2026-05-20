@@ -1,12 +1,12 @@
 package com.sparta.logistics.hub.hub.controller;
 
 import com.sparta.logistics.common.response.ApiResponse;
-import com.sparta.logistics.hub.hub.dto.request.ReqUpdateHubDto;
-import com.sparta.logistics.hub.hub.dto.response.ResHubDeleteDto;
-import com.sparta.logistics.hub.hub.dto.response.ResHubUpdateDto;
-import com.sparta.logistics.hub.hub.dto.request.ReqCreateHubDto;
-import com.sparta.logistics.hub.hub.dto.response.ResHubCreateDto;
-import com.sparta.logistics.hub.hub.dto.response.ResHubDetailDto;
+import com.sparta.logistics.hub.hub.dto.request.UpdateHubRequest;
+import com.sparta.logistics.hub.hub.dto.response.HubDeleteResponse;
+import com.sparta.logistics.hub.hub.dto.response.HubUpdateResponse;
+import com.sparta.logistics.hub.hub.dto.request.CreateHubRequest;
+import com.sparta.logistics.hub.hub.dto.response.HubCreateResponse;
+import com.sparta.logistics.hub.hub.dto.response.HubDetailResponse;
 import com.sparta.logistics.hub.hub.service.HubService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +30,11 @@ public class HubController {
      * @return 생성된 허브 정보
      */
     @PostMapping
-    public ResponseEntity<ApiResponse<ResHubCreateDto>> createHub(@RequestBody @Valid ReqCreateHubDto request) {
+    public ResponseEntity<ApiResponse<HubCreateResponse>> createHub(@RequestBody @Valid CreateHubRequest request) {
 
-        ResHubCreateDto response = ResHubCreateDto.from(hubService.createHub(request));
+
+        HubCreateResponse response = HubCreateResponse.from(hubService.createHub(request));
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("허브가 생성되었습니다.", response));
     }
@@ -44,9 +46,9 @@ public class HubController {
      * @return 허브 상세 정보
      */
     @GetMapping("/{hubId}")
-    public ResponseEntity<ApiResponse<ResHubDetailDto>> getHub(@PathVariable UUID hubId) {
+    public ResponseEntity<ApiResponse<HubDetailResponse>> getHub(@PathVariable UUID hubId) {
 
-        ResHubDetailDto response = ResHubDetailDto.from(hubService.getHub(hubId));
+        HubDetailResponse response = HubDetailResponse.from(hubService.getHub(hubId));
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
@@ -73,10 +75,10 @@ public class HubController {
      * @return 수정된 허브 정보
      */
     @PutMapping("/{hubId}")
-    public ResponseEntity<ApiResponse<ResHubUpdateDto>> updateHub(@PathVariable UUID hubId,
-                                                                  @RequestBody @Valid ReqUpdateHubDto request) {
+    public ResponseEntity<ApiResponse<HubUpdateResponse>> updateHub(@PathVariable UUID hubId,
+                                                                    @RequestBody @Valid UpdateHubRequest request) {
 
-        ResHubUpdateDto response = ResHubUpdateDto.from(hubService.updateHub(hubId, request));
+        HubUpdateResponse response = HubUpdateResponse.from(hubService.updateHub(hubId, request));
 
         return ResponseEntity.ok(ApiResponse.ok("허브가 수정되었습니다.", response));
     }
@@ -89,11 +91,11 @@ public class HubController {
      * @return 삭제된 허브 정보
      */
     @DeleteMapping("/{hubId}")
-    public ResponseEntity<ApiResponse<ResHubDeleteDto>> deleteHub(
+    public ResponseEntity<ApiResponse<HubDeleteResponse>> deleteHub(
             @PathVariable UUID hubId,
             @RequestHeader("X-User-Id") UUID userId) {
 
-        ResHubDeleteDto response = ResHubDeleteDto.from(hubService.deleteHub(hubId, userId));
+        HubDeleteResponse response = HubDeleteResponse.from(hubService.deleteHub(hubId, userId));
 
         return ResponseEntity.ok(ApiResponse.ok("허브가 삭제되었습니다.", response));
     }

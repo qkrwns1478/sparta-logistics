@@ -9,13 +9,13 @@ import java.util.UUID;
 
 @Getter
 @Builder
-public class ResHubDeleteDto {
+public class HubDeleteResponse {
 
     private UUID hubId;
     private LocalDateTime deletedAt;
 
-    public static ResHubDeleteDto from(Hub hub) {
-        return ResHubDeleteDto.builder()
+    public static HubDeleteResponse from(Hub hub) {
+        return HubDeleteResponse.builder()
                 .hubId(hub.getId())
                 .deletedAt(hub.getDeletedAt())
                 .build();

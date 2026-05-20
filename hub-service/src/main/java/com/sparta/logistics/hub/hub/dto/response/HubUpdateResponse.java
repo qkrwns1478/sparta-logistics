@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Getter
 @Builder
-public class ResHubUpdateDto {
+public class HubUpdateResponse {
 
     private UUID hubId;
     private String name;
@@ -21,8 +21,8 @@ public class ResHubUpdateDto {
     private HubStatus status;
     private LocalDateTime updatedAt;
 
-    public static ResHubUpdateDto from(Hub hub) {
-        return ResHubUpdateDto.builder()
+    public static HubUpdateResponse from(Hub hub) {
+        return HubUpdateResponse.builder()
                 .hubId(hub.getId())
                 .name(hub.getName())
                 .address(hub.getAddress())

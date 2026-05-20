@@ -1,6 +1,7 @@
 package com.sparta.logistics.hub.hub.dto.response;
 
 import com.sparta.logistics.hub.hub.entity.Hub;
+
 import com.sparta.logistics.hub.hub.enums.HubStatus;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,7 +12,7 @@ import java.util.UUID;
 
 @Getter
 @Builder
-public class ResHubDetailDto {
+public class HubCreateResponse {
 
     private UUID hubId;
     private String name;
@@ -20,10 +21,9 @@ public class ResHubDetailDto {
     private BigDecimal longitude;
     private HubStatus status;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
-    public static ResHubDetailDto from(Hub hub) {
-        return ResHubDetailDto.builder()
+    public static HubCreateResponse from(Hub hub) {
+        return HubCreateResponse.builder()
                 .hubId(hub.getId())
                 .name(hub.getName())
                 .address(hub.getAddress())
@@ -31,7 +31,6 @@ public class ResHubDetailDto {
                 .longitude(hub.getLongitude())
                 .status(hub.getStatus())
                 .createdAt(hub.getCreatedAt())
-                .updatedAt(hub.getUpdatedAt())
                 .build();
     }
 }

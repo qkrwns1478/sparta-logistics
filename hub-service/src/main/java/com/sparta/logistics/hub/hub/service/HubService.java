@@ -2,8 +2,8 @@ package com.sparta.logistics.hub.hub.service;
 
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.hub.exception.HubErrorCode;
-import com.sparta.logistics.hub.hub.dto.request.ReqCreateHubDto;
-import com.sparta.logistics.hub.hub.dto.request.ReqUpdateHubDto;
+import com.sparta.logistics.hub.hub.dto.request.CreateHubRequest;
+import com.sparta.logistics.hub.hub.dto.request.UpdateHubRequest;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ public class HubService {
 
 
     @Transactional
-    public Hub createHub(ReqCreateHubDto request) {
+    public Hub createHub(CreateHubRequest request) {
 
         // 허브 이름 중복 체크
         if (hubRepository.existsByName(request.getName())) {
@@ -59,7 +59,7 @@ public class HubService {
     }
 
     @Transactional
-    public Hub updateHub(UUID hubId, ReqUpdateHubDto request) {
+    public Hub updateHub(UUID hubId, UpdateHubRequest request) {
 
         Hub hub = hubRepository.findById(hubId)
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
