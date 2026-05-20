@@ -1,6 +1,8 @@
 package com.sparta.logistics.hub.hub.controller;
 
 import com.sparta.logistics.common.response.ApiResponse;
+import com.sparta.logistics.hub.hub.dto.request.ReqUpdateHubDto;
+import com.sparta.logistics.hub.hub.dto.response.ResHubUpdateDto;
 import com.sparta.logistics.hub.hub.dto.request.ReqCreateHubDto;
 import com.sparta.logistics.hub.hub.dto.response.ResHubCreateDto;
 import com.sparta.logistics.hub.hub.dto.response.ResHubDetailDto;
@@ -48,5 +50,14 @@ public class HubController {
         if (!exists)
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{hubId}")
+    public ResponseEntity<ApiResponse<ResHubUpdateDto>> updateHub(@PathVariable UUID hubId,
+                                                                  @RequestBody @Valid ReqUpdateHubDto request) {
+
+        ResHubUpdateDto response = ResHubUpdateDto.from(hubService.updateHub(hubId, request));
+
+        return ResponseEntity.ok(ApiResponse.ok("허브가 수정되었습니다.", response));
     }
 }

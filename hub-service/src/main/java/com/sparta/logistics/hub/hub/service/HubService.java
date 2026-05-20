@@ -3,6 +3,7 @@ package com.sparta.logistics.hub.hub.service;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.hub.dto.request.ReqCreateHubDto;
+import com.sparta.logistics.hub.hub.dto.request.ReqUpdateHubDto;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,5 +46,27 @@ public class HubService {
     public boolean existsHub(UUID hubId) {
 
         return hubRepository.existsById(hubId);
+    }
+
+    @Transactional
+    public Hub updateHub(UUID hubId, ReqUpdateHubDto request) {
+
+        Hub hub = hubRepository.findById(hubId)
+                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+
+        // 허브 이름 중복 본인 제외 체크
+        if (hubRepository.existsByNameAndIdNot(request.getName(), hubId)) {
+            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+        }
+
+        hub.update(
+                request.getName(),
+                request.getAddress(),
+                request.getLatitude(),
+                request.getLongitude(),
+                request.getStatus()
+        );
+
+        return hub;
     }
 }
