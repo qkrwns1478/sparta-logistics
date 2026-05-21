@@ -31,6 +31,7 @@ public class HubService {
     private final HubRouteRepository hubRouteRepository;
 
 
+    @CacheEvict(value = "hubList", allEntries = true)
     @Transactional
     public HubCreateResponse createHub(CreateHubRequest request) {
 
@@ -62,7 +63,8 @@ public class HubService {
                     " ':' + #address +" +
                     " ':' + #status +" +
                     " ':' + #pageable.pageNumber +" +
-                    " ':' + #pageable.pageSize"
+                    " ':' + #pageable.pageSize +" +
+                    " ':' + #pageable.sort.toString()"
     )
     @Transactional(readOnly = true)
     public Page<HubListResponse> getHubList(String name, String address, HubStatus status, Pageable pageable) {
