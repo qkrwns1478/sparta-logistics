@@ -54,6 +54,6 @@ public class HubStockController {
 
         HubStockAdjustResponse response = hubStockService.adjustHubStock(hubId, stockId, request);
 
-        return ResponseEntity.ok(ApiResponse.ok(response));
+        return ResponseEntity.ok(ApiResponse.ok("허브 재고가 수정되었습니다.", response));
     }
 }
