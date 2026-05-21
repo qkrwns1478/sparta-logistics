@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
         "com.sparta.logistics.common"
 })
 @EnableFeignClients
+@EnableJpaAuditing
 public class CompanyServiceApplication {
 
     public static void main(String[] args) {
