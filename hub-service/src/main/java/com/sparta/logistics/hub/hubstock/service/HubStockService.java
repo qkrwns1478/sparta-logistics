@@ -75,23 +75,7 @@ public class HubStockService {
 
         for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
             try {
-                HubStock hubStock = hubStockRepository.findByIdAndDeletedAtIsNull(stockId)
-                        .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
-
-                // 허브 유효성 검증
-                if (!hubStock.getHub().getId().equals(hubId)) {
-                    throw new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND);
-                }
-
-                // 음수 방지 검증
-                if (hubStock.getAvailable() + request.getChangeQuantity() < 0) {
-                    throw new BusinessException(HubStockErrorCode.HUB_STOCK_INSUFFICIENT);
-                }
-
-                hubStock.adjustAvailable(request.getChangeQuantity());
-                hubStockRepository.flush();
-                return HubStockAdjustResponse.from(hubStock, request.getChangeQuantity(), request.getChangeType());
-
+                return hubStockLockHelper.adjustWithOptimisticLock(hubId, stockId, request);
             } catch (OptimisticLockingFailureException e) {
                 if (attempt == MAX_RETRY - 1) {
                     return hubStockLockHelper.adjustWithPessimisticLock(hubId, stockId, request);
