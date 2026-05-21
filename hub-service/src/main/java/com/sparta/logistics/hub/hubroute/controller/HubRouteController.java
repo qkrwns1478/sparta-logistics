@@ -23,10 +23,10 @@ public class HubRouteController {
     private final HubRouteService hubRouteService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<HubRouteCreateResponse>> createHubRoute(
+    public ResponseEntity<ApiResponse<HubRouteDetailResponse>> createHubRoute(
             @RequestBody @Valid CreateHubRouteRequest request) {
 
-        HubRouteCreateResponse response = hubRouteService.createHubRoute(request);
+        HubRouteDetailResponse response = hubRouteService.createHubRoute(request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("허브 경로가 생성되었습니다.", response));

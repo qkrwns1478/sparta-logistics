@@ -27,7 +27,7 @@ public class HubRouteService {
     private final HubRepository hubRepository;
 
     @Transactional
-    public HubRouteCreateResponse createHubRoute(CreateHubRouteRequest request) {
+    public HubRouteDetailResponse createHubRoute(CreateHubRouteRequest request) {
 
         if (request.getSourceHubId().equals(request.getDestinationHubId())) {
             throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_SAME_HUB);
@@ -53,7 +53,7 @@ public class HubRouteService {
         try {
             HubRoute savedRoute = hubRouteRepository.save(hubRoute);
             hubRouteRepository.flush();
-            return HubRouteCreateResponse.from(savedRoute);
+            return HubRouteDetailResponse.from(savedRoute);
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_ALREADY_EXISTS);
         }
