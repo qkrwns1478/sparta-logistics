@@ -52,4 +52,9 @@ public class HubRoute extends BaseEntity {
                 .duration(duration)
                 .build();
     }
+
+    public void update(BigDecimal distance, Integer duration) {
+        this.distance = distance;
+        this.duration = duration;
+    }
 }

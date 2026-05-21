@@ -2,9 +2,11 @@ package com.sparta.logistics.hub.hubroute.controller;
 
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
+import com.sparta.logistics.hub.hubroute.dto.request.UpdateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteCreateResponse;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteDetailResponse;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteListResponse;
+import com.sparta.logistics.hub.hubroute.dto.response.HubRouteUpdateResponse;
 import com.sparta.logistics.hub.hubroute.service.HubRouteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -51,5 +53,15 @@ public class HubRouteController {
         HubRouteDetailResponse response = hubRouteService.getHubRoute(routeId);
 
         return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @PutMapping("/{routeId}")
+    public ResponseEntity<ApiResponse<HubRouteUpdateResponse>> updateHubRoute(
+            @PathVariable UUID routeId,
+            @RequestBody @Valid UpdateHubRouteRequest request) {
+
+        HubRouteUpdateResponse response = hubRouteService.updateHubRoute(routeId, request);
+
+        return ResponseEntity.ok(ApiResponse.ok("이동 경로가 수정되었습니다.", response));
     }
 }

@@ -6,9 +6,11 @@ import com.sparta.logistics.hub.exception.HubRouteErrorCode;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
+import com.sparta.logistics.hub.hubroute.dto.request.UpdateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteCreateResponse;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteDetailResponse;
 import com.sparta.logistics.hub.hubroute.dto.response.HubRouteListResponse;
+import com.sparta.logistics.hub.hubroute.dto.response.HubRouteUpdateResponse;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
 import lombok.RequiredArgsConstructor;
@@ -76,9 +78,25 @@ public class HubRouteService {
         return HubRouteDetailResponse.from(hubRoute);
     }
 
+    @Transactional
+    public HubRouteUpdateResponse updateHubRoute(UUID routeId, UpdateHubRouteRequest request) {
+
+        HubRoute hubRoute = findHubRouteById(routeId);
+
+        hubRoute.update(request.getDistance(), request.getDuration());
+
+        return HubRouteUpdateResponse.from(hubRoute);
+    }
+
     private Hub findHubById(UUID hubId) {
 
         return hubRepository.findByIdAndDeletedAtIsNull(hubId)
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+    }
+
+    private HubRoute findHubRouteById(UUID hubRouteId) {
+
+        return hubRouteRepository.findByIdAndDeletedAtIsNull(hubRouteId)
+                .orElseThrow(() -> new BusinessException(HubRouteErrorCode.HUB_ROUTE_NOT_FOUND));
     }
 }
