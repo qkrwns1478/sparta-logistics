@@ -5,13 +5,18 @@ import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.exception.HubStockErrorCode;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
+import com.sparta.logistics.hub.hubstock.dto.request.AdjustHubStockRequest;
 import com.sparta.logistics.hub.hubstock.dto.request.CreateHubStockRequest;
+import com.sparta.logistics.hub.hubstock.dto.response.HubStockAdjustResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockCreateResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockListResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
+import com.sparta.logistics.hub.hubstock.enums.HubStockChangeType;
+import com.sparta.logistics.hub.hubstock.helper.HubStockLockHelper;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +30,9 @@ public class HubStockService {
 
     private final HubStockRepository hubStockRepository;
     private final HubRepository hubRepository;
+    private final HubStockLockHelper hubStockLockHelper;
+
+    private static final int MAX_RETRY = 3;
 
     // todo: product도 존재 여부를 체크 고민
     @Transactional
@@ -55,4 +63,44 @@ public class HubStockService {
         return hubStockRepository.findAllByCondition(hubId, productId, pageable)
                 .map(HubStockListResponse::from);
     }
+
+    @Transactional
+    public HubStockAdjustResponse adjustHubStock(UUID hubId, UUID stockId, AdjustHubStockRequest request) {
+
+        // changeType 유효성 검증
+        if (request.getChangeType() != HubStockChangeType.INBOUND &&
+                request.getChangeType() != HubStockChangeType.MANUAL_ADJUST) {
+            throw new BusinessException(HubStockErrorCode.HUB_STOCK_INVALID_CHANGE_TYPE);
+        }
+
+        for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
+            try {
+                HubStock hubStock = hubStockRepository.findByIdAndDeletedAtIsNull(stockId)
+                        .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+                // 허브 유효성 검증
+                if (!hubStock.getHub().getId().equals(hubId)) {
+                    throw new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND);
+                }
+
+                // 음수 방지 검증
+                if (hubStock.getAvailable() + request.getChangeQuantity() < 0) {
+                    throw new BusinessException(HubStockErrorCode.HUB_STOCK_INSUFFICIENT);
+                }
+
+                hubStock.adjustAvailable(request.getChangeQuantity());
+                hubStockRepository.flush();
+                return HubStockAdjustResponse.from(hubStock, request.getChangeQuantity(), request.getChangeType());
+
+            } catch (OptimisticLockingFailureException e) {
+                if (attempt == MAX_RETRY - 1) {
+                    return hubStockLockHelper.adjustWithPessimisticLock(hubId, stockId, request);
+                }
+            }
+        }
+
+        throw new BusinessException(HubStockErrorCode.HUB_STOCK_ADJUST_FAILED);
+    }
+
+
 }

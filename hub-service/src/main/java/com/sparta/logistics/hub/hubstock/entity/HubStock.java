@@ -54,4 +54,8 @@ public class HubStock extends BaseEntity {
                 .available(initialQuantity)
                 .build();
     }
+
+    public void adjustAvailable(Integer changeQuantity) {
+        this.available += changeQuantity;
+    }
 }

@@ -1,7 +1,9 @@
 package com.sparta.logistics.hub.hubstock.controller;
 
 import com.sparta.logistics.common.response.ApiResponse;
+import com.sparta.logistics.hub.hubstock.dto.request.AdjustHubStockRequest;
 import com.sparta.logistics.hub.hubstock.dto.request.CreateHubStockRequest;
+import com.sparta.logistics.hub.hubstock.dto.response.HubStockAdjustResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockCreateResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockListResponse;
 import com.sparta.logistics.hub.hubstock.service.HubStockService;
@@ -40,6 +42,17 @@ public class HubStockController {
             Pageable pageable) {
 
         Page<HubStockListResponse> response = hubStockService.getHubStockList(hubId, productId, pageable);
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @PatchMapping("/{stockId}")
+    public ResponseEntity<ApiResponse<HubStockAdjustResponse>> adjustHubStock(
+            @PathVariable UUID hubId,
+            @PathVariable UUID stockId,
+            @RequestBody @Valid AdjustHubStockRequest request) {
+
+        HubStockAdjustResponse response = hubStockService.adjustHubStock(hubId, stockId, request);
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
