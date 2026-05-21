@@ -32,7 +32,7 @@ public class OrderService {
      * 2. Hub Service에 재고 예약 요청
      * 3. Delivery Service에서 배송 및 경로 자동 생성
      * 4. Notification Service에서 AI 발송 시간 계산 후 슬랙 알림 발송
-     */
+     * */
     @Transactional
     public OrderDetailResponse createOrder(
             UUID requesterCompanyId,
@@ -72,6 +72,7 @@ public class OrderService {
             UUID userId,
             Pageable pageable
     ) {
+        // MASTER, HUB_MANAGER는 전체 조회, 그 외는 본인 주문만 가능
         return orderRepository.search(
                 isAdminRole(role) ? null : userId,
                 requesterCompanyId,
@@ -94,6 +95,7 @@ public class OrderService {
     /** 주문 수정 **/
     @Transactional
     public OrderDetailResponse updateOrder(UUID orderId, LocalDateTime dueDate, String requestMemo, UUID userId, Role role) {
+        // 수정은 HUB_MANAGER 또는 MASTER만 가능
         if (!isAdminRole(role)) {
             throw new BusinessException(OrderErrorCode.ORDER_UPDATE_PERMISSION_DENIED);
         }
@@ -102,6 +104,7 @@ public class OrderService {
 
         Order order = findOrder(orderId);
 
+        // CANCELLED 또는 COMPLETED 상태는 수정 불가
         if (!order.isModifiable()) {
             throw new BusinessException(OrderErrorCode.ORDER_NOT_MODIFIABLE);
         }
@@ -115,9 +118,10 @@ public class OrderService {
      * 1. Delivery Service: 배송 및 경로 취소
      * 2. Hub Service: 재고 복구
      * 3. 주문 상태 -> CANCELLED ✅
-     */
+     * */
     @Transactional
     public OrderDetailResponse cancelOrder(UUID orderId, String cancelReason, UUID userId, Role role) {
+        // 취소는 HUB_MANAGER 또는 MASTER만 가능
         if (!isAdminRole(role)) {
             throw new BusinessException(OrderErrorCode.ORDER_CANCEL_PERMISSION_DENIED);
         }
@@ -126,6 +130,7 @@ public class OrderService {
 
         Order order = findOrder(orderId);
 
+        // CANCELLED 또는 COMPLETED 상태는 취소 불가
         if (!order.isModifiable()) {
             throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
         }
@@ -139,6 +144,7 @@ public class OrderService {
                 .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
+    // MASTER, HUB_MANAGER 이외의 사용자가 본인 것이 아닌 주문에 접근하면 안 됨
     private void checkPermission(Order order, UUID userId, Role role) {
         if (!isAdminRole(role) && !order.getRequesterUserId().equals(userId)) {
             throw new BusinessException(OrderErrorCode.ORDER_ACCESS_DENIED);
