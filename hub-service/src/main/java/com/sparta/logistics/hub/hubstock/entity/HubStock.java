@@ -45,4 +45,13 @@ public class HubStock extends BaseEntity {
 
     @Version
     private Long version;
+
+
+    public static HubStock create(Hub hub, UUID productId, Integer initialQuantity) {
+        return HubStock.builder()
+                .hub(hub)
+                .productId(productId)
+                .available(initialQuantity)
+                .build();
+    }
 }
