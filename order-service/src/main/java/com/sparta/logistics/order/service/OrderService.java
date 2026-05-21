@@ -5,7 +5,7 @@ import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.order.domain.Order;
 import com.sparta.logistics.order.domain.OrderItem;
 import com.sparta.logistics.order.domain.OrderStatus;
-import com.sparta.logistics.order.dto.OrderItemData;
+import com.sparta.logistics.order.dto.request.OrderItemRequest;
 import com.sparta.logistics.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.dto.response.OrderSummaryResponse;
 import com.sparta.logistics.order.exception.OrderErrorCode;
@@ -39,7 +39,7 @@ public class OrderService {
             UUID receiverCompanyId,
             LocalDateTime dueDate,
             String requestMemo,
-            List<OrderItemData> items,
+            List<OrderItemRequest> items,
             UUID userId
     ) {
         Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
@@ -47,10 +47,10 @@ public class OrderService {
         items.forEach(item -> {
             OrderItem orderItem = OrderItem.create(
                     order,
-                    item.productId(),
-                    item.productName(),
-                    item.unitPrice(),
-                    item.quantity()
+                    item.getProductId(),
+                    item.getProductName(),
+                    item.getUnitPrice(),
+                    item.getQuantity()
             );
             order.addOrderItem(orderItem);
         });
