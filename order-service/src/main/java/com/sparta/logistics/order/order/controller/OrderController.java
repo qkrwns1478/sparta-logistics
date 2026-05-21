@@ -1,15 +1,14 @@
-package com.sparta.logistics.order.controller;
+package com.sparta.logistics.order.order.controller;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.response.ApiResponse;
-import com.sparta.logistics.order.domain.OrderStatus;
-import com.sparta.logistics.order.dto.OrderItemData;
-import com.sparta.logistics.order.dto.request.OrderCancelRequest;
-import com.sparta.logistics.order.dto.request.OrderCreateRequest;
-import com.sparta.logistics.order.dto.request.OrderUpdateRequest;
-import com.sparta.logistics.order.dto.response.OrderDetailResponse;
-import com.sparta.logistics.order.dto.response.OrderSummaryResponse;
-import com.sparta.logistics.order.service.OrderService;
+import com.sparta.logistics.order.order.dto.request.OrderCancelRequest;
+import com.sparta.logistics.order.order.dto.request.OrderCreateRequest;
+import com.sparta.logistics.order.order.dto.request.OrderUpdateRequest;
+import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
+import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
+import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,10 +17,18 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,18 +44,12 @@ public class OrderController {
             @Valid @RequestBody OrderCreateRequest request,
             @RequestHeader("X-User-Id") UUID userId
     ) {
-
-        List<OrderItemData> items = request.getOrderItems().stream()
-                .map(i -> new OrderItemData(i.getProductId(), i.getProductName(), i.getUnitPrice(), i.getQuantity()))
-                .toList();
-
-        // ArchUnit 레이어 규칙에 의해 Controller만 RequestDto에 접근 가능함 → 개별 파라미터를 Service로 전달해야 함
         OrderDetailResponse response = orderService.createOrder(
                 request.getRequesterCompanyId(),
                 request.getReceiverCompanyId(),
                 request.getDueDate(),
                 request.getRequestMemo(),
-                items,
+                request.getOrderItems(),
                 userId
         );
         return ResponseEntity.status(HttpStatus.CREATED)

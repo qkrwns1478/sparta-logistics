@@ -1,4 +1,4 @@
-package com.sparta.logistics.order.dto.request;
+package com.sparta.logistics.order.orderitem.dto.request;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

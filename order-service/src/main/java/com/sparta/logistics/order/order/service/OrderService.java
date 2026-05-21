@@ -1,15 +1,15 @@
-package com.sparta.logistics.order.service;
+package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.order.domain.Order;
-import com.sparta.logistics.order.domain.OrderItem;
-import com.sparta.logistics.order.domain.OrderStatus;
-import com.sparta.logistics.order.dto.OrderItemData;
-import com.sparta.logistics.order.dto.response.OrderDetailResponse;
-import com.sparta.logistics.order.dto.response.OrderSummaryResponse;
 import com.sparta.logistics.order.exception.OrderErrorCode;
-import com.sparta.logistics.order.repository.OrderRepository;
+import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
+import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
+import com.sparta.logistics.order.order.entity.Order;
+import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.repository.OrderRepository;
+import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
+import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,14 +32,14 @@ public class OrderService {
      * 2. Hub Service에 재고 예약 요청
      * 3. Delivery Service에서 배송 및 경로 자동 생성
      * 4. Notification Service에서 AI 발송 시간 계산 후 슬랙 알림 발송
-     * */
+     */
     @Transactional
     public OrderDetailResponse createOrder(
             UUID requesterCompanyId,
             UUID receiverCompanyId,
             LocalDateTime dueDate,
             String requestMemo,
-            List<OrderItemData> items,
+            List<OrderItemRequest> items,
             UUID userId
     ) {
         Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
@@ -47,10 +47,10 @@ public class OrderService {
         items.forEach(item -> {
             OrderItem orderItem = OrderItem.create(
                     order,
-                    item.productId(),
-                    item.productName(),
-                    item.unitPrice(),
-                    item.quantity()
+                    item.getProductId(),
+                    item.getProductName(),
+                    item.getUnitPrice(),
+                    item.getQuantity()
             );
             order.addOrderItem(orderItem);
         });
@@ -72,7 +72,6 @@ public class OrderService {
             UUID userId,
             Pageable pageable
     ) {
-        // MASTER, HUB_MANAGER는 전체 조회, 그 외는 본인 주문만 가능
         return orderRepository.search(
                 isAdminRole(role) ? null : userId,
                 requesterCompanyId,
@@ -95,7 +94,6 @@ public class OrderService {
     /** 주문 수정 **/
     @Transactional
     public OrderDetailResponse updateOrder(UUID orderId, LocalDateTime dueDate, String requestMemo, UUID userId, Role role) {
-        // 수정은 HUB_MANAGER 또는 MASTER만 가능
         if (!isAdminRole(role)) {
             throw new BusinessException(OrderErrorCode.ORDER_UPDATE_PERMISSION_DENIED);
         }
@@ -104,7 +102,6 @@ public class OrderService {
 
         Order order = findOrder(orderId);
 
-        // CANCELLED 또는 COMPLETED 상태는 수정 불가
         if (!order.isModifiable()) {
             throw new BusinessException(OrderErrorCode.ORDER_NOT_MODIFIABLE);
         }
@@ -118,10 +115,9 @@ public class OrderService {
      * 1. Delivery Service: 배송 및 경로 취소
      * 2. Hub Service: 재고 복구
      * 3. 주문 상태 -> CANCELLED ✅
-     * */
+     */
     @Transactional
     public OrderDetailResponse cancelOrder(UUID orderId, String cancelReason, UUID userId, Role role) {
-        // 취소는 HUB_MANAGER 또는 MASTER만 가능
         if (!isAdminRole(role)) {
             throw new BusinessException(OrderErrorCode.ORDER_CANCEL_PERMISSION_DENIED);
         }
@@ -130,7 +126,6 @@ public class OrderService {
 
         Order order = findOrder(orderId);
 
-        // CANCELLED 또는 COMPLETED 상태는 취소 불가
         if (!order.isModifiable()) {
             throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
         }
@@ -144,7 +139,6 @@ public class OrderService {
                 .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
-    // MASTER, HUB_MANAGER 이외의 사용자가 본인 것이 아닌 주문에 접근하면 안 됨
     private void checkPermission(Order order, UUID userId, Role role) {
         if (!isAdminRole(role) && !order.getRequesterUserId().equals(userId)) {
             throw new BusinessException(OrderErrorCode.ORDER_ACCESS_DENIED);

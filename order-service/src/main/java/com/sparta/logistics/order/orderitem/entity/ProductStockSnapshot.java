@@ -1,4 +1,4 @@
-package com.sparta.logistics.order.domain;
+package com.sparta.logistics.order.orderitem.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

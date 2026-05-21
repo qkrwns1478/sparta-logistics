@@ -1,5 +1,6 @@
-package com.sparta.logistics.order.dto.request;
+package com.sparta.logistics.order.order.dto.request;
 
+import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotEmpty;

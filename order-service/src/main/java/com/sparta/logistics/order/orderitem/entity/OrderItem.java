@@ -1,6 +1,7 @@
-package com.sparta.logistics.order.domain;
+package com.sparta.logistics.order.orderitem.entity;
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.order.order.entity.Order;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

@@ -1,6 +1,8 @@
-package com.sparta.logistics.order.domain;
+package com.sparta.logistics.order.order.entity;
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -52,7 +54,6 @@ public class Order extends BaseEntity {
     @Column(name = "cancel_reason")
     private String cancelReason;
 
-    // 주문 : 주문 상세 = 1:N
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
@@ -90,7 +91,6 @@ public class Order extends BaseEntity {
         this.cancelReason = cancelReason;
     }
 
-    // 주문 상태가 CANCELLED 또는 COMPLETED면 수정할 수 없음
     public boolean isModifiable() {
         return this.status != OrderStatus.CANCELLED && this.status != OrderStatus.COMPLETED;
     }
