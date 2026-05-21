@@ -46,8 +46,10 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
     private boolean isWhiteList(String path){
         return path.startsWith("/api/v1/auth/login") ||
                 path.startsWith("/api/v1/auth/signup")||
-                path.startsWith("/api/v1/auth/refresh"); // 리프레시토큰은 인증 서비스에서 검증...?
+                path.startsWith("/api/v1/auth/refresh");
     }
+
+
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -74,9 +76,9 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
                         log.error("JWT subject(userId) 가 비어 있음");
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
-                    String normalizedUserId = userId.trim(); // 공백 제거
+                    String normalUserId = userId.trim(); // 공백 제거
                     try {
-                        UUID.fromString(normalizedUserId); // UUID 형태인지 검사
+                        UUID.fromString(normalUserId); // string -> UUID 변환
                     } catch (IllegalArgumentException ex) {
                         log.error("JWT subject 가 UUID 형식이 아님");
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
@@ -91,12 +93,23 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
 
+                    String hubId = jwt.getClaimAsString("hubId");
+                    String companyId = jwt.getClaimAsString("companyId");
+
                     ServerHttpRequest.Builder builder = exchange.getRequest().mutate();
                     builder.headers(headers -> {
                         headers.remove("X-User-Id");
                         headers.remove("X-User-Role");
-                        headers.set("X-User-Id", normalizedUserId);
+                        headers.remove("X-User-HubId");
+                        headers.remove("X-User-CompanyId");
+                        headers.set("X-User-Id", normalUserId);
                         headers.set("X-User-Role", finalRole);
+
+                        if (StringUtils.hasText(hubId))
+                            headers.set("X-User-HubId",hubId.trim());
+
+                        if (StringUtils.hasText(companyId))
+                            headers.set("X-User-CompanyId",companyId.trim());
 
                     });
                     return chain.filter(exchange.mutate().request(builder.build()).build());
