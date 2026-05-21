@@ -1,4 +1,4 @@
-package com.sparta.logistics.order.client.dto.response;
+package com.sparta.logistics.order.client.response;
 
 import java.util.UUID;
 

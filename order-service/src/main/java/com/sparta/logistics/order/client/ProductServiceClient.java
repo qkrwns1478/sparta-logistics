@@ -1,7 +1,7 @@
 package com.sparta.logistics.order.client;
 
 import com.sparta.logistics.common.response.ApiResponse;
-import com.sparta.logistics.order.client.dto.response.ProductResponse;
+import com.sparta.logistics.order.client.response.ProductResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
