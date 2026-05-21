@@ -21,20 +21,34 @@ public class HubStockLockHelper {
 
     // 새 트랜잭션 생성
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public HubStockAdjustResponse adjustWithPessimisticLock(UUID hubId, UUID stockId, AdjustHubStockRequest request) {
+    public HubStockAdjustResponse adjustWithOptimisticLock(UUID hubId, UUID stockId, AdjustHubStockRequest request) {
 
-        HubStock lockedStock = hubStockRepository.findByIdWithLock(stockId)
+        HubStock hubStock = hubStockRepository.findByIdAndDeletedAtIsNull(stockId)
                 .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
 
-        if (!lockedStock.getHub().getId().equals(hubId)) {
+        return adjust(hubStock, hubId, request);
+    }
+
+    // 새 트랜잭션 생성
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public HubStockAdjustResponse adjustWithPessimisticLock(UUID hubId, UUID stockId, AdjustHubStockRequest request) {
+
+        HubStock hubStock = hubStockRepository.findByIdWithLock(stockId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        return adjust(hubStock, hubId, request);
+    }
+
+    private HubStockAdjustResponse adjust(HubStock hubStock, UUID hubId, AdjustHubStockRequest request) {
+
+        if (!hubStock.getHub().getId().equals(hubId)) {
             throw new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND);
         }
-
-        if (lockedStock.getAvailable() + request.getChangeQuantity() < 0) {
+        if (hubStock.getAvailable() + request.getChangeQuantity() < 0) {
             throw new BusinessException(HubStockErrorCode.HUB_STOCK_INSUFFICIENT);
         }
 
-        lockedStock.adjustAvailable(request.getChangeQuantity());
-        return HubStockAdjustResponse.from(lockedStock, request.getChangeQuantity(), request.getChangeType());
+        hubStock.adjustAvailable(request.getChangeQuantity());
+        return HubStockAdjustResponse.from(hubStock, request.getChangeQuantity(), request.getChangeType());
     }
 }
