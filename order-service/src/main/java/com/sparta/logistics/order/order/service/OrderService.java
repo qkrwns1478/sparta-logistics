@@ -2,6 +2,10 @@ package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.order.client.CompanyServiceClient;
+import com.sparta.logistics.order.client.ProductServiceClient;
+import com.sparta.logistics.order.client.dto.response.CompanyResponse;
+import com.sparta.logistics.order.client.dto.response.ProductResponse;
 import com.sparta.logistics.order.exception.OrderErrorCode;
 import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
@@ -10,6 +14,7 @@ import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,13 +30,17 @@ import java.util.UUID;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final CompanyServiceClient companyServiceClient;
+    private final ProductServiceClient productServiceClient;
 
     /**
      * 주문 생성
-     * 1. Order 및 OrderItem 생성 (PENDING) ✅
-     * 2. Hub Service에 재고 예약 요청
-     * 3. Delivery Service에서 배송 및 경로 자동 생성
-     * 4. Notification Service에서 AI 발송 시간 계산 후 슬랙 알림 발송
+     * 1. requesterCompanyId / receiverCompanyId 존재 여부 검증 (Company Service) ✅
+     * 2. 각 상품 정보(이름·단가) 조회 (Product Service) ✅
+     * 3. Order 및 OrderItem 생성 (PENDING) ✅
+     * 4. Hub Service에 재고 예약 요청 // TODO: Kafka Choreography Saga
+     * 5. Delivery Service에서 배송 및 경로 자동 생성 // TODO: Kafka Choreography Saga
+     * 6. Notification Service에서 AI 발송 시간 계산 후 슬랙 알림 발송 // TODO: Kafka Choreography Saga
      * */
     @Transactional
     public OrderDetailResponse createOrder(
@@ -42,14 +51,19 @@ public class OrderService {
             List<OrderItemRequest> items,
             UUID userId
     ) {
+        // 업체가 존재하는지 검증
+        validateCompanyExists(requesterCompanyId);
+        validateCompanyExists(receiverCompanyId);
+
         Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
 
         items.forEach(item -> {
+            ProductResponse product = fetchProduct(item.getProductId());
             OrderItem orderItem = OrderItem.create(
                     order,
                     item.getProductId(),
-                    item.getProductName(),
-                    item.getUnitPrice(),
+                    product.name(),
+                    product.price(),
                     item.getQuantity()
             );
             order.addOrderItem(orderItem);
@@ -89,7 +103,11 @@ public class OrderService {
     public OrderDetailResponse getOrder(UUID orderId, UUID userId, Role role) {
         Order order = findOrder(orderId);
         checkPermission(order, userId, role);
-        return OrderDetailResponse.from(order);
+
+        String requesterCompanyName = fetchCompanyName(order.getRequesterCompanyId());
+        String receiverCompanyName = fetchCompanyName(order.getReceiverCompanyId());
+
+        return OrderDetailResponse.from(order, requesterCompanyName, receiverCompanyName);
     }
 
     /** 주문 수정 **/
@@ -115,9 +133,9 @@ public class OrderService {
 
     /**
      * 주문 취소
-     * 1. Delivery Service: 배송 및 경로 취소
-     * 2. Hub Service: 재고 복구
-     * 3. 주문 상태 -> CANCELLED ✅
+     * 1. Delivery Service: 배송 및 경로 취소 // TODO: Kafka Orchestration Saga
+     * 2. Hub Service: 재고 복구 // TODO: Kafka Orchestration Saga
+     * 3. 주문 상태 → CANCELLED ✅
      * */
     @Transactional
     public OrderDetailResponse cancelOrder(UUID orderId, String cancelReason, UUID userId, Role role) {
@@ -137,6 +155,31 @@ public class OrderService {
 
         order.cancel(userId, cancelReason);
         return OrderDetailResponse.from(order);
+    }
+
+    private void validateCompanyExists(UUID companyId) {
+        try {
+            companyServiceClient.checkCompanyExists(companyId);
+        } catch (FeignException.NotFound e) {
+            throw new BusinessException(OrderErrorCode.COMPANY_NOT_FOUND);
+        }
+    }
+
+    private ProductResponse fetchProduct(UUID productId) {
+        try {
+            return productServiceClient.getProduct(productId).data();
+        } catch (FeignException.NotFound e) {
+            throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
+        }
+    }
+
+    private String fetchCompanyName(UUID companyId) {
+        try {
+            CompanyResponse company = companyServiceClient.getCompany(companyId).data();
+            return company != null ? company.name() : null;
+        } catch (FeignException.NotFound e) {
+            return null;
+        }
     }
 
     private Order findOrder(UUID orderId) {

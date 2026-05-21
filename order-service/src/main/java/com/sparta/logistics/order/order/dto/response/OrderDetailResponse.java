@@ -14,7 +14,9 @@ public class OrderDetailResponse {
 
     private final UUID orderId;
     private final UUID requesterCompanyId;
+    private final String requesterCompanyName;
     private final UUID receiverCompanyId;
+    private final String receiverCompanyName;
     private final UUID requesterUserId;
     private final OrderStatus status;
     private final Long totalAmount;
@@ -24,10 +26,12 @@ public class OrderDetailResponse {
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
-    private OrderDetailResponse(Order order) {
+    private OrderDetailResponse(Order order, String requesterCompanyName, String receiverCompanyName) {
         this.orderId = order.getId();
         this.requesterCompanyId = order.getRequesterCompanyId();
+        this.requesterCompanyName = requesterCompanyName;
         this.receiverCompanyId = order.getReceiverCompanyId();
+        this.receiverCompanyName = receiverCompanyName;
         this.requesterUserId = order.getRequesterUserId();
         this.status = order.getStatus();
         this.totalAmount = order.getTotalAmount();
@@ -41,6 +45,10 @@ public class OrderDetailResponse {
     }
 
     public static OrderDetailResponse from(Order order) {
-        return new OrderDetailResponse(order);
+        return new OrderDetailResponse(order, null, null);
+    }
+
+    public static OrderDetailResponse from(Order order, String requesterCompanyName, String receiverCompanyName) {
+        return new OrderDetailResponse(order, requesterCompanyName, receiverCompanyName);
     }
 }
