@@ -1,7 +1,7 @@
-package com.sparta.logistics.order.repository;
+package com.sparta.logistics.order.order.repository;
 
-import com.sparta.logistics.order.domain.Order;
-import com.sparta.logistics.order.domain.OrderStatus;
+import com.sparta.logistics.order.order.entity.Order;
+import com.sparta.logistics.order.order.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

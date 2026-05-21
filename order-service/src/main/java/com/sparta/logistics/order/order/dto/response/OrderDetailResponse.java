@@ -1,7 +1,8 @@
-package com.sparta.logistics.order.dto.response;
+package com.sparta.logistics.order.order.dto.response;
 
-import com.sparta.logistics.order.domain.Order;
-import com.sparta.logistics.order.domain.OrderStatus;
+import com.sparta.logistics.order.order.entity.Order;
+import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.orderitem.dto.response.OrderItemResponse;
 import lombok.Getter;
 
 import java.time.LocalDateTime;

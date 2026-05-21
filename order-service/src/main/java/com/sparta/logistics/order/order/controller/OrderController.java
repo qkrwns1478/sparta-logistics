@@ -1,14 +1,14 @@
-package com.sparta.logistics.order.controller;
+package com.sparta.logistics.order.order.controller;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.response.ApiResponse;
-import com.sparta.logistics.order.domain.OrderStatus;
-import com.sparta.logistics.order.dto.request.OrderCancelRequest;
-import com.sparta.logistics.order.dto.request.OrderCreateRequest;
-import com.sparta.logistics.order.dto.request.OrderUpdateRequest;
-import com.sparta.logistics.order.dto.response.OrderDetailResponse;
-import com.sparta.logistics.order.dto.response.OrderSummaryResponse;
-import com.sparta.logistics.order.service.OrderService;
+import com.sparta.logistics.order.order.dto.request.OrderCancelRequest;
+import com.sparta.logistics.order.order.dto.request.OrderCreateRequest;
+import com.sparta.logistics.order.order.dto.request.OrderUpdateRequest;
+import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
+import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
+import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,10 +23,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -44,7 +44,6 @@ public class OrderController {
             @Valid @RequestBody OrderCreateRequest request,
             @RequestHeader("X-User-Id") UUID userId
     ) {
-
         OrderDetailResponse response = orderService.createOrder(
                 request.getRequesterCompanyId(),
                 request.getReceiverCompanyId(),

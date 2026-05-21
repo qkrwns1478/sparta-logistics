@@ -1,15 +1,15 @@
-package com.sparta.logistics.order.service;
+package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.order.domain.Order;
-import com.sparta.logistics.order.domain.OrderItem;
-import com.sparta.logistics.order.domain.OrderStatus;
-import com.sparta.logistics.order.dto.request.OrderItemRequest;
-import com.sparta.logistics.order.dto.response.OrderDetailResponse;
-import com.sparta.logistics.order.dto.response.OrderSummaryResponse;
 import com.sparta.logistics.order.exception.OrderErrorCode;
-import com.sparta.logistics.order.repository.OrderRepository;
+import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
+import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
+import com.sparta.logistics.order.order.entity.Order;
+import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.repository.OrderRepository;
+import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
+import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

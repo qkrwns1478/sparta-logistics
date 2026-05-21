@@ -1,4 +1,4 @@
-package com.sparta.logistics.order.domain;
+package com.sparta.logistics.order.order.enums;
 
 public enum OrderStatus {
     PENDING,     // 주문 접수

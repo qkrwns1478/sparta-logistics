@@ -1,6 +1,6 @@
-package com.sparta.logistics.order.dto.response;
+package com.sparta.logistics.order.orderitem.dto.response;
 
-import com.sparta.logistics.order.domain.OrderItem;
+import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import lombok.Getter;
 
 import java.util.UUID;
