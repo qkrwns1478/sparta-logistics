@@ -16,6 +16,7 @@ import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -162,6 +164,8 @@ public class OrderService {
             companyServiceClient.checkCompanyExists(companyId);
         } catch (FeignException.NotFound e) {
             throw new BusinessException(OrderErrorCode.COMPANY_NOT_FOUND);
+        } catch (FeignException e) {
+            throw new BusinessException(OrderErrorCode.COMPANY_SERVICE_UNAVAILABLE);
         }
     }
 
@@ -170,6 +174,8 @@ public class OrderService {
             return productServiceClient.getProduct(productId).data();
         } catch (FeignException.NotFound e) {
             throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
+        } catch (FeignException e) {
+            throw new BusinessException(OrderErrorCode.PRODUCT_SERVICE_UNAVAILABLE);
         }
     }
 
@@ -177,7 +183,8 @@ public class OrderService {
         try {
             CompanyResponse company = companyServiceClient.getCompany(companyId).data();
             return company != null ? company.name() : null;
-        } catch (FeignException.NotFound e) {
+        } catch (FeignException e) {
+            log.warn("[FeignClient] 업체 이름 조회 실패 companyId={} status={}", companyId, e.status());
             return null;
         }
     }
