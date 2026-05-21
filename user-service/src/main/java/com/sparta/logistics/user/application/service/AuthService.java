@@ -28,7 +28,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    //회원가입
+    // 회원가입
     @Transactional
     public UserResult signUp(SignupCommand command) {
         if (userRepository.existsByUsername(command.username())) {
@@ -123,7 +123,7 @@ public class AuthService {
         user.reject();
     }
 
-    //토큰 생성
+    // 토큰 생성
     public TokenDto issueToken(UserEntity user) {
         String userId = user.getId().toString();
         String accessToken = jwtUtil.createAccessToken(userId, user.getRole());

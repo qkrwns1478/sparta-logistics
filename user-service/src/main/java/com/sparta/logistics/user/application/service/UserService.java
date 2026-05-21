@@ -1,8 +1,10 @@
 package com.sparta.logistics.user.application.service;
 
-import com.sparta.logistics.user.application.dto.response.UserResult;
 import com.sparta.logistics.user.domain.repository.UserRepository;
+import com.sparta.logistics.user.presentation.dto.response.GetResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,12 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserService {
 
+    private final UserRepository userRepository;
 
-//    private final UserRepository userRepository;
-//
-//    public UserResult getUser() {
-//
-//
-//        return null;
-//    }
+
 }
