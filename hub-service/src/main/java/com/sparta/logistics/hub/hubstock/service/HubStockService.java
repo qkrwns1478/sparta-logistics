@@ -7,10 +7,13 @@ import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import com.sparta.logistics.hub.hubstock.dto.request.CreateHubStockRequest;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockCreateResponse;
+import com.sparta.logistics.hub.hubstock.dto.response.HubStockListResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,5 +47,12 @@ public class HubStockService {
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(HubStockErrorCode.HUB_STOCK_ALREADY_EXISTS);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Page<HubStockListResponse> getHubStockList(UUID hubId, UUID productId, Pageable pageable) {
+
+        return hubStockRepository.findAllByCondition(hubId, productId, pageable)
+                .map(HubStockListResponse::from);
     }
 }
