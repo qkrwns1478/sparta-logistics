@@ -7,10 +7,7 @@ import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.request.UpdateHubRouteRequest;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteCreateResponse;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteDetailResponse;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteListResponse;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteUpdateResponse;
+import com.sparta.logistics.hub.hubroute.dto.response.*;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
 import lombok.RequiredArgsConstructor;
@@ -86,6 +83,16 @@ public class HubRouteService {
         hubRoute.update(request.getDistance(), request.getDuration());
 
         return HubRouteUpdateResponse.from(hubRoute);
+    }
+
+    @Transactional
+    public HubRouteDeleteResponse deleteHubRoute(UUID routeId, UUID userId) {
+
+        HubRoute hubRoute = findHubRouteById(routeId);
+
+        hubRoute.delete(userId);
+
+        return HubRouteDeleteResponse.from(hubRoute);
     }
 
     private Hub findHubById(UUID hubId) {

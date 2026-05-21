@@ -3,10 +3,7 @@ package com.sparta.logistics.hub.hubroute.controller;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.request.UpdateHubRouteRequest;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteCreateResponse;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteDetailResponse;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteListResponse;
-import com.sparta.logistics.hub.hubroute.dto.response.HubRouteUpdateResponse;
+import com.sparta.logistics.hub.hubroute.dto.response.*;
 import com.sparta.logistics.hub.hubroute.service.HubRouteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -63,5 +60,15 @@ public class HubRouteController {
         HubRouteUpdateResponse response = hubRouteService.updateHubRoute(routeId, request);
 
         return ResponseEntity.ok(ApiResponse.ok("이동 경로가 수정되었습니다.", response));
+    }
+
+    @DeleteMapping("/{routeId}")
+    public ResponseEntity<ApiResponse<HubRouteDeleteResponse>> deleteHubRoute(
+            @PathVariable UUID routeId,
+            @RequestHeader("X-User-Id") UUID userId) {
+
+        HubRouteDeleteResponse response = hubRouteService.deleteHubRoute(routeId, userId);
+
+        return ResponseEntity.ok(ApiResponse.ok("이동 경로가 삭제되었습니다.", response));
     }
 }

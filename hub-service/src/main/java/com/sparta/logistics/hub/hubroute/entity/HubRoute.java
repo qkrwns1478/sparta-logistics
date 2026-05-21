@@ -57,4 +57,8 @@ public class HubRoute extends BaseEntity {
         this.distance = distance;
         this.duration = duration;
     }
+
+    public void delete(UUID userId) {
+        super.softDelete(userId);
+    }
 }
