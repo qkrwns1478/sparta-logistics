@@ -1,6 +1,6 @@
-package com.sparta.logistics.user.application.dto.response;
+package com.sparta.logistics.user.application.result;
 
-public record TokenDto(
+public record Token(
         UserResult userResult,
         String accessToken,
         String refreshToken

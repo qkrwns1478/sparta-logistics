@@ -1,4 +1,4 @@
-package com.sparta.logistics.user.application.dto.request;
+package com.sparta.logistics.user.application.command;
 
 import com.sparta.logistics.user.domain.model.entity.UserEntity;
 import com.sparta.logistics.common.domain.Role;

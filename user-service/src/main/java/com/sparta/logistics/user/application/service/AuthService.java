@@ -1,10 +1,10 @@
 package com.sparta.logistics.user.application.service;
 
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.user.application.dto.request.LoginCommand;
-import com.sparta.logistics.user.application.dto.request.SignupCommand;
-import com.sparta.logistics.user.application.dto.response.TokenDto;
-import com.sparta.logistics.user.application.dto.response.UserResult;
+import com.sparta.logistics.user.application.command.LoginCommand;
+import com.sparta.logistics.user.application.command.SignupCommand;
+import com.sparta.logistics.user.application.result.Token;
+import com.sparta.logistics.user.application.result.UserResult;
 import com.sparta.logistics.user.domain.model.entity.UserEntity;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import com.sparta.logistics.user.domain.repository.UserRepository;
@@ -47,7 +47,7 @@ public class AuthService {
 
     // 로그인
     @Transactional(readOnly = true)
-    public TokenDto login(LoginCommand command) {
+    public Token login(LoginCommand command) {
 
         UserEntity user = userRepository.findByUsername(command.username())
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND) {
@@ -69,7 +69,7 @@ public class AuthService {
 
     // 토큰 갱신
     @Transactional
-    public TokenDto refresh(String bearerRefreshToken) {
+    public Token refresh(String bearerRefreshToken) {
 
         if (!StringUtils.hasText(bearerRefreshToken)) {
             throw new BusinessException(UserErrorCode.INVALID_TOKEN);
@@ -103,7 +103,7 @@ public class AuthService {
         String accessToken = jwtUtil.createAccessToken(userId.toString(), user.getRole());
         String newRefreshToken = jwtUtil.createRefreshToken(userId.toString(), user.getRole());
 
-        return new TokenDto(UserResult.from(user), accessToken, newRefreshToken);
+        return new Token(UserResult.from(user), accessToken, newRefreshToken);
     }
 
     //승인
@@ -124,12 +124,12 @@ public class AuthService {
     }
 
     // 토큰 생성
-    public TokenDto issueToken(UserEntity user) {
+    public Token issueToken(UserEntity user) {
         String userId = user.getId().toString();
         String accessToken = jwtUtil.createAccessToken(userId, user.getRole());
         String refreshToken = jwtUtil.createRefreshToken(userId, user.getRole());
 
-        return new TokenDto(UserResult.from(user), accessToken, refreshToken);
+        return new Token(UserResult.from(user), accessToken, refreshToken);
     }
 
 }

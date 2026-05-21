@@ -1,6 +1,6 @@
 package com.sparta.logistics.user.presentation.dto.request;
 
-import com.sparta.logistics.user.application.dto.request.SignupCommand;
+import com.sparta.logistics.user.application.command.SignupCommand;
 import com.sparta.logistics.common.domain.Role;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;

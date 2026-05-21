@@ -1,4 +1,4 @@
-package com.sparta.logistics.user.application.dto.request;
+package com.sparta.logistics.user.application.command;
 
 import lombok.Builder;
 

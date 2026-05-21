@@ -1,8 +1,8 @@
 package com.sparta.logistics.user.presentation.controller;
 
 import com.sparta.logistics.common.response.ApiResponse;
-import com.sparta.logistics.user.application.dto.response.TokenDto;
-import com.sparta.logistics.user.application.dto.response.UserResult;
+import com.sparta.logistics.user.application.result.Token;
+import com.sparta.logistics.user.application.result.UserResult;
 import com.sparta.logistics.user.presentation.dto.request.LoginRequest;
 import com.sparta.logistics.user.presentation.dto.request.SignupRequest;
 import com.sparta.logistics.user.presentation.dto.response.UserResponse;
@@ -35,7 +35,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<UserResponse>> login(@Valid @RequestBody LoginRequest request){
 
-        TokenDto token = authService.login(request.toCommand());
+        Token token = authService.login(request.toCommand());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token.accessToken());
@@ -53,7 +53,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<UserResponse>> refreshToken(
             @RequestHeader("X-Refresh-Token") String refreshToken){
 
-        TokenDto token = authService.refresh(refreshToken);
+        Token token = authService.refresh(refreshToken);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token.accessToken());

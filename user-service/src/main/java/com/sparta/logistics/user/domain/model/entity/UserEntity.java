@@ -3,12 +3,10 @@ package com.sparta.logistics.user.domain.model.entity;
 import com.sparta.logistics.common.domain.BaseEntity;
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.user.application.dto.response.UserResult;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import com.sparta.logistics.user.exception.UserErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
