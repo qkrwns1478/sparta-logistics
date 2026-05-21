@@ -28,12 +28,12 @@ import java.util.UUID;
  */
 @Component
 @Slf4j
-public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
+public class JwtHeaderFilter implements GlobalFilter, Ordered {
 
     private final ObjectMapper objectMapper; // 자바 객체 -> json 형태로 변환
     private final ReactiveJwtDecoder jwtDecoder;
 
-    public JwtAuthenticationHeaderFilter(ObjectMapper objectMapper, ReactiveJwtDecoder jwtDecoder){
+    public JwtHeaderFilter(ObjectMapper objectMapper, ReactiveJwtDecoder jwtDecoder){
         this.objectMapper = objectMapper;
         this.jwtDecoder = jwtDecoder;
     }
@@ -78,7 +78,7 @@ public class JwtAuthenticationHeaderFilter implements GlobalFilter, Ordered {
                     }
                     String normalUserId = userId.trim(); // 공백 제거
                     try {
-                        UUID.fromString(normalUserId); // string -> UUID 변환
+                        UUID.fromString(normalUserId); // string -> UUID 변환 후 검증
                     } catch (IllegalArgumentException ex) {
                         log.error("JWT subject 가 UUID 형식이 아님");
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);

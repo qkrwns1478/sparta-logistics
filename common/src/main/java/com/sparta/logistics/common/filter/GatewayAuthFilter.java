@@ -21,7 +21,7 @@ import java.util.Map;
 
 @Component
 @Slf4j
-public class GatewayHeaderAuthenticationFilter extends OncePerRequestFilter {
+public class GatewayAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
