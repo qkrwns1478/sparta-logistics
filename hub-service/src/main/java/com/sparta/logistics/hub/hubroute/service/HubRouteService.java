@@ -11,6 +11,9 @@ import com.sparta.logistics.hub.hubroute.dto.response.*;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +28,7 @@ public class HubRouteService {
 
     private final HubRouteRepository hubRouteRepository;
     private final HubRepository hubRepository;
+
 
     @Transactional
     public HubRouteDetailResponse createHubRoute(CreateHubRouteRequest request) {
@@ -59,6 +63,13 @@ public class HubRouteService {
         }
     }
 
+    @Cacheable(
+            value = "hubRouteList",
+            key = "#sourceHubId +" +
+                    " ':' + #destinationHubId +" +
+                    " ':' + #pageable.pageNumber +" +
+                    " ':' + #pageable.pageSize"
+    )
     @Transactional(readOnly = true)
     public Page<HubRouteListResponse> getHubRouteList(UUID sourceHubId, UUID destinationHubId, Pageable pageable) {
 
@@ -66,6 +77,7 @@ public class HubRouteService {
                 .map(HubRouteListResponse::from);
     }
 
+    @Cacheable(value = "hubRoutes", key = "#routeId")
     @Transactional(readOnly = true)
     public HubRouteDetailResponse getHubRoute(UUID routeId) {
 
@@ -75,6 +87,10 @@ public class HubRouteService {
         return HubRouteDetailResponse.from(hubRoute);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "hubRoutes", key = "#routeId"),
+            @CacheEvict(value = "hubRouteList", allEntries = true)
+    })
     @Transactional
     public HubRouteUpdateResponse updateHubRoute(UUID routeId, UpdateHubRouteRequest request) {
 
@@ -85,6 +101,10 @@ public class HubRouteService {
         return HubRouteUpdateResponse.from(hubRoute);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "hubRoutes", key = "#routeId"),
+            @CacheEvict(value = "hubRouteList", allEntries = true)
+    })
     @Transactional
     public HubRouteDeleteResponse deleteHubRoute(UUID routeId, UUID userId) {
 

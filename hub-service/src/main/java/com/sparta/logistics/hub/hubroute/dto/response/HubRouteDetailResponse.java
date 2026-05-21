@@ -1,8 +1,10 @@
 package com.sparta.logistics.hub.hubroute.dto.response;
 
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -10,6 +12,8 @@ import java.util.UUID;
 
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class HubRouteDetailResponse {
 
     private UUID routeId;
