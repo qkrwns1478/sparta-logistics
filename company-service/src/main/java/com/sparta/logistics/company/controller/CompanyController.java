@@ -30,8 +30,8 @@ public class CompanyController {
 
     private static final String USER_ID_HEADER    = "X-User-Id";
     private static final String USER_ROLE_HEADER  = "X-User-Role";
-    private static final String USER_HUB_HEADER   = "X-User-Hub-Id";
-    private static final String USER_COMPANY_HEADER = "X-User-Company-Id";
+    private static final String USER_HUB_HEADER   = "X-User-HubId";
+    private static final String USER_COMPANY_HEADER = "X-User-CompanyId";
     private final CompanyService companyService;
 
     // -------------------------------------------------------
