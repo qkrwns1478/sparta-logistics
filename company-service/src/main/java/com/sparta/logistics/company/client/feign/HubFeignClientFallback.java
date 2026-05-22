@@ -21,7 +21,7 @@ public class HubFeignClientFallback implements HubFeignClient {
     @Override
     public HubExistsResponse checkHubExists(UUID hubId) {
         log.warn("[HubFeignClient Fallback] Hub Service 응답 없음. hubId={}", hubId);
-        // Fallback: 서킷 오픈 시 허브가 없는 것으로 처리 → 주문 보호
+        // Fallback: 허브가 없는 것으로 처리 → 주문 보호
         return new HubExistsResponse(false);
     }
 
