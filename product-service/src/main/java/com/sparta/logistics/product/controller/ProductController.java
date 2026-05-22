@@ -127,7 +127,7 @@ public class ProductController {
     // DELETE /api/v1/products/by-company/{companyId} — 내부 통신용
     // -------------------------------------------------------
     @Operation(summary = "업체 삭제 시 연관 상품 일괄 삭제", description = "Company Service 내부 통신 전용")
-    @DeleteMapping("/by-company/{companyId}")
+    @DeleteMapping("/internal/by-company/{companyId}")
     public ResponseEntity<Void> deleteByCompanyId(@PathVariable UUID companyId) {
         productService.deleteAllByCompanyId(companyId);
         return ResponseEntity.ok().build();
