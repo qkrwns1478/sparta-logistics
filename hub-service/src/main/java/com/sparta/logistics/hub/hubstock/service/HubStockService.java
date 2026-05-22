@@ -42,7 +42,7 @@ public class HubStockService {
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
 
         // 중복 체크
-        if (hubStockRepository.existsByHubAndProductId(hub, request.getProductId())) {
+        if (hubStockRepository.existsByHubAndProductIdAndDeletedAtIsNull(hub, request.getProductId())) {
             throw new BusinessException(HubStockErrorCode.HUB_STOCK_ALREADY_EXISTS);
         }
 
