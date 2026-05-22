@@ -15,7 +15,7 @@ import java.util.UUID;
 
 public interface HubStockRepository extends JpaRepository<HubStock, UUID> {
 
-    boolean existsByHubAndProductId(Hub hub, UUID productId);
+    boolean existsByHubAndProductIdAndDeletedAtIsNull(Hub hub, UUID productId);
 
     @Query("SELECT h FROM HubStock h WHERE h.hub.id = :hubId " +
             "AND (:productId IS NULL OR h.productId = :productId) " +
