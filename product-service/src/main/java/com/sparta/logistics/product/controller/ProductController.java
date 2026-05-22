@@ -79,6 +79,7 @@ public class ProductController {
     // -------------------------------------------------------
     // GET /api/v1/products/batch — 배치 조회 (내부 서비스 전용)
     // -------------------------------------------------------
+    @Operation(summary = "상품 배치 조회", description = "Order Service 내부 통신 전용")
     @GetMapping("/batch")
     public ResponseEntity<ApiResponse<List<ProductResponse>>> getProducts(
             @RequestParam("ids") List<UUID> ids) {
