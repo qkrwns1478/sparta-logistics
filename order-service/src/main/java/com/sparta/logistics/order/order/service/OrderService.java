@@ -127,7 +127,7 @@ public class OrderService {
             checkHubPermission(order.getRequesterCompanyId(), userHubId);
         }
 
-        // CANCELLED 또는 COMPLETED 상태는 수정 불가
+        // CANCELLED COMPLETED, IN_DELIVERY 상태는 수정 불가
         if (!order.isModifiable()) {
             throw new BusinessException(OrderErrorCode.ORDER_NOT_MODIFIABLE);
         }
@@ -156,7 +156,7 @@ public class OrderService {
             checkHubPermission(order.getRequesterCompanyId(), userHubId);
         }
 
-        // CANCELLED 또는 COMPLETED 상태는 취소 불가
+        // CANCELLED, COMPLETED, IN_DELIVERY 상태는 취소 불가
         if (!order.isModifiable()) {
             throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
         }
@@ -177,7 +177,12 @@ public class OrderService {
 
     private ProductResponse fetchProduct(UUID productId) {
         try {
-            return productServiceClient.getProduct(productId).data();
+            // AVAILABLE 상태가 아닌 상품은 주문 불가
+            ProductResponse product = productServiceClient.getProduct(productId).data();
+            if (!"AVAILABLE".equals(product.status())) {
+                throw new BusinessException(OrderErrorCode.PRODUCT_NOT_AVAILABLE);
+            }
+            return product;
         } catch (FeignException.NotFound e) {
             throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
         } catch (FeignException e) {
