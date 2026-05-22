@@ -71,7 +71,10 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
         String token = extractToken(request);
 
         // 토큰이 null인 경우 에러
-        if(token == null) return onError(exchange, JwtErrorCode.TOKEN_NOT_FOUND);
+        if(token == null) {
+            log.warn("Authorization 헤더가 없거나 Bearer 토큰이 아님");
+            return onError(exchange, JwtErrorCode.TOKEN_NOT_FOUND);
+        }
 
 
         return jwtDecoder.decode(token)
@@ -80,14 +83,14 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
                     String userId = jwt.getSubject();
 
                     if (!StringUtils.hasText(userId)) {
-                        log.error("JWT subject(userId) 가 비어 있음");
+                        log.warn("JWT subject(userId) 가 비어 있음");
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
                     String normalUserId = userId.trim(); // 공백 제거
                     try {
                         UUID.fromString(normalUserId); // string -> UUID 변환 후 검증
                     } catch (IllegalArgumentException ex) {
-                        log.error("JWT subject 가 UUID 형식이 아님");
+                        log.warn("JWT subject 가 UUID 형식이 아님");
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
 
@@ -96,7 +99,7 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
 
                     // 권한이 null, 빈값, 공백 문자열이면 에러
                     if (!StringUtils.hasText(finalRole)) {
-                        log.error("Missing authorities claim");
+                        log.warn("auth 클레임이 없거나 비어 있음");
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
 
@@ -133,11 +136,11 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
                             log.warn("Gateway Auth Warning: 토큰 만료됨");
                             return onError(exchange, JwtErrorCode.TOKEN_EXPIRED);
                         }
-                        log.error("Gateway Auth Error: 토큰 검증 실패 - {}", e.getMessage());
+                        log.warn("Gateway Auth Error: 토큰 검증 실패 - {}", e.getMessage());
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
                     if (e instanceof BadJwtException) { // 토큰 형식 망가짐
-                        log.error("Gateway Auth Error: 유효하지 않은 토큰 - {}", e.getMessage());
+                        log.warn("Gateway Auth Error: 유효하지 않은 토큰 - {}", e.getMessage());
                         return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
                     } // 그 외
                     log.error("Gateway 내부 인증 시스템 심각한 예외 발생", e);
@@ -161,8 +164,6 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
 
         response.setStatusCode(errorCode.getStatus());
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON); // 응답헤더 json으로 지정
-
-        log.error("Gateway Error: {} {}", errorCode.getCode(), errorCode.getMessage());
 
         return Mono.defer(() -> {
             try {
