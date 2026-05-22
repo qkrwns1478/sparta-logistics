@@ -30,8 +30,8 @@ public class ProductController {
 
     private static final String USER_ID_HEADER      = "X-User-Id";
     private static final String USER_ROLE_HEADER     = "X-User-Role";
-    private static final String USER_HUB_HEADER      = "X-User-Hub-Id";
-    private static final String USER_COMPANY_HEADER  = "X-User-Company-Id";
+    private static final String USER_HUB_HEADER      = "X-User-HubId";
+    private static final String USER_COMPANY_HEADER  = "X-User-CompanyId";
 
     private final ProductService productService;
 
@@ -42,13 +42,12 @@ public class ProductController {
     @PostMapping
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
             @Valid @RequestBody CreateRequest request,
-            @RequestHeader(USER_ID_HEADER) UUID userId,
             @RequestHeader(USER_ROLE_HEADER) Role userRole,
             @RequestHeader(value = USER_HUB_HEADER, required = false) UUID userHubId,
             @RequestHeader(value = USER_COMPANY_HEADER, required = false) UUID userCompanyId) {
 
         ProductResponse response =
-                productService.createProduct(request, userId, userRole, userHubId, userCompanyId);
+                productService.createProduct(request, userRole, userHubId, userCompanyId);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("상품이 생성되었습니다.", response));

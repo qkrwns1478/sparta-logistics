@@ -39,7 +39,6 @@ public class ProductService {
     @Transactional
     public ProductResponse createProduct(
             CreateRequest request,
-            UUID requestUserId,
             Role requestUserRole,
             UUID requestUserHubId,
             UUID requestUserCompanyId) {
@@ -171,7 +170,8 @@ public class ProductService {
         if (role == Role.MASTER) return;
         if (role == Role.HUB_MANAGER && userHubId != null
                 && userHubId.equals(targetHubId)) return;
-        if (role == Role.COMPANY_MANAGER && userCompanyId != null) return;
+        if (role == Role.COMPANY_MANAGER && userCompanyId != null
+                && userCompanyId.equals(targetCompanyId)) return;
 
         throw new BusinessException(ProductErrorCode.PRODUCT_ACCESS_DENIED);
     }
