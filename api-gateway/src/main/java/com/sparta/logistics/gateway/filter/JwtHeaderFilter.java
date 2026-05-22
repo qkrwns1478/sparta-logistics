@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -43,10 +44,16 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE;
     }
 
+    private static final Set<String> WHITE_LIST = Set.of(
+            "/api/v1/auth/login",
+            "/api/v1/auth/signup",
+            "/api/v1/auth/refresh"
+    );
+
     private boolean isWhiteList(String path){
-        return path.startsWith("/api/v1/auth/login") ||
-                path.startsWith("/api/v1/auth/signup")||
-                path.startsWith("/api/v1/auth/refresh");
+        return WHITE_LIST.contains(path) ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/v3/api-docs");
     }
 
 
