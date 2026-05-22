@@ -221,7 +221,7 @@ public class OrderService {
     }
 
     private Order findOrder(UUID orderId) {
-        return orderRepository.findByIdAndDeletedAtIsNull(orderId)
+        return orderRepository.findById(orderId)
                 .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
