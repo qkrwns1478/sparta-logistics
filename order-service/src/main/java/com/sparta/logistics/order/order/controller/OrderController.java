@@ -90,7 +90,7 @@ public class OrderController {
             @Valid @RequestBody OrderUpdateRequest request,
             @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader("X-User-Role") Role role,
-            @RequestHeader(value = "X-User-Hub-Id", required = false) UUID userHubId
+            @RequestHeader(value = "X-User-HubId", required = false) UUID userHubId
     ) {
         OrderDetailResponse response = orderService.updateOrder(orderId, request.getDueDate(), request.getRequestMemo(), userId, role, userHubId);
         return ResponseEntity.ok(ApiResponse.ok("주문이 수정되었습니다.", response));
@@ -103,7 +103,7 @@ public class OrderController {
             @RequestBody OrderCancelRequest request,
             @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader("X-User-Role") Role role,
-            @RequestHeader(value = "X-User-Hub-Id", required = false) UUID userHubId
+            @RequestHeader(value = "X-User-HubId", required = false) UUID userHubId
     ) {
         OrderDetailResponse response = orderService.cancelOrder(orderId, request.getCancelReason(), userId, role, userHubId);
         return ResponseEntity.ok(ApiResponse.ok("주문이 취소되었습니다.", response));
