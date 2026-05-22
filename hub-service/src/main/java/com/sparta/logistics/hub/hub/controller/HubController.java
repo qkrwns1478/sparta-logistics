@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -120,5 +121,17 @@ public class HubController {
         HubDeleteResponse response = hubService.deleteHub(hubId, userId);
 
         return ResponseEntity.ok(ApiResponse.ok("허브가 삭제되었습니다.", response));
+    }
+
+    /**
+     * 허브 배치 조회 api
+     */
+    @GetMapping("/batch")
+    public ResponseEntity<List<HubBatchResponse>> getHubsByIds(
+            @RequestParam("ids") List<UUID> hubIds) {
+
+        List<HubBatchResponse> response = hubService.getHubsByIds(hubIds);
+
+        return ResponseEntity.ok(response);
     }
 }
