@@ -10,6 +10,7 @@ import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import com.sparta.logistics.user.domain.repository.RefreshTokenRepository;
 import com.sparta.logistics.user.domain.repository.UserRepository;
 import com.sparta.logistics.user.exception.UserErrorCode;
+import com.sparta.logistics.user.presentation.dto.response.ApproveResponse;
 import com.sparta.logistics.user.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
@@ -122,6 +123,46 @@ public class AuthService {
         refreshTokenRepository.save(userId, refreshToken);
 
         return new Token(UserResult.from(user), accessToken, refreshToken);
+    }
+
+    // 마스터 승인
+    @Transactional
+    public ApproveResponse approveUserByMaster(UUID userId) {
+        UserEntity user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        user.approve();
+        return ApproveResponse.from(user);
+    }
+
+    // 허브 매니저 승인
+    @Transactional
+    public ApproveResponse approveUserByHub(UUID userId, UUID hubId) {
+        UserEntity user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        if (!hubId.equals(user.getHubId()))
+            throw new BusinessException(UserErrorCode.HUB_MISMATCH);
+        user.approve();
+        return ApproveResponse.from(user);
+    }
+
+    // 마스터 거절
+    @Transactional
+    public ApproveResponse rejectUserByMaster(UUID userId) {
+        UserEntity user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        user.reject();
+        return ApproveResponse.from(user);
+    }
+
+    // 허브 매니저 거절
+    @Transactional
+    public ApproveResponse rejectUserByHub(UUID userId, UUID hubId) {
+        UserEntity user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        if (!hubId.equals(user.getHubId()))
+            throw new BusinessException(UserErrorCode.HUB_MISMATCH);
+        user.reject();
+        return ApproveResponse.from(user);
     }
 
 }
