@@ -19,14 +19,16 @@
 
 | API | MASTER | HUB_MANAGER | DELIVERY_MANAGER | COMPANY_MANAGER |
 |-----|:------:|:-----------:|:----------------:|:---------------:|
-| 배송 단건 조회 | ✅ 전체 | ✅ 자기 허브 소속 | ✅ 자신 담당 배송 | ✅ 전체 허용¹ |
-| 배송 목록 조회 | ✅ 전체 | ✅ 자기 허브 필터 | ✅ 자신 담당 필터 | ✅ 전체 허용¹ |
+| 배송 단건 조회 | ✅ 전체 | ✅ 자기 허브 소속 | ✅ 자신 담당 배송² | ✅ 전체 허용¹ |
+| 배송 목록 조회 | ✅ 전체 | ✅ 자기 허브 필터 | ✅ 자신 담당 필터² | ✅ 전체 허용¹ |
 | 배송 수정 | ✅ | ✅ 자기 허브 소속 | ❌ | ❌ |
-| 배송 상태 변경 | ✅ | ✅ 자기 허브 소속 | ✅ 자신 담당 배송 | ❌ |
+| 배송 상태 변경 | ✅ | ✅ 자기 허브 소속 | ✅ 자신 담당 배송² | ❌ |
 | 배송 삭제 | ✅ | ❌ | ❌ | ❌ |
 
 > ¹ COMPANY_MANAGER의 배송 소유 검증(companyId → orderId)은 order-service 연동 후 구현 예정.  
 > 현재는 COMPANY_MANAGER에게 모든 배송 조회를 허용 (임시 정책).
+>
+> ² DELIVERY_MANAGER의 배송 접근은 **담당자 타입에 따라 범위가 다릅니다** — 아래 [섹션 5. DELIVERY_MANAGER 타입별 접근 범위](#5-delivery_manager-타입별-접근-범위) 참고.
 
 ### 배송담당자 (DeliveryManagerEntity)
 
@@ -111,7 +113,25 @@ throw new BusinessException(CommonErrorCode.FORBIDDEN);
 
 ---
 
-## 5. 설계 원칙
+## 5. DELIVERY_MANAGER 타입별 접근 범위
+
+`DELIVERY_MANAGER` 역할을 가진 사용자는 `DeliveryManagerEntity`의 `managerType`에 따라 실제 접근 범위가 다릅니다.
+
+| 담당자 타입 | 배송 단건 조회 | 배송 상태 변경 | 배송경로 수정 |
+|------------|:------------:|:------------:|:-----------:|
+| `COMPANY_DELIVERY` | ✅ `companyDeliveryManagerId == 본인 userId` | ✅ `companyDeliveryManagerId == 본인 userId` | ❌ |
+| `HUB_DELIVERY` | ❌ (403) | ❌ (403) | ✅ `hubDeliveryManagerId == 본인 userId` |
+
+**배경**
+
+- `COMPANY_DELIVERY` 담당자는 배송(`p_delivery`) 전체의 마지막 단계를 담당 → `delivery.companyDeliveryManagerId`에 ID가 기록됨
+- `HUB_DELIVERY` 담당자는 허브 간 구간(`p_delivery_route`)을 담당 → `route.hubDeliveryManagerId`에 ID가 기록됨
+
+따라서 `HUB_DELIVERY` 타입 담당자는 배송(Delivery)에 직접 ID가 등록되지 않으므로 배송 단건 조회 및 상태 변경에서 403이 반환됩니다. 이 타입의 담당자는 `PUT /deliveries/{id}/routes/{routeId}` 경로 수정 API를 통해서만 작업합니다.
+
+---
+
+## 6. 설계 원칙
 
 | 원칙 | 내용 |
 |------|------|

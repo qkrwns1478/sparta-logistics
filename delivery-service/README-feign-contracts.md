@@ -71,10 +71,27 @@ DeliveryEventHandler.handleStockReserved()
 
 ```java
 // client/HubServiceClient.java
-@FeignClient(name = "hub-service")
+@FeignClient(name = "hub-service", fallback = HubServiceClientFallback.class)
 public interface HubServiceClient {
-    @GetMapping("/api/v1/hubs/{hubId}")
-    ApiResponse<Void> checkHubExists(@PathVariable UUID hubId);
+    // 200 OK → 허브 존재 확인 완료 / 호출 실패 시 → Fallback으로 위임
+    @GetMapping("/api/v1/hubs/{hubId}/exists")
+    void checkHubExists(@PathVariable UUID hubId);
+}
+```
+
+### Fallback
+
+hub-service 호출이 실패(타임아웃·서킷 오픈·네트워크 오류 등)하면 Fallback이 호출됩니다.
+
+```java
+// client/HubServiceClientFallback.java
+@Component
+public class HubServiceClientFallback implements HubServiceClient {
+    @Override
+    public void checkHubExists(UUID hubId) {
+        // 호출 실패 시 항상 HUB_SERVICE_UNAVAILABLE(503) 반환
+        throw new BusinessException(DeliveryErrorCode.HUB_SERVICE_UNAVAILABLE);
+    }
 }
 ```
 
@@ -84,8 +101,8 @@ public interface HubServiceClient {
 // DeliveryManagerService.createManager()
 if (req.managerType() == DeliveryManagerType.COMPANY_DELIVERY) {
     hubServiceClient.checkHubExists(req.hubId());
-    // 404 응답 → FeignException → BusinessException(HUB_NOT_FOUND)
-    // 서비스 불가 → FeignException → BusinessException(HUB_SERVICE_UNAVAILABLE)
+    // 정상 응답(200) → 검증 통과
+    // 호출 실패(모든 FeignException 포함) → Fallback → BusinessException(HUB_SERVICE_UNAVAILABLE)
 }
 ```
 
@@ -94,14 +111,16 @@ if (req.managerType() == DeliveryManagerType.COMPANY_DELIVERY) {
 | 상황 | 처리 |
 |------|------|
 | hub-service 200 OK | 검증 통과, 담당자 등록 계속 |
-| hub-service 404 | `DELIVERY_HUB_001` (400 Bad Request) |
-| hub-service 호출 실패 | `DELIVERY_HUB_503` (503 Service Unavailable) |
+| hub-service 호출 실패 (404·타임아웃·서킷 오픈 등) | Fallback → `DELIVERY_HUB_503` (503 Service Unavailable) |
+
+> **주의**: 현재 구현은 단순 Fallback(`HubServiceClientFallback`)을 사용하므로, hub-service 404(허브 없음)와 서비스 장애를 구분하지 않고 모두 503으로 처리합니다.  
+> 404(허브 없음)를 400으로 별도 처리하려면 `FallbackFactory`로 교체 후 원인 예외를 분기해야 합니다.
 
 ### 팀 협의 사항
 
 | 항목 | 상태 | 내용 |
 |------|------|------|
-| 엔드포인트 경로 | 🟡 협의 필요 | `GET /api/v1/hubs/{hubId}` — hub-service 팀 확인 필요 |
+| 엔드포인트 경로 | 🟡 협의 필요 | `GET /api/v1/hubs/{hubId}/exists` — hub-service 팀 확인 필요 |
 | 응답 구조 | 🟡 협의 필요 | 존재하면 200, 없으면 404 반환 여부 확인 |
 
 ---
@@ -171,7 +190,7 @@ if (req.managerType() == DeliveryManagerType.COMPANY_DELIVERY) {
 ```
 delivery-service
   ├── [Feign] → user-service   GET /api/v1/users/{userId}
-  ├── [Feign] → hub-service    GET /api/v1/hubs/{hubId}
+  ├── [Feign] → hub-service    GET /api/v1/hubs/{hubId}/exists
   ├── [Kafka 소비] ← hub-service    stock.reserved
   ├── [Kafka 소비] ← slack-service  ai.deadline.calculated
   └── [Kafka 발행] → hub-service, order-service  delivery.creation.failed
@@ -186,5 +205,5 @@ delivery-service
 | `stock.reserved` 페이로드 필드 | hub-service | 5개 필드 포함 여부 | 🔴 필수 |
 | `GET /api/v1/users/{userId}` 응답 | user-service | `slackId` 필드 포함 여부 | 🔴 필수 |
 | `delivery.creation.failed` ��독 | hub-service, order-service | 보상 Saga 구현 | 🟡 중요 |
-| `GET /api/v1/hubs/{hubId}` 응답 | hub-service | 200/404 응답 구조 | 🟡 중요 |
+| `GET /api/v1/hubs/{hubId}/exists` 응답 | hub-service | 200/404 응답 구조 및 경로 최종 확정 | 🟡 중요 |
 | COMPANY_MANAGER 배송 소유 검증 | order-service | companyId → orderId 검증 API | 🟢 추후 |
