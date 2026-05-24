@@ -43,6 +43,12 @@ public class UserService {
         return GetResponse.from(user);
     }
 
+    // 유저 존재 여부 확인 (내부 서비스용)
+    public void checkUserExists(UUID userId) {
+        userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+    }
+
     // 사용자 수정
     @Transactional
     public UpdateResponse updateUser(UUID userId, UpdateRequest request) {

@@ -31,6 +31,13 @@ public class UserController {
     private final UserService userService;
     private static final List<Integer> ALLOWED_PAGE_SIZES = List.of(10, 30, 50);
 
+    // 사용자 존재 여부 확인 (내부 서비스용)
+    @GetMapping("/{userId}/exists")
+    public ResponseEntity<Void> checkUserExists(@PathVariable UUID userId) {
+        userService.checkUserExists(userId);
+        return ResponseEntity.ok().build();
+    }
+
     // 전체 정보 조회 (MASTER)
     @GetMapping
     public ResponseEntity<ApiResponse<Page<GetResponse>>> getUsers(
