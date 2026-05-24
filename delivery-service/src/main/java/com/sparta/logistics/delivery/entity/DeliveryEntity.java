@@ -9,10 +9,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -51,7 +53,10 @@ public class DeliveryEntity extends BaseEntity {
     private String receiverSlackId;
 
     @Column
-    private UUID deliveryManagerId;
+    private UUID companyDeliveryManagerId;
+
+    @Version
+    private long version; // 낙관적 락 — 동시 상태 변경·수정·삭제 충돌 방지
 
     @Column
     private LocalDateTime finalDispatchDeadlineAt;
@@ -62,22 +67,52 @@ public class DeliveryEntity extends BaseEntity {
     @Column
     private LocalDateTime completedAt;
 
-    // 생성
-    public DeliveryEntity(UUID orderId, String deliveryAddress, String receiverSlackId) {
+    public DeliveryEntity(UUID orderId, UUID receiverId,
+                          UUID sourceHubId, UUID destinationHubId,
+                          String deliveryAddress, String receiverSlackId) {
         this.orderId = orderId;
+        this.receiverId = receiverId;
+        this.sourceHubId = sourceHubId;
+        this.destinationHubId = destinationHubId;
         this.deliveryAddress = deliveryAddress;
         this.receiverSlackId = receiverSlackId;
         this.status = DeliveryStatus.CREATED;
     }
 
-    // 수정 (주소, 슬랙 ID)
     public void updateReceiverInfo(String deliveryAddress, String receiverSlackId) {
         this.deliveryAddress = deliveryAddress;
         this.receiverSlackId = receiverSlackId;
     }
 
-    // 상태 변경
-    public void updateStatus(DeliveryStatus status) {
-        this.status = status;
+    public void update(DeliveryUpdateRequest req) {
+        if (req.deliveryAddress() != null) this.deliveryAddress = req.deliveryAddress();
+        if (req.receiverSlackId() != null) this.receiverSlackId = req.receiverSlackId();
+        if (req.currentHubId() != null) this.currentHubId = req.currentHubId();
+        if (req.companyDeliveryManagerId() != null) this.companyDeliveryManagerId = req.companyDeliveryManagerId();
+    }
+
+    public void changeStatus(DeliveryStatus next) {
+        this.status = next;
+        if (next == DeliveryStatus.OUT_FOR_DELIVERY) {
+            this.startedAt = LocalDateTime.now();
+        } else if (next == DeliveryStatus.COMPLETED) {
+            this.completedAt = LocalDateTime.now();
+        }
+    }
+
+    public void updateFinalDispatchDeadline(LocalDateTime deadline) {
+        this.finalDispatchDeadlineAt = deadline;
+    }
+
+    public void assignCompanyDeliveryManager(UUID managerId) {
+        this.companyDeliveryManagerId = managerId;
+    }
+
+    public void updateCurrentHub(UUID hubId) {
+        this.currentHubId = hubId;
+    }
+
+    public void delete(UUID actorId) {
+        softDelete(actorId);
     }
 }
