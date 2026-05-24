@@ -1,0 +1,190 @@
+# Delivery Service — 외�� 서비스 Feign 계약
+
+delivery-service가 의존하는 외부 서비스와의 인터페이스 계약을 정리합니다.
+
+---
+
+## 1. user-service 연동
+
+### 목적
+
+Kafka `stock.reserved` 소비 시 수령자(receiverId)의 Slack ID를 조회합니다.  
+Slack ID가 없으면 `delivery.creation.failed` 이벤트를 발행하고 배송 생성을 중단합니다.
+
+### Feign 클라이언트
+
+```java
+// client/UserServiceClient.java
+@FeignClient(name = "user-service")
+public interface UserServiceClient {
+    @GetMapping("/api/v1/users/{userId}")
+    ApiResponse<UserResponse> getUser(@PathVariable UUID userId);
+}
+```
+
+### 응답 DTO
+
+```java
+// client/response/UserResponse.java
+public record UserResponse(
+    UUID userId,
+    String slackId   // null 가능 — 미등록 사용자
+) {}
+```
+
+### 호출 위치 및 트랜잭션
+
+```
+DeliveryEventHandler.handleStockReserved()
+  │
+  ├── [트랜잭션 밖] userServiceClient.getUser(event.receiverId())
+  │     → 이유: Feign 대기 시간 동안 DB 커넥션을 점유하지 않기 위해
+  │
+  └── [트랜잭션 안] deliveryService.createDelivery(event, slackId)
+```
+
+### 에러 처리
+
+| 상황 | 처리 |
+|------|------|
+| user-service 응답 정상, slackId 있음 | 배송 생성 진행 |
+| user-service 응답 정상, slackId null | `delivery.creation.failed` 발행 (reason: `SLACK_ID_NOT_FOUND`) |
+| user-service 호출 실패 (타임아웃·예외) | `delivery.creation.failed` 발행 (reason: `USER_SERVICE_UNAVAILABLE`) |
+
+### 팀 협의 사항
+
+| 항목 | 상태 | 내용 |
+|------|------|------|
+| 엔드포인트 경로 | 🟡 협의 필요 | `GET /api/v1/users/{userId}` — user-service 팀 확인 필요 |
+| 응답 구조 | 🟡 협의 필요 | `data.slackId` 필드 존재 여부 확인 필요 |
+| Feign timeout | 🟡 미설정 | 기본값 사용 중 — 운영 전 timeout 설정 권장 |
+
+---
+
+## 2. hub-service 연동
+
+### 목적
+
+`COMPANY_DELIVERY` 타입 배송담당자 생성 시 hubId가 실제 존재하는 허브인지 검증합니다.
+
+### Feign 클라이언트
+
+```java
+// client/HubServiceClient.java
+@FeignClient(name = "hub-service")
+public interface HubServiceClient {
+    @GetMapping("/api/v1/hubs/{hubId}")
+    ApiResponse<Void> checkHubExists(@PathVariable UUID hubId);
+}
+```
+
+### 호출 위치
+
+```java
+// DeliveryManagerService.createManager()
+if (req.managerType() == DeliveryManagerType.COMPANY_DELIVERY) {
+    hubServiceClient.checkHubExists(req.hubId());
+    // 404 응답 → FeignException → BusinessException(HUB_NOT_FOUND)
+    // 서비스 불가 → FeignException → BusinessException(HUB_SERVICE_UNAVAILABLE)
+}
+```
+
+### 에러 처리
+
+| 상황 | 처리 |
+|------|------|
+| hub-service 200 OK | 검증 통과, 담당자 등록 계속 |
+| hub-service 404 | `DELIVERY_HUB_001` (400 Bad Request) |
+| hub-service 호출 실패 | `DELIVERY_HUB_503` (503 Service Unavailable) |
+
+### 팀 협의 사항
+
+| 항목 | 상태 | 내용 |
+|------|------|------|
+| 엔드포인트 경로 | 🟡 협의 필요 | `GET /api/v1/hubs/{hubId}` — hub-service 팀 확인 필요 |
+| 응답 구조 | 🟡 협의 필요 | 존재하면 200, 없으면 404 반환 여부 확인 |
+
+---
+
+## 3. Kafka 이벤트 계약 (발행/소비)
+
+### 소비 토픽
+
+#### `stock.reserved`
+
+| 항목 | 내용 |
+|------|------|
+| 발행자 | hub-service |
+| Consumer Group | `delivery-service` |
+| 트리거 | 재고 예약 완료 시 |
+
+```json
+{
+  "orderId": "UUID",
+  "receiverId": "UUID",
+  "sourceHubId": "UUID",
+  "destinationHubId": "UUID",
+  "deliveryAddress": "String"
+}
+```
+
+> 협의 사항: hub-service 팀이 위 5개 필드를 `stock.reserved` 페이로드에 포함해야 함.
+
+#### `ai.deadline.calculated`
+
+| 항목 | 내용 |
+|------|------|
+| 발행자 | slack-service (AI 발송 시한 계산 후) |
+| Consumer Group | `delivery-service` |
+| 트리거 | AI가 최종 발송 시한 계산 완료 시 |
+
+```json
+{
+  "deliveryId": "UUID",
+  "finalDispatchDeadlineAt": "2025-05-25T14:00:00"
+}
+```
+
+### 발행 토픽
+
+#### `delivery.creation.failed`
+
+| 항목 | 내용 |
+|------|------|
+| 발행자 | delivery-service |
+| 구독자 | hub-service (재고 복구), order-service (주문 취소) |
+| 트리거 | 배송 생성 실패 시 (Saga 보상 트랜잭션) |
+
+```json
+{
+  "orderId": "UUID",
+  "reason": "SLACK_ID_NOT_FOUND | USER_SERVICE_UNAVAILABLE | INVALID_HUB_ID"
+}
+```
+
+> 협의 사항: hub-service, order-service 팀이 이 토픽을 구독하고 보상 로직(재고 복구, 주문 취소) 구현 필요.
+
+---
+
+## 4. 서비스 의존 관계 요약
+
+```
+delivery-service
+  ├── [Feign] → user-service   GET /api/v1/users/{userId}
+  ├── [Feign] → hub-service    GET /api/v1/hubs/{hubId}
+  ├── [Kafka 소비] ← hub-service    stock.reserved
+  ├── [Kafka 소비] ← slack-service  ai.deadline.calculated
+  └── [Kafka 발행] → hub-service, order-service  delivery.creation.failed
+```
+
+---
+
+## 5. 미결 협의 사항
+
+| ��목 | 협의 대상 | 내용 | 우선순위 |
+|------|---------|------|---------|
+| `stock.reserved` 페이로드 필드 | hub-service | 5개 필드 포함 여부 | 🔴 필수 |
+| `GET /api/v1/users/{userId}` 응답 | user-service | `slackId` 필드 포함 여부 | 🔴 필수 |
+| `delivery.creation.failed` ��독 | hub-service, order-service | 보상 Saga 구현 | 🟡 중요 |
+| `GET /api/v1/hubs/{hubId}` 응답 | hub-service | 200/404 응답 구조 | 🟡 중요 |
+| COMPANY_MANAGER 배송 소유 검증 | order-service | companyId → orderId 검증 API | 🟢 추후 |
