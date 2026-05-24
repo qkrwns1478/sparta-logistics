@@ -65,7 +65,11 @@ public class HubRouteService {
             hubRouteRepository.flush();
             return HubRouteDetailResponse.from(savedRoute);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_ALREADY_EXISTS);
+            String message = e.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("uk_hub_route_source_destination")) {
+                throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_ALREADY_EXISTS);
+            }
+            throw e;
         }
     }
 
