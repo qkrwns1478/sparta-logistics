@@ -59,8 +59,13 @@ public class HubService {
             hubRepository.flush();
             return HubCreateResponse.from(savedHub);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            String message = e.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("p_hub_name_key")) {
+                throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            }
+            throw e;
         }
+
     }
 
     @Cacheable(
@@ -124,8 +129,13 @@ public class HubService {
             hubRepository.flush();
             return HubUpdateResponse.from(hub);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            String message = e.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("p_hub_name_key")) {
+                throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            }
+            throw e;
         }
+
     }
 
     // todo: 배송 담당자 논리 삭제 연동
