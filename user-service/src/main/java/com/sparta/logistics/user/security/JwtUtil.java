@@ -19,7 +19,7 @@ import java.util.Optional;
 public class JwtUtil {
 
     public static final String REFRESH_TOKEN = "refresh";
-    public static final long ACCESS_VALID_TIME = 15 * 60 * 1000L; // 로그아웃 기능이 따로 없어 유효시간 15분으로 제한
+    public static final long ACCESS_VALID_TIME = 120 * 60 * 1000L; // 로그아웃 기능이 따로 없어 유효시간 15분으로 제한 // 임시로 2시간 설정
     public static final long REFRESH_VALID_TIME = 5L * 24 * 60 * 60 * 1000L; // 리프레시 유효 시간 (5일) = 자동 로그아웃 기간
 
     @Value("${jwt.secret-key}")

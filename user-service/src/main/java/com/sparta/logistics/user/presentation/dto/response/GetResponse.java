@@ -21,7 +21,8 @@ public record GetResponse( // 조회 응답
         UUID hubId,
         UUID companyId,
         LocalDateTime lastLoginAt,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 
 ) {
     public static GetResponse from(UserEntity user){
@@ -37,6 +38,7 @@ public record GetResponse( // 조회 응답
                 .companyId(user.getCompanyId())
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
                 .build();
     }
 }
