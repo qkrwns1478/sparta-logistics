@@ -18,7 +18,11 @@ public enum UserErrorCode implements ErrorCode {
     ACCESS_DENIED("해당 요청에 대한 접근 권한이 없습니다.",HttpStatus.FORBIDDEN,  "USER-007"),
     INVALID_ROLE_CONSTRAINT("역할에 맞지 않는 정보가 포함되어 있습니다.",HttpStatus.BAD_REQUEST, "USER-008"),
     INVALID_PAGE_SIZE("페이지 크기는 10, 30, 50만 허용됩니다.", HttpStatus.BAD_REQUEST, "USER-009"),
-    HUB_MISMATCH("다른 허브 소속 사용자입니다.", HttpStatus.FORBIDDEN, "USER-010");
+    HUB_MISMATCH("다른 허브 소속 사용자입니다.", HttpStatus.FORBIDDEN, "USER-010"),
+    HUB_NOT_FOUND("존재하지 않는 허브입니다.", HttpStatus.NOT_FOUND, "USER-011"),
+    COMPANY_NOT_FOUND("존재하지 않는 업체입니다.", HttpStatus.NOT_FOUND, "USER-012"),
+    HUB_SERVICE_UNAVAILABLE("허브 서비스에 연결할 수 없습니다.", HttpStatus.SERVICE_UNAVAILABLE, "USER-013"),
+    COMPANY_SERVICE_UNAVAILABLE("업체 서비스에 연결할 수 없습니다.", HttpStatus.SERVICE_UNAVAILABLE, "USER-014");
 
 
     private final String message;

@@ -5,6 +5,8 @@ import com.sparta.logistics.user.application.command.LoginCommand;
 import com.sparta.logistics.user.application.command.SignupCommand;
 import com.sparta.logistics.user.application.result.Token;
 import com.sparta.logistics.user.application.result.UserResult;
+import com.sparta.logistics.user.client.CompanyServiceClient;
+import com.sparta.logistics.user.client.HubServiceClient;
 import com.sparta.logistics.user.domain.model.entity.UserEntity;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import com.sparta.logistics.user.domain.repository.RefreshTokenRepository;
@@ -12,6 +14,7 @@ import com.sparta.logistics.user.domain.repository.UserRepository;
 import com.sparta.logistics.user.exception.UserErrorCode;
 import com.sparta.logistics.user.presentation.dto.response.ApproveResponse;
 import com.sparta.logistics.user.security.JwtUtil;
+import feign.FeignException;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,6 +32,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final HubServiceClient hubServiceClient;
+    private final CompanyServiceClient companyServiceClient;
 
     // 회원가입
     public UserResult signUp(SignupCommand command) {
@@ -36,9 +41,7 @@ public class AuthService {
             throw new BusinessException(UserErrorCode.USER_ALREADY_EXISTS);
         }
 
-        if (command.email() != null && userRepository.existsByEmailAndDeletedAtIsNull(command.email())) {
-            throw new BusinessException(UserErrorCode.EMAIL_ALREADY_EXISTS);
-        }
+        validateHubAndCompany(command.hubId(), command.companyId());
 
         String encodedPassword = passwordEncoder.encode(command.password());
 
@@ -111,7 +114,7 @@ public class AuthService {
 
 
     // 토큰 생성
-    public Token issueToken(UserEntity user) {
+    private Token issueToken(UserEntity user) {
         String userId = user.getId().toString();
 
         String hubId = (user.getHubId() != null) ? user.getHubId().toString() : null;
@@ -123,6 +126,28 @@ public class AuthService {
         refreshTokenRepository.save(userId, refreshToken);
 
         return new Token(UserResult.from(user), accessToken, refreshToken);
+    }
+
+    // hubId, companyId 존재 여부 검증
+    private void validateHubAndCompany(UUID hubId, UUID companyId) {
+        if (hubId != null) {
+            try {
+                hubServiceClient.checkHubExists(hubId);
+            } catch (FeignException.NotFound e) {
+                throw new BusinessException(UserErrorCode.HUB_NOT_FOUND);
+            } catch (FeignException e) {
+                throw new BusinessException(UserErrorCode.HUB_SERVICE_UNAVAILABLE);
+            }
+        }
+        if (companyId != null) {
+            try {
+                companyServiceClient.checkCompanyExists(companyId);
+            } catch (FeignException.NotFound e) {
+                throw new BusinessException(UserErrorCode.COMPANY_NOT_FOUND);
+            } catch (FeignException e) {
+                throw new BusinessException(UserErrorCode.COMPANY_SERVICE_UNAVAILABLE);
+            }
+        }
     }
 
     // 마스터 승인
