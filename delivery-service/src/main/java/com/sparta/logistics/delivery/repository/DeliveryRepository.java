@@ -13,15 +13,18 @@ import java.util.UUID;
 
 @Repository
 public interface DeliveryRepository extends JpaRepository<DeliveryEntity, UUID> {
+
+    // 멱등성 보장: Kafka at-least-once 중복 소비 방어용 — orderId 존재 여부 확인
+    boolean existsByOrderId(UUID orderId);
     // TODO: QueryDSL 로 변경
     @Query("SELECT d FROM DeliveryEntity d WHERE " +
             "(:#{#cond.orderId} IS NULL OR d.orderId = :#{#cond.orderId}) AND " +
             "(:#{#cond.status} IS NULL OR d.status = :#{#cond.status}) AND " +
             "(:#{#cond.sourceHubId} IS NULL OR d.sourceHubId = :#{#cond.sourceHubId}) AND " +
             "(:#{#cond.destinationHubId} IS NULL OR d.destinationHubId = :#{#cond.destinationHubId}) AND " +
-            "(:#{#cond.deliveryManagerId} IS NULL OR d.deliveryManagerId = :#{#cond.deliveryManagerId}) AND " +
+            "(:#{#cond.companyDeliveryManagerId} IS NULL OR d.companyDeliveryManagerId = :#{#cond.companyDeliveryManagerId}) AND " +
             "(:#{#cond.authorizedHubId} IS NULL OR (d.sourceHubId = :#{#cond.authorizedHubId} OR d.destinationHubId = :#{#cond.authorizedHubId})) AND " +
-            "(:#{#cond.authorizedManagerId} IS NULL OR d.deliveryManagerId = :#{#cond.authorizedManagerId}) AND " +
+            "(:#{#cond.authorizedManagerId} IS NULL OR d.companyDeliveryManagerId = :#{#cond.authorizedManagerId}) AND " +
             "d.deletedAt IS NULL")
     Page<DeliveryEntity> findAllByCondition(
             @Param("cond") DeliverySearchCond cond,

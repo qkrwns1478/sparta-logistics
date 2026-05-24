@@ -3,20 +3,39 @@ package com.sparta.logistics.delivery.dto;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryStatus;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record DeliveryDetailResponse(
         UUID deliveryId,
+        UUID orderId,
         DeliveryStatus status,
-        String deliveryAddress
+        UUID sourceHubId,
+        UUID destinationHubId,
+        UUID currentHubId,
+        String deliveryAddress,
+        UUID receiverId,
+        String receiverSlackId,
+        UUID companyDeliveryManagerId,
+        LocalDateTime finalDispatchDeadlineAt,
+        LocalDateTime startedAt,
+        LocalDateTime completedAt
 ) {
-    // 엔티티 TO DTO
-    // TODO: deliveryEntity 대신 delivery
-    public static DeliveryDetailResponse from(DeliveryEntity deliveryEntity) {
+    public static DeliveryDetailResponse from(DeliveryEntity e) {
         return new DeliveryDetailResponse(
-                deliveryEntity.getId(),
-                deliveryEntity.getStatus(),
-                deliveryEntity.getDeliveryAddress()
+                e.getId(),
+                e.getOrderId(),
+                e.getStatus(),
+                e.getSourceHubId(),
+                e.getDestinationHubId(),
+                e.getCurrentHubId(),
+                e.getDeliveryAddress(),
+                e.getReceiverId(),
+                e.getReceiverSlackId(),
+                e.getCompanyDeliveryManagerId(),
+                e.getFinalDispatchDeadlineAt(),
+                e.getStartedAt(),
+                e.getCompletedAt()
         );
     }
 }

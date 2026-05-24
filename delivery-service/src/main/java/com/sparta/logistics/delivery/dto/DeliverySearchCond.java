@@ -14,7 +14,7 @@ public class DeliverySearchCond {
     private DeliveryStatus status;
     private UUID sourceHubId;
     private UUID destinationHubId;
-    private UUID deliveryManagerId;
+    private UUID companyDeliveryManagerId;
 
     // Role에 의해 강제 필터링될 필드
     private UUID authorizedHubId;
