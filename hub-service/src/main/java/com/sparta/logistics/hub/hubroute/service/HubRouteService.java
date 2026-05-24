@@ -1,5 +1,6 @@
 package com.sparta.logistics.hub.hubroute.service;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.exception.HubRouteErrorCode;
@@ -31,7 +32,12 @@ public class HubRouteService {
 
 
     @Transactional
-    public HubRouteDetailResponse createHubRoute(CreateHubRouteRequest request) {
+    public HubRouteDetailResponse createHubRoute(CreateHubRouteRequest request, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_FORBIDDEN);
+        }
 
         if (request.getSourceHubId().equals(request.getDestinationHubId())) {
             throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_SAME_HUB);
@@ -92,7 +98,12 @@ public class HubRouteService {
             @CacheEvict(value = "hubRouteList", allEntries = true)
     })
     @Transactional
-    public HubRouteUpdateResponse updateHubRoute(UUID routeId, UpdateHubRouteRequest request) {
+    public HubRouteUpdateResponse updateHubRoute(UUID routeId, UpdateHubRouteRequest request, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_FORBIDDEN);
+        }
 
         HubRoute hubRoute = findHubRouteById(routeId);
 
@@ -106,7 +117,12 @@ public class HubRouteService {
             @CacheEvict(value = "hubRouteList", allEntries = true)
     })
     @Transactional
-    public HubRouteDeleteResponse deleteHubRoute(UUID routeId, UUID userId) {
+    public HubRouteDeleteResponse deleteHubRoute(UUID routeId, UUID userId, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_FORBIDDEN);
+        }
 
         HubRoute hubRoute = findHubRouteById(routeId);
 
@@ -125,5 +141,9 @@ public class HubRouteService {
 
         return hubRouteRepository.findByIdAndDeletedAtIsNull(hubRouteId)
                 .orElseThrow(() -> new BusinessException(HubRouteErrorCode.HUB_ROUTE_NOT_FOUND));
+    }
+
+    private boolean isMaster(Role role) {
+        return role.equals(Role.MASTER);
     }
 }
