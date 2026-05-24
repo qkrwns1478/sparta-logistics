@@ -134,6 +134,15 @@ public class HubService {
         return HubDeleteResponse.from(hub);
     }
 
+    @Transactional(readOnly = true)
+    public List<HubBatchResponse> getHubsByIds(List<UUID> hubIds) {
+
+        return hubRepository.findAllByIdInAndDeletedAtIsNull(hubIds)
+                .stream()
+                .map(HubBatchResponse::from)
+                .toList();
+    }
+
     private Hub findByHubId(UUID hubId) {
 
         return hubRepository.findByIdAndDeletedAtIsNull(hubId)
