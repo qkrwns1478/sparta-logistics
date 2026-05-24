@@ -21,7 +21,10 @@ spring:
   data:
     web:
       pageable:
-        max-page-size: 100
+        max-page-size: 50
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 eureka:
   instance:

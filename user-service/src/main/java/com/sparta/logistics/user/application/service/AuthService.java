@@ -7,6 +7,7 @@ import com.sparta.logistics.user.application.result.Token;
 import com.sparta.logistics.user.application.result.UserResult;
 import com.sparta.logistics.user.domain.model.entity.UserEntity;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
+import com.sparta.logistics.user.domain.repository.RefreshTokenRepository;
 import com.sparta.logistics.user.domain.repository.UserRepository;
 import com.sparta.logistics.user.exception.UserErrorCode;
 import com.sparta.logistics.user.security.JwtUtil;
@@ -20,17 +21,22 @@ import java.util.UUID;
 
 @RequiredArgsConstructor
 @Service
+@Transactional
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     // 회원가입
-    @Transactional
     public UserResult signUp(SignupCommand command) {
         if (userRepository.existsByUsername(command.username())) {
             throw new BusinessException(UserErrorCode.USER_ALREADY_EXISTS);
+        }
+
+        if (command.email() != null && userRepository.existsByEmailAndDeletedAtIsNull(command.email())) {
+            throw new BusinessException(UserErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
         String encodedPassword = passwordEncoder.encode(command.password());
@@ -44,7 +50,6 @@ public class AuthService {
 
 
     // 로그인
-    @Transactional
     public Token login(LoginCommand command) {
 
         UserEntity user = userRepository.findByUsernameAndDeletedAtIsNull(command.username())
@@ -77,7 +82,13 @@ public class AuthService {
             throw new BusinessException(UserErrorCode.INVALID_TOKEN);
         }
 
-        // redis 추가 예정
+        String stored = refreshTokenRepository.find(userId.toString())
+                .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_TOKEN));
+
+        if (!stored.equals(refreshToken)) {
+            refreshTokenRepository.delete(userId.toString()); // 탈취 의심 → 강제 삭제
+            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
+        }
 
         UserEntity user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(()-> new BusinessException(UserErrorCode.USER_NOT_FOUND));
@@ -92,6 +103,8 @@ public class AuthService {
         String accessToken = jwtUtil.createAccessToken(userId.toString(), user.getRole(),hubId, companyId);
         String newRefreshToken = jwtUtil.createRefreshToken(userId.toString(), user.getRole(), hubId, companyId);
 
+        refreshTokenRepository.save(userId.toString(), newRefreshToken);
+
         return new Token(UserResult.from(user), accessToken, newRefreshToken);
     }
 
@@ -105,6 +118,8 @@ public class AuthService {
 
         String accessToken = jwtUtil.createAccessToken(userId, user.getRole(), hubId, companyId);
         String refreshToken = jwtUtil.createRefreshToken(userId, user.getRole(), hubId, companyId);
+
+        refreshTokenRepository.save(userId, refreshToken);
 
         return new Token(UserResult.from(user), accessToken, refreshToken);
     }
