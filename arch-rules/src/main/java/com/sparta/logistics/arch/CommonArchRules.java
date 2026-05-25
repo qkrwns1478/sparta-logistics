@@ -13,6 +13,7 @@ public class CommonArchRules {
     /**
      * 레이어드 아키텍처 규칙
      * controller -> service -> (client/repository/entity) 방향만 허용합니다.
+     * kafka.consumer 패키지가 존재하는 서비스에서는 KafkaConsumer -> Service 방향도 허용합니다.
      */
     public static void layerDependencyRule(JavaClasses classes, String basePackage) {
 
@@ -35,14 +36,29 @@ public class CommonArchRules {
         boolean hasResponseDto = classes.stream()
                 .anyMatch(c -> c.getPackageName().contains(basePackage + ".dto.response"));
 
+        // kafka.consumer 패키지 존재 여부 확인
+        // Consumer는 Controller와 동등한 진입점으로, Service 레이어 접근이 허용됩니다.
+        boolean hasKafkaConsumer = classes.stream()
+                .anyMatch(c -> c.getPackageName().contains(basePackage + ".kafka.consumer"));
+
         LayeredArchitecture rule = layeredArchitecture()
                 .consideringAllDependencies()
                 .layer("Controller").definedBy(basePackage + "..controller..")
                 .layer("Service").definedBy(basePackage + "..service..")
                 .layer("DTO").definedBy(basePackage + "..dto..")
                 .whereLayer("Controller").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller")
                 .whereLayer("DTO").mayOnlyBeAccessedByLayers("Controller", "Service");
+
+        // KafkaConsumer가 있으면 Service 접근 허용 레이어에 포함
+        if (hasKafkaConsumer) {
+            rule = rule
+                    .layer("KafkaConsumer").definedBy(basePackage + "..kafka.consumer..")
+                    .whereLayer("KafkaConsumer").mayNotBeAccessedByAnyLayer()
+                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "KafkaConsumer");
+        } else {
+            rule = rule
+                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller");
+        }
 
         // client 패키지가 있을 때만 레이어 추가
         if (hasClient) {

@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -71,8 +72,10 @@ public class OrderService {
                         Collectors.summingInt(OrderItemRequest::getQuantity)
                 ));
 
+        Map<UUID, ProductResponse> productMap = fetchProducts(new ArrayList<>(mergedItems.keySet()));
+
         mergedItems.forEach((productId, quantity) -> {
-            ProductResponse product = fetchProduct(productId);
+            ProductResponse product = productMap.get(productId);
             OrderItem orderItem = OrderItem.create(
                     order,
                     productId,
@@ -228,16 +231,24 @@ public class OrderService {
         }
     }
 
-    private ProductResponse fetchProduct(UUID productId) {
+    private Map<UUID, ProductResponse> fetchProducts(List<UUID> productIds) {
         try {
-            // AVAILABLE 상태가 아닌 상품은 주문 불가
-            ProductResponse product = productServiceClient.getProduct(productId).data();
-            if (!"AVAILABLE".equals(product.status())) {
-                throw new BusinessException(OrderErrorCode.PRODUCT_NOT_AVAILABLE);
+            // 배치 조회 방식으로 N+1 문제 해결
+            List<ProductResponse> products = productServiceClient.getProducts(productIds).data();
+            Map<UUID, ProductResponse> productMap = products.stream()
+                    .collect(Collectors.toMap(ProductResponse::productId, p -> p));
+
+            for (UUID productId: productIds) {
+                ProductResponse product = productMap.get(productId);
+                if (product == null) {
+                    throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
+                }
+                // AVAILABLE 상태가 아닌 상품은 주문 불가
+                if (!"AVAILABLE".equals(product.status())) {
+                    throw new BusinessException(OrderErrorCode.PRODUCT_NOT_AVAILABLE);
+                }
             }
-            return product;
-        } catch (FeignException.NotFound e) {
-            throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
+            return productMap;
         } catch (FeignException e) {
             throw new BusinessException(OrderErrorCode.PRODUCT_SERVICE_UNAVAILABLE);
         }
@@ -254,7 +265,7 @@ public class OrderService {
     }
 
     private Order findOrder(UUID orderId) {
-        return orderRepository.findByIdAndDeletedAtIsNull(orderId)
+        return orderRepository.findById(orderId)
                 .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
