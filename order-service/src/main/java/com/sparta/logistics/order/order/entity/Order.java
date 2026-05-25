@@ -54,6 +54,10 @@ public class Order extends BaseEntity {
     @Column(name = "cancel_reason")
     private String cancelReason;
 
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
