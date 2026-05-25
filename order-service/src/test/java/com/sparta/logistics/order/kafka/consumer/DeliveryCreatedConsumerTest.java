@@ -28,6 +28,7 @@ class DeliveryCreatedConsumerTest {
     @Test
     void consume_callsAcceptOrderWithCorrectArgs() {
         DeliveryCreatedEvent event = DeliveryCreatedEvent.builder()
+                .eventId(UUID.randomUUID())
                 .deliveryId(DELIVERY_ID)
                 .orderId(ORDER_ID)
                 .sourceHubId(UUID.randomUUID())

@@ -226,6 +226,7 @@ public class OrderService {
                 .toList();
 
         OrderCreatedEvent event = OrderCreatedEvent.builder()
+                .eventId(UUID.randomUUID()) // 중복 소비 방지를 위한 이벤트 고유 ID
                 .orderId(order.getId())
                 .orderItems(payloads)
                 .requesterCompanyId(order.getRequesterCompanyId())
