@@ -38,7 +38,11 @@ public class AuthController {
 
         UserResult userResult = authService.signUp(request.toCommand());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created("회원가입 요청이 완료되었습니다. 관리자 승인을 기다려 주세요.", SignupResponse.from(userResult)));
+        String message = MASTER.equals(userResult.role())
+                ? "관리자 계정으로 가입이 완료되었습니다."
+                : "회원가입 요청이 완료되었습니다. 관리자 승인을 기다려 주세요.";
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(message, SignupResponse.from(userResult)));
     }
 
     // 로그인 ( 승인된 사용자 )
