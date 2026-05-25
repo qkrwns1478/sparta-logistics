@@ -63,17 +63,17 @@ public class UserEntity extends BaseEntity {
             case HUB_MANAGER:
             case DELIVERY_MANAGER:
                 if (this.hubId == null) {
-                    throw new BusinessException(UserErrorCode.INVALID_ROLE_CONSTRAINT);
+                    throw new BusinessException(UserErrorCode.HUB_ID_REQUIRED);
                 }
                 break;
             case COMPANY_MANAGER:
                 if (this.companyId == null) {
-                    throw new BusinessException(UserErrorCode.INVALID_ROLE_CONSTRAINT);
+                    throw new BusinessException(UserErrorCode.COMPANY_ID_REQUIRED);
                 }
                 break;
             case MASTER:
                 if (this.hubId != null || this.companyId != null) {
-                    throw new BusinessException(UserErrorCode.INVALID_ROLE_CONSTRAINT);
+                    throw new BusinessException(UserErrorCode.MASTER_CANNOT_HAVE_HUB_OR_COMPANY);
                 }
                 break;
         }
@@ -87,6 +87,12 @@ public class UserEntity extends BaseEntity {
         if(this.status !=UserStatus.PENDING) {
             throw new BusinessException(UserErrorCode.ALREADY_PROCESSED);
         }
+        this.status = UserStatus.APPROVED;
+    }
+
+    // 첫 번째 가입자 → MASTER + APPROVED 강제 설정
+    public void setRoleAndApprove() {
+        this.role = Role.MASTER;
         this.status = UserStatus.APPROVED;
     }
 

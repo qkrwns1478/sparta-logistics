@@ -31,7 +31,7 @@ public record SignupCommand(
                 .role(role)
                 .hubId(hubId)
                 .companyId(companyId)
-                .status(role == Role.MASTER ? UserStatus.APPROVED : UserStatus.PENDING)
+                .status(UserStatus.PENDING)
                 .build();
 
         user.validateRoleConstraints();

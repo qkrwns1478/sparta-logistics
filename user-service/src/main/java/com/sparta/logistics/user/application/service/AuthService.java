@@ -17,12 +17,14 @@ import com.sparta.logistics.user.security.JwtUtil;
 import feign.FeignException;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 @Transactional
@@ -46,6 +48,11 @@ public class AuthService {
         String encodedPassword = passwordEncoder.encode(command.password());
 
         UserEntity user = command.toEntity(encodedPassword);
+
+        // 첫 번째 가입자는 MASTER + APPROVED로 자동 설정
+        if (!userRepository.existsAny()) {
+            user.setRoleAndApprove();
+        }
 
         UserEntity saveUser = userRepository.save(user);
 
@@ -91,7 +98,7 @@ public class AuthService {
 
         if (!stored.equals(refreshToken)) {
             refreshTokenRepository.delete(userId.toString()); // 탈취 의심 → 강제 삭제
-            throw new BusinessException(UserErrorCode.INVALID_TOKEN);
+            throw new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN);
         }
 
         UserEntity user = userRepository.findByIdAndDeletedAtIsNull(userId)
