@@ -11,6 +11,8 @@ import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.lock.OrderLockManager;
+import com.sparta.logistics.order.order.lock.OrderProcessStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
@@ -36,6 +38,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CompanyServiceClient companyServiceClient;
     private final ProductServiceClient productServiceClient;
+    private final OrderLockManager orderLockManager;
 
     /**
      * 주문 생성
@@ -129,20 +132,33 @@ public class OrderService {
             throw new BusinessException(OrderErrorCode.ORDER_UPDATE_PERMISSION_DENIED);
         }
 
-        Order order = findOrder(orderId);
+        // 1. CANCELLING 상태 사전 차단
+        orderLockManager.getStatusKey(orderId).ifPresent(s -> {
+            if (s == OrderProcessStatus.CANCELLING) {
+                throw new BusinessException(OrderErrorCode.ORDER_ALREADY_CANCELLING);
+            }
+        });
 
-        // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 수정 가능
-        if (role == Role.HUB_MANAGER) {
-            checkHubPermission(order.getRequesterCompanyId(), userHubId);
+        // 2. 분산 락 획득
+        orderLockManager.acquireLock(orderId);
+        try {
+            Order order = findOrder(orderId);
+
+            // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 수정 가능
+            if (role == Role.HUB_MANAGER) {
+                checkHubPermission(order.getRequesterCompanyId(), userHubId);
+            }
+
+            // CANCELLED COMPLETED, IN_DELIVERY 상태는 수정 불가
+            if (!order.isModifiable()) {
+                throw new BusinessException(OrderErrorCode.ORDER_NOT_MODIFIABLE);
+            }
+
+            order.update(dueDate, requestMemo);
+            return OrderDetailResponse.from(order);
+        } finally {
+            orderLockManager.releaseLock(orderId);
         }
-
-        // CANCELLED COMPLETED, IN_DELIVERY 상태는 수정 불가
-        if (!order.isModifiable()) {
-            throw new BusinessException(OrderErrorCode.ORDER_NOT_MODIFIABLE);
-        }
-
-        order.update(dueDate, requestMemo);
-        return OrderDetailResponse.from(order);
     }
 
     /**
@@ -158,20 +174,48 @@ public class OrderService {
             throw new BusinessException(OrderErrorCode.ORDER_CANCEL_PERMISSION_DENIED);
         }
 
-        Order order = findOrder(orderId);
+        // 1. 상태 키 사전 차단 (fast-fail)
+        orderLockManager.getStatusKey(orderId).ifPresent(s -> {
+            if (s == OrderProcessStatus.PROCESSING) {
+                throw new BusinessException(OrderErrorCode.ORDER_PROCESSING_IN_PROGRESS);
+            }
+            if (s == OrderProcessStatus.CANCELLING) {
+                throw new BusinessException(OrderErrorCode.ORDER_ALREADY_CANCELLING);
+            }
+        });
 
-        // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 취소 가능
-        if (role == Role.HUB_MANAGER) {
-            checkHubPermission(order.getRequesterCompanyId(), userHubId);
+        // 2. 분산 락 획득
+        orderLockManager.acquireLock(orderId);
+        try {
+            // 3. 락 획득 후 재확인
+            orderLockManager.getStatusKey(orderId).ifPresent(s -> {
+                if (s == OrderProcessStatus.PROCESSING) {
+                    throw new BusinessException(OrderErrorCode.ORDER_PROCESSING_IN_PROGRESS);
+                }
+            });
+
+            // 4. CANCELLING 세팅
+            orderLockManager.setStatusKey(orderId, OrderProcessStatus.CANCELLING);
+
+            Order order = findOrder(orderId);
+
+            // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 취소 가능
+            if (role == Role.HUB_MANAGER) {
+                checkHubPermission(order.getRequesterCompanyId(), userHubId);
+            }
+
+            // CANCELLED, COMPLETED, IN_DELIVERY 상태는 취소 불가
+            if (!order.isModifiable()) {
+                throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
+            }
+
+            order.cancel(userId, cancelReason);
+            return OrderDetailResponse.from(order);
+        } finally {
+            // 5. 상태 키 및 락 해제
+            orderLockManager.clearStatusKey(orderId);
+            orderLockManager.releaseLock(orderId);
         }
-
-        // CANCELLED, COMPLETED, IN_DELIVERY 상태는 취소 불가
-        if (!order.isModifiable()) {
-            throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
-        }
-
-        order.cancel(userId, cancelReason);
-        return OrderDetailResponse.from(order);
     }
 
     private void validateCompanyExists(UUID companyId) {
