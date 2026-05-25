@@ -20,10 +20,7 @@ public class OrderLockManager {
     private static final String STATUS_PREFIX = "status:order:";
     private static final Duration LOCK_TTL    = Duration.ofSeconds(30);
 
-    /**
-     * 분산 락 획득
-     * 이미 잠겨 있으면 ORDER_LOCK_CONFLICT 예외 발생
-     */
+    /** 분산 락 획득: 이미 잠겨 있으면 ORDER_LOCK_CONFLICT 예외 발생 **/
     public void acquireLock(UUID orderId) {
         String key = LOCK_PREFIX + orderId;
         Boolean acquired = redisTemplate.opsForValue()
@@ -38,10 +35,7 @@ public class OrderLockManager {
         redisTemplate.delete(LOCK_PREFIX + orderId);
     }
 
-    /**
-     * 상태키 조회
-     * 키가 없으면 empty 반환
-     */
+    /** 상태키 조회: 키가 없으면 empty 반환 **/
     public Optional<OrderProcessStatus> getStatusKey(UUID orderId) {
         String val = redisTemplate.opsForValue().get(STATUS_PREFIX + orderId);
         if (val == null) return Optional.empty();
