@@ -53,7 +53,7 @@ public class UserController {
         }
         if(MASTER.equals(requestRole)){
             Page<GetResponse> response = userService.getUsers(username,name,role,status, pageable);
-            return ResponseEntity.ok(ApiResponse.ok(response));
+            return ResponseEntity.ok(ApiResponse.ok("요청이 성공적으로 처리되었습니다.",response));
         }
         throw new BusinessException(UserErrorCode.ACCESS_DENIED);
     }
