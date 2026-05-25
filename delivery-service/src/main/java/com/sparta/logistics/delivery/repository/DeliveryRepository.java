@@ -14,8 +14,10 @@ import java.util.UUID;
 @Repository
 public interface DeliveryRepository extends JpaRepository<DeliveryEntity, UUID> {
 
-    // 멱등성 보장: Kafka at-least-once 중복 소비 방어용 — orderId 존재 여부 확인
-    boolean existsByOrderId(UUID orderId);
+    // 멱등성 보장: Kafka at-least-once 중복 소비 방어용
+    // orderId 단독 체크는 다중 허브 주문에서 두 번째 이벤트를 중복으로 차단하므로
+    // sourceHubId 조합으로 변경 — 같은 주문의 같은 출발 허브 조합만 중복 처리
+    boolean existsByOrderIdAndSourceHubId(UUID orderId, UUID sourceHubId);
     // TODO: QueryDSL 로 변경
     @Query("SELECT d FROM DeliveryEntity d WHERE " +
             "(:#{#cond.orderId} IS NULL OR d.orderId = :#{#cond.orderId}) AND " +
