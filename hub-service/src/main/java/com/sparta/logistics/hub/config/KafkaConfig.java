@@ -32,6 +32,12 @@ public class KafkaConfig {
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
 
+        // 발행 실패 시 최대 3회 재시도
+        config.put(ProducerConfig.RETRIES_CONFIG, 3);
+
+        // 재시도 간격 1초
+        config.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, 1000);
+
         return new DefaultKafkaProducerFactory<>(config);
     }
 
