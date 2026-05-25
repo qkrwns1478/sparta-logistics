@@ -174,6 +174,24 @@ public class OrderService {
         return OrderDetailResponse.from(order);
     }
 
+    /** 주문 삭제 (Soft Delete) **/
+    @Transactional
+    public void deleteOrder(UUID orderId, UUID userId, Role role) {
+        // MASTER만 삭제 가능
+        if (role != Role.MASTER) {
+            throw new BusinessException(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED);
+        }
+
+        Order order = findOrder(orderId);
+
+        // CANCELLED 또는 COMPLETED 상태의 주문만 삭제 가능
+        if (!order.isDeletable()) {
+            throw new BusinessException(OrderErrorCode.ORDER_NOT_DELETABLE);
+        }
+
+        order.delete(userId);
+    }
+
     private void validateCompanyExists(UUID companyId) {
         try {
             companyServiceClient.checkCompanyExists(companyId);

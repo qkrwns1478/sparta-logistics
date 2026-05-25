@@ -96,4 +96,12 @@ public class Order extends BaseEntity {
                 && this.status != OrderStatus.COMPLETED
                 && this.status != OrderStatus.IN_DELIVERY;
     }
+
+    public boolean isDeletable() {
+        return this.status == OrderStatus.CANCELLED || this.status == OrderStatus.COMPLETED;
+    }
+
+    public void delete(UUID deletedBy) {
+        softDelete(deletedBy);
+    }
 }
