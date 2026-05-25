@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.service;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.client.HubServiceClient;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerCreateRequest;
@@ -32,7 +33,7 @@ public class DeliveryManagerService {
     // 배송담당자 생성
     @Transactional
     public DeliveryManagerResponse createManager(DeliveryManagerCreateRequest req,
-                                                  UUID actorId, String role, UUID hubId) {
+                                                  UUID actorId, Role role, UUID hubId) {
         permissionChecker.checkManagerWritePermission(req.hubId(), actorId, role, hubId);
 
         // 멱등성 보장: 동일 userId 중복 등록 방어 (userId가 @Id — PK 중복 방지)
@@ -55,16 +56,16 @@ public class DeliveryManagerService {
 
     // 배송담당자 목록 조회
     @Transactional(readOnly = true)
-    public Page<DeliveryManagerResponse> getManagerList(UUID userId, String role, UUID hubId, Pageable pageable) {
+    public Page<DeliveryManagerResponse> getManagerList(UUID userId, Role role, UUID hubId, Pageable pageable) {
         return switch (role) {
-            case "MASTER" -> managerRepository.findAllByDeletedAtIsNull(pageable)
+            case MASTER -> managerRepository.findAllByDeletedAtIsNull(pageable)
                     .map(DeliveryManagerResponse::from);
-            case "HUB_MANAGER" -> {
+            case HUB_MANAGER -> {
                 if (hubId == null) throw new BusinessException(DeliveryErrorCode.HUB_NOT_FOUND);
                 yield managerRepository.findAllByHubIdAndDeletedAtIsNull(hubId, pageable)
                         .map(DeliveryManagerResponse::from);
             }
-            case "DELIVERY_MANAGER" -> {
+            case DELIVERY_MANAGER -> {
                 DeliveryManagerEntity self = findActiveOrThrow(userId);
                 yield new PageImpl<>(List.of(DeliveryManagerResponse.from(self)), pageable, 1);
             }
@@ -74,7 +75,7 @@ public class DeliveryManagerService {
 
     // 배송담당자 단건 조회
     @Transactional(readOnly = true)
-    public DeliveryManagerResponse getManager(UUID managerId, UUID userId, String role, UUID hubId) {
+    public DeliveryManagerResponse getManager(UUID managerId, UUID userId, Role role, UUID hubId) {
         DeliveryManagerEntity entity = findActiveOrThrow(managerId);
         permissionChecker.checkManagerReadPermission(entity, userId, role, hubId);
         return DeliveryManagerResponse.from(entity);
@@ -83,7 +84,7 @@ public class DeliveryManagerService {
     // 배송담당자 수정
     @Transactional
     public DeliveryManagerResponse updateManager(UUID managerId, DeliveryManagerUpdateRequest req,
-                                                  UUID userId, String role, UUID hubId) {
+                                                  UUID userId, Role role, UUID hubId) {
         DeliveryManagerEntity entity = findActiveOrThrow(managerId);
         permissionChecker.checkManagerSelfWritePermission(entity, userId, role, hubId);
         entity.updateInfo(req.hubId() != null ? req.hubId() : entity.getHubId(),
@@ -94,7 +95,7 @@ public class DeliveryManagerService {
     // 배송담당자 상태변경
     @Transactional
     public DeliveryManagerResponse changeManagerStatus(UUID managerId, DeliveryManagerStatusChangeRequest req,
-                                                        UUID userId, String role, UUID hubId) {
+                                                        UUID userId, Role role, UUID hubId) {
         DeliveryManagerEntity entity = findActiveOrThrow(managerId);
         permissionChecker.checkManagerSelfWritePermission(entity, userId, role, hubId);
         entity.changeStatus(req.status());
@@ -103,7 +104,7 @@ public class DeliveryManagerService {
 
     // 배송담당자 삭제 (soft delete)
     @Transactional
-    public void deleteManager(UUID managerId, UUID actorId, String role, UUID hubId) {
+    public void deleteManager(UUID managerId, UUID actorId, Role role, UUID hubId) {
         DeliveryManagerEntity entity = findActiveOrThrow(managerId);
         permissionChecker.checkManagerWritePermission(entity.getHubId(), actorId, role, hubId);
 

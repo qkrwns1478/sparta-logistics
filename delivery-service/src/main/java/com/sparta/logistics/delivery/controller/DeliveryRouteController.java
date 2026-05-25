@@ -3,6 +3,7 @@ package com.sparta.logistics.delivery.controller;
 import com.sparta.logistics.delivery.dto.log.DeliveryLogResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteUpdateRequest;
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.delivery.service.DeliveryLogService;
 import com.sparta.logistics.delivery.service.DeliveryRouteService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,7 @@ public class DeliveryRouteController {
     public ResponseEntity<List<DeliveryRouteResponse>> getRouteList(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestHeader(value = "X-User-CompanyId", required = false) UUID companyId
     ) {
@@ -44,7 +45,7 @@ public class DeliveryRouteController {
             @PathVariable UUID deliveryId,
             @PathVariable UUID routeId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestBody DeliveryRouteUpdateRequest request
     ) {
@@ -56,7 +57,7 @@ public class DeliveryRouteController {
     public ResponseEntity<List<DeliveryLogResponse>> getLogs(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestHeader(value = "X-User-CompanyId", required = false) UUID companyId
     ) {

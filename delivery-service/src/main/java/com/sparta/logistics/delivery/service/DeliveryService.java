@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.service;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.dto.DeliveryDetailResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +43,7 @@ public class DeliveryService {
 
     // 배송 단건 조회
     @Transactional(readOnly = true)
-    public DeliveryDetailResponse getDelivery(UUID deliveryId, UUID userId, String role,
+    public DeliveryDetailResponse getDelivery(UUID deliveryId, UUID userId, Role role,
                                               UUID hubId, UUID companyId) {
         DeliveryEntity entity = findActiveOrThrow(deliveryId);
         permissionChecker.checkDeliveryReadPermission(entity, userId, role, hubId, companyId);
@@ -51,13 +52,12 @@ public class DeliveryService {
 
     // 배송 목록 조회
     @Transactional(readOnly = true)
-    public Page<DeliveryListResponse> getDeliveryList(UUID userId, String role, UUID hubId,
+    public Page<DeliveryListResponse> getDeliveryList(UUID userId, Role role, UUID hubId,
                                                        Pageable pageable, DeliverySearchCond cond) {
         switch (role) {
-            case "HUB_MANAGER" -> cond.setAuthorizedHubId(hubId);
-            case "DELIVERY_MANAGER" -> cond.setAuthorizedManagerId(userId);
-            case "MASTER", "COMPANY_MANAGER" -> {}
-            default -> {}
+            case HUB_MANAGER -> cond.setAuthorizedHubId(hubId);
+            case DELIVERY_MANAGER -> cond.setAuthorizedManagerId(userId);
+            case MASTER, COMPANY_MANAGER -> {}
         }
         Page<DeliveryEntity> deliveryPage = deliveryRepository.findAllByCondition(cond, pageable);
         return deliveryPage.map(d -> DeliveryListResponse.from(d, null, null, null));
@@ -66,7 +66,7 @@ public class DeliveryService {
     // 배송 수정
     @Transactional
     public DeliveryDetailResponse updateDelivery(UUID deliveryId, DeliveryUpdateRequest req,
-                                                  UUID userId, String role, UUID hubId) {
+                                                  UUID userId, Role role, UUID hubId) {
         DeliveryEntity entity = findActiveOrThrow(deliveryId);
         permissionChecker.checkDeliveryWritePermission(entity, userId, role, hubId);
         entity.update(req);
@@ -76,7 +76,7 @@ public class DeliveryService {
     // 배송 상태 변경 (로그 동기 저장 — 같은 트랜잭션)
     @Transactional
     public DeliveryDetailResponse changeStatus(UUID deliveryId, DeliveryStatusChangeRequest req,
-                                                UUID userId, String role, UUID hubId) {
+                                                UUID userId, Role role, UUID hubId) {
         DeliveryEntity entity = findActiveOrThrow(deliveryId);
         permissionChecker.checkDeliveryStatusChangePermission(entity, userId, role, hubId);
 
@@ -93,7 +93,7 @@ public class DeliveryService {
 
     // 배송 삭제 (soft delete)
     @Transactional
-    public void deleteDelivery(UUID deliveryId, UUID userId, String role) {
+    public void deleteDelivery(UUID deliveryId, UUID userId, Role role) {
         DeliveryEntity entity = findActiveOrThrow(deliveryId);
         permissionChecker.checkDeletePermission(role);
         entity.delete(userId);

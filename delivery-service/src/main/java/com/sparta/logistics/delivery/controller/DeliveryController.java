@@ -5,6 +5,7 @@ import com.sparta.logistics.delivery.dto.DeliveryListResponse;
 import com.sparta.logistics.delivery.dto.DeliverySearchCond;
 import com.sparta.logistics.delivery.dto.DeliveryStatusChangeRequest;
 import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.delivery.service.DeliveryAssignmentService;
 import com.sparta.logistics.delivery.service.DeliveryService;
 import jakarta.validation.Valid;
@@ -41,7 +42,7 @@ public class DeliveryController {
     public ResponseEntity<DeliveryDetailResponse> getDelivery(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestHeader(value = "X-User-CompanyId", required = false) UUID companyId
     ) {
@@ -52,7 +53,7 @@ public class DeliveryController {
     @GetMapping
     public ResponseEntity<Page<DeliveryListResponse>> getDeliveryList(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @ModelAttribute DeliverySearchCond cond
@@ -65,7 +66,7 @@ public class DeliveryController {
     public ResponseEntity<DeliveryDetailResponse> updateDelivery(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestBody DeliveryUpdateRequest request
     ) {
@@ -77,7 +78,7 @@ public class DeliveryController {
     public ResponseEntity<DeliveryDetailResponse> changeStatus(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @Valid @RequestBody DeliveryStatusChangeRequest request
     ) {
@@ -89,7 +90,7 @@ public class DeliveryController {
     public ResponseEntity<Void> deleteDelivery(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role
+            @RequestHeader("X-User-Role") Role role
     ) {
         deliveryService.deleteDelivery(deliveryId, userId, role);
         return ResponseEntity.noContent().build();
@@ -107,7 +108,7 @@ public class DeliveryController {
     public ResponseEntity<Void> assignManagers(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId
     ) {
         deliveryAssignmentService.assignManagers(deliveryId, userId, role, hubId);

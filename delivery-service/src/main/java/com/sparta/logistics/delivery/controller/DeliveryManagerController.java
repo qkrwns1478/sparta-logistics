@@ -4,6 +4,7 @@ import com.sparta.logistics.delivery.dto.manager.DeliveryManagerCreateRequest;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerResponse;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerStatusChangeRequest;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerUpdateRequest;
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.delivery.service.DeliveryManagerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +37,7 @@ public class DeliveryManagerController {
     @PostMapping
     public ResponseEntity<DeliveryManagerResponse> createManager(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @Valid @RequestBody DeliveryManagerCreateRequest request
     ) {
@@ -48,7 +49,7 @@ public class DeliveryManagerController {
     @GetMapping
     public ResponseEntity<Page<DeliveryManagerResponse>> getManagerList(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
@@ -59,7 +60,7 @@ public class DeliveryManagerController {
     public ResponseEntity<DeliveryManagerResponse> getManager(
             @PathVariable UUID managerId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId
     ) {
         return ResponseEntity.ok(managerService.getManager(managerId, userId, role, hubId));
@@ -69,7 +70,7 @@ public class DeliveryManagerController {
     public ResponseEntity<DeliveryManagerResponse> updateManager(
             @PathVariable UUID managerId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestBody DeliveryManagerUpdateRequest request
     ) {
@@ -80,7 +81,7 @@ public class DeliveryManagerController {
     public ResponseEntity<DeliveryManagerResponse> changeManagerStatus(
             @PathVariable UUID managerId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @Valid @RequestBody DeliveryManagerStatusChangeRequest request
     ) {
@@ -91,7 +92,7 @@ public class DeliveryManagerController {
     public ResponseEntity<Void> deleteManager(
             @PathVariable UUID managerId,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId
     ) {
         managerService.deleteManager(managerId, userId, role, hubId);

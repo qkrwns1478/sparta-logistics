@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.service;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteUpdateRequest;
@@ -30,7 +31,7 @@ public class DeliveryRouteService {
 
     // 배송경로 목록 조회
     @Transactional(readOnly = true)
-    public List<DeliveryRouteResponse> getRouteList(UUID deliveryId, UUID userId, String role,
+    public List<DeliveryRouteResponse> getRouteList(UUID deliveryId, UUID userId, Role role,
                                                      UUID hubId, UUID companyId) {
         DeliveryEntity delivery = findDeliveryOrThrow(deliveryId);
         permissionChecker.checkDeliveryReadPermission(delivery, userId, role, hubId, companyId);
@@ -45,7 +46,7 @@ public class DeliveryRouteService {
     @Transactional
     public DeliveryRouteResponse updateRoute(UUID deliveryId, UUID routeId,
                                               DeliveryRouteUpdateRequest req,
-                                              UUID userId, String role, UUID hubId) {
+                                              UUID userId, Role role, UUID hubId) {
         DeliveryEntity delivery = findDeliveryOrThrow(deliveryId);
         DeliveryRouteEntity route = routeRepository.findById(routeId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.ROUTE_NOT_FOUND));

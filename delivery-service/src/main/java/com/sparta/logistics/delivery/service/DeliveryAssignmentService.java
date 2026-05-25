@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.service;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
@@ -54,7 +55,7 @@ public class DeliveryAssignmentService {
      * @param hubId      요청 주체 허브 ID (HUB_MANAGER 권한 검사용)
      */
     @Transactional
-    public void assignManagers(UUID deliveryId, UUID actorId, String role, UUID hubId) {
+    public void assignManagers(UUID deliveryId, UUID actorId, Role role, UUID hubId) {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
         if (delivery.isDeleted()) {

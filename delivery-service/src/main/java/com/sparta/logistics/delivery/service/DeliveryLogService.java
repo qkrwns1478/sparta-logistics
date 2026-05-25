@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.service;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.dto.log.DeliveryLogResponse;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
@@ -23,7 +24,7 @@ public class DeliveryLogService {
 
     // 배송 이벤트 로그 조회 — 배송 READ 권한과 동일
     @Transactional(readOnly = true)
-    public List<DeliveryLogResponse> getLogs(UUID deliveryId, UUID userId, String role,
+    public List<DeliveryLogResponse> getLogs(UUID deliveryId, UUID userId, Role role,
                                               UUID hubId, UUID companyId) {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
