@@ -121,6 +121,31 @@ public class OrderService {
         log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryId={}", orderId, deliveryId);
     }
 
+    /**
+     * Choreography Saga 보상 트랜잭션: 재고 예약 실패 또는 배송 생성 실패 시 주문을 즉시 CANCELLED 처리함
+     * StockReservationFailedConsumer / DeliveryCreationFailedConsumer에서 호출됨
+     * <p>
+     * 멱등성 보장: 이미 CANCELLED인 경우 재처리 시 no-op
+     */
+    @Transactional
+    public void cancelOrderByCompensation(UUID orderId, String reason) {
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElse(null);
+
+        if (order == null) {
+            log.warn("[보상 취소] 주문을 찾을 수 없음 orderId={}", orderId);
+            return;
+        }
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.warn("[보상 취소] 멱등성 처리: 이미 취소된 주문 orderId={}", orderId);
+            return;
+        }
+
+        order.cancel(null, reason);
+        log.info("[보상 취소] 주문 CANCELLED orderId={} reason={}", orderId, reason);
+    }
+
     /** 주문 목록 조회 **/
     @Transactional(readOnly = true)
     public Page<OrderSummaryResponse> getOrders(

@@ -465,4 +465,54 @@ class OrderServiceTest {
                 .doesNotThrowAnyException();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
     }
+
+    // ===== cancelOrderByCompensation (Choreography Saga 보상) =====
+
+    // PENDING 주문이 보상 취소 수신 시 즉시 CANCELLED 처리되는지 검증 (stock.reservation.failed)
+    @Test
+    void cancelOrderByCompensation_pendingOrder_cancelled() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.cancelOrderByCompensation(ORDER_ID, "재고 부족");
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.getCancelReason()).isEqualTo("재고 부족");
+        assertThat(order.getCancelledBy()).isNull(); // 보상 취소는 사람이 아닌 시스템 발생이므로 null
+    }
+
+    // ACCEPTED 주문도 보상 취소 가능한지 검증 (delivery.creation.failed)
+    @Test
+    void cancelOrderByCompensation_acceptedOrder_cancelled() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.accept();
+        order.linkDelivery(UUID.randomUUID());
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.cancelOrderByCompensation(ORDER_ID, "배송 생성 실패");
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.getCancelReason()).isEqualTo("배송 생성 실패");
+    }
+
+    // 이미 CANCELLED인 주문에 대해 멱등성이 보장되는지 검증 (중복 이벤트)
+    @Test
+    void cancelOrderByCompensation_alreadyCancelled_idempotent() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.cancel(null, "이미 취소됨");
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatCode(() -> orderService.cancelOrderByCompensation(ORDER_ID, "중복 이벤트"))
+                .doesNotThrowAnyException();
+        assertThat(order.getCancelReason()).isEqualTo("이미 취소됨"); // 기존 사유 유지
+    }
+
+    // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
+    @Test
+    void cancelOrderByCompensation_orderNotFound_noException() {
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+
+        assertThatCode(() -> orderService.cancelOrderByCompensation(ORDER_ID, "재고 부족"))
+                .doesNotThrowAnyException();
+    }
 }
