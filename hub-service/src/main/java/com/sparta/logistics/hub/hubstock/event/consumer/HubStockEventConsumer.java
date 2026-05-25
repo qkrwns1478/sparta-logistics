@@ -1,10 +1,9 @@
 package com.sparta.logistics.hub.hubstock.event.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sparta.logistics.hub.hubstock.event.dto.inbound.OrderCreatedEvent;
-import com.sparta.logistics.hub.hubstock.event.dto.inbound.RestoreStockCommand;
+import com.sparta.logistics.common.kafka.event.OrderCreatedEvent;
+import com.sparta.logistics.common.kafka.event.RestoreStockCommand;
 import com.sparta.logistics.hub.hubstock.service.HubStockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

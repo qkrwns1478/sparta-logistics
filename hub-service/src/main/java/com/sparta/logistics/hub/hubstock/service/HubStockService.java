@@ -1,6 +1,7 @@
 package com.sparta.logistics.hub.hubstock.service;
 
 import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.common.kafka.event.*;
 import com.sparta.logistics.hub.client.CompanyClient;
 import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.exception.HubStockErrorCode;
@@ -13,9 +14,6 @@ import com.sparta.logistics.hub.hubstock.dto.response.HubStockCreateResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockListResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
 import com.sparta.logistics.hub.hubstock.enums.HubStockChangeType;
-import com.sparta.logistics.hub.hubstock.event.dto.inbound.OrderCreatedEvent;
-import com.sparta.logistics.hub.hubstock.event.dto.inbound.RestoreStockCommand;
-import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockReservedEvent;
 import com.sparta.logistics.hub.hubstock.event.publisher.HubStockEventPublisher;
 import com.sparta.logistics.hub.hubstock.service.helper.HubStockLockHelper;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
@@ -30,7 +28,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
 
 import java.util.ArrayList;
 import java.util.List;
@@ -114,7 +111,7 @@ public class HubStockService {
     @Transactional
     public void restoreStock(RestoreStockCommand command) {
 
-        for (RestoreStockCommand.OrderItem item : command.getOrderItems()) {
+        for (RestoreStockItemPayload item : command.getOrderItems()) {
 
             HubStock hubStock = hubStockRepository
                     .findByProductIdAndDeletedAtIsNull(item.getProductId())
@@ -134,12 +131,12 @@ public class HubStockService {
             ));
         }
 
-        // // DB 커밋 성공 후 ack 발행 (커밋 전 발행 시 정합성 문제 방지)
+        // DB 커밋 성공 후 ack 발행 (커밋 전 발행 시 정합성 문제 방지)
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        hubStockEventPublisher.publishStockRestoredAck(command.getOrderId());
+                        hubStockEventPublisher.publishStockRestoredAck(command.getEventId(), command.getOrderId());
                     }
                 }
         );
@@ -153,9 +150,9 @@ public class HubStockService {
                 .getCompany(event.getReceiverCompanyId()).getHubId();
 
         // stock.reserved 발행 시 필요한 리스트
-        List<StockReservedEvent.ReservedItem> reservedItems = new ArrayList<>();
+        List<StockReservedItemPayload> reservedItems = new ArrayList<>();
 
-        for (OrderCreatedEvent.OrderItem item : event.getOrderItems()) {
+        for (OrderItemPayload item : event.getOrderItems()) {
 
             HubStock hubStock = hubStockRepository
                     .findByProductIdAndDeletedAtIsNull(item.getProductId())
@@ -164,6 +161,7 @@ public class HubStockService {
             // 재고 부족 시 실패 이벤트 발행하고 종료
             if (hubStock.getAvailable() < item.getQuantity()) {
                 hubStockEventPublisher.publishStockReservationFailed(
+                        event.getEventId(),
                         event.getOrderId(),
                         item.getProductId(),
                         "재고 부족"
@@ -185,11 +183,12 @@ public class HubStockService {
             ));
 
             // 아이템마다 sourceHubId 포함해서 리스트에 추가
-            reservedItems.add(new StockReservedEvent.ReservedItem(
-                    item.getProductId(),
-                    item.getQuantity(),
-                    item.getHubId()
-            ));
+            reservedItems.add(StockReservedItemPayload.builder()
+                    .productId(item.getProductId())
+                    .reservedQuantity(item.getQuantity())
+                    .sourceHubId(item.getHubId())
+                    .build()
+            );
         }
 
         // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)
@@ -197,11 +196,13 @@ public class HubStockService {
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        StockReservedEvent reservedEvent = new StockReservedEvent(
-                                event.getOrderId(),
-                                destinationHubId,
-                                reservedItems
-                        );
+                        StockReservedEvent reservedEvent = StockReservedEvent.builder()
+                                .eventId(event.getEventId())
+                                .orderId(event.getOrderId())
+                                .destinationHubId(destinationHubId)
+                                .orderItems(reservedItems)
+                                .build();
+
                         hubStockEventPublisher.publishStockReserved(reservedEvent);
                     }
                 }

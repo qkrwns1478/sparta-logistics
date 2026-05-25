@@ -2,9 +2,9 @@ package com.sparta.logistics.hub.hubstock.event.publisher;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockReservationFailedEvent;
-import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockReservedEvent;
-import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockRestoredAckEvent;
+import com.sparta.logistics.common.kafka.event.StockReservationFailedEvent;
+import com.sparta.logistics.common.kafka.event.StockReservedEvent;
+import com.sparta.logistics.common.kafka.event.StockRestoredAckEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -20,10 +20,14 @@ public class HubStockEventPublisher {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
-    public void publishStockRestoredAck(UUID orderId) {
+    public void publishStockRestoredAck(UUID eventId, UUID orderId) {
 
         try {
-            StockRestoredAckEvent event = new StockRestoredAckEvent(orderId);
+            StockRestoredAckEvent event = StockRestoredAckEvent.builder()
+                    .eventId(eventId)
+                    .orderId(orderId)
+                    .build();
+
             String message = objectMapper.writeValueAsString(event);
 
             kafkaTemplate.send("stock.restored.ack", message);
@@ -34,10 +38,16 @@ public class HubStockEventPublisher {
         }
     }
 
-    public void publishStockReservationFailed(UUID orderId, UUID productId, String reason) {
+    public void publishStockReservationFailed(UUID eventId, UUID orderId, UUID productId, String reason) {
 
         try {
-            StockReservationFailedEvent event = new StockReservationFailedEvent(orderId, productId, reason);
+            StockReservationFailedEvent event = StockReservationFailedEvent.builder()
+                    .eventId(eventId)
+                    .orderId(orderId)
+                    .productId(productId)
+                    .reason(reason)
+                    .build();
+
             String message = objectMapper.writeValueAsString(event);
 
             kafkaTemplate.send("stock.reservation.failed", message);
