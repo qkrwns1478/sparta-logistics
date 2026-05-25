@@ -149,6 +149,16 @@ public class HubStockService {
                     .findByProductIdAndDeletedAtIsNull(item.getProductId())
                     .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
 
+            // 재고 부족 시 실패 이벤트 발행하고 종료
+            if (hubStock.getAvailable() < item.getQuantity()) {
+                hubStockEventPublisher.publishStockReservationFailed(
+                        event.getOrderId(),
+                        item.getProductId(),
+                        "재고 부족"
+                );
+                return;
+            }
+
             int beforeQuantity = hubStock.getAvailable();
             hubStock.reserve(item.getQuantity());
             int afterQuantity = hubStock.getAvailable();
@@ -163,7 +173,6 @@ public class HubStockService {
             ));
         }
 
-        // todo: 재고 부족 시 stock.reservation.failed 발행
         // todo: 성공 시 stock.reserved 발행 (source_hub_id, destination_hub_id 페이로드 합의 후)
     }
 }
