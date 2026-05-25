@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -62,7 +63,7 @@ class OrderServiceTest {
 
     // ===== createOrder =====
 
-    // 정상 요청 시 업체/상품 검증 후 주문이 저장되고 응답이 반환되는지 검증
+    // 정상 요청 시 업체/상품 배치 조회 후 주문이 저장되고 응답이 반환되는지 검증
     @Test
     void createOrder_success() {
         ProductResponse product = new ProductResponse(
@@ -72,7 +73,7 @@ class OrderServiceTest {
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
         when(itemRequest.getQuantity()).thenReturn(2);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenReturn(ApiResponse.ok(product));
+        when(productServiceClient.getProducts(anyList())).thenReturn(ApiResponse.ok(List.of(product)));
 
         OrderDetailResponse result = orderService.createOrder(
                 REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, "메모", List.of(itemRequest), USER_ID
@@ -110,12 +111,13 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.COMPANY_SERVICE_UNAVAILABLE));
     }
 
-    // Product Service가 404를 반환하면 PRODUCT_NOT_FOUND 예외가 발생하는지 검증
+    // 배치 응답에 요청한 상품 ID가 없으면 PRODUCT_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void createOrder_productNotFound_throwsException() {
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenThrow(mock(FeignException.NotFound.class));
+        when(itemRequest.getQuantity()).thenReturn(1);
+        when(productServiceClient.getProducts(anyList())).thenReturn(ApiResponse.ok(List.of()));
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
@@ -133,7 +135,8 @@ class OrderServiceTest {
         );
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenReturn(ApiResponse.ok(unavailable));
+        when(itemRequest.getQuantity()).thenReturn(1);
+        when(productServiceClient.getProducts(anyList())).thenReturn(ApiResponse.ok(List.of(unavailable)));
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
@@ -147,7 +150,8 @@ class OrderServiceTest {
     void createOrder_productServiceUnavailable_throwsException() {
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenThrow(mock(FeignException.class));
+        when(itemRequest.getQuantity()).thenReturn(1);
+        when(productServiceClient.getProducts(anyList())).thenThrow(mock(FeignException.class));
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
@@ -196,7 +200,7 @@ class OrderServiceTest {
     // 존재하지 않는 주문 ID로 조회 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void getOrder_orderNotFound_throwsException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
                 orderService.getOrder(ORDER_ID, USER_ID, Role.MASTER)
@@ -210,7 +214,7 @@ class OrderServiceTest {
     void getOrder_otherUsersOrder_throwsAccessDenied() {
         UUID otherUserId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() ->
                 orderService.getOrder(ORDER_ID, otherUserId, Role.COMPANY_MANAGER)
@@ -225,7 +229,7 @@ class OrderServiceTest {
         UUID otherUserId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체명", "PRODUCER", HUB_ID, "허브명", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(any())).thenReturn(ApiResponse.ok(company));
 
         assertThat(orderService.getOrder(ORDER_ID, otherUserId, Role.MASTER)).isNotNull();
@@ -236,7 +240,7 @@ class OrderServiceTest {
     void getOrder_ownOrder_allowsCompanyManagerAccess() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체명", "PRODUCER", HUB_ID, "허브명", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(any())).thenReturn(ApiResponse.ok(company));
 
         assertThat(orderService.getOrder(ORDER_ID, USER_ID, Role.COMPANY_MANAGER)).isNotNull();
@@ -257,7 +261,7 @@ class OrderServiceTest {
     // 존재하지 않는 주문 수정 시도 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void updateOrder_orderNotFound_throwsException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
                 orderService.updateOrder(ORDER_ID, DUE_DATE, null, USER_ID, Role.MASTER, null)
@@ -271,7 +275,7 @@ class OrderServiceTest {
     void updateOrder_nonModifiableStatus_throwsException() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.cancel(USER_ID, "취소됨");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() ->
                 orderService.updateOrder(ORDER_ID, DUE_DATE, null, USER_ID, Role.MASTER, null)
@@ -286,7 +290,7 @@ class OrderServiceTest {
         UUID otherHubId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", otherHubId, "다른허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         assertThatThrownBy(() ->
@@ -301,7 +305,7 @@ class OrderServiceTest {
     void updateOrder_masterRole_success() {
         LocalDateTime newDueDate = DUE_DATE.plusDays(1);
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         OrderDetailResponse result = orderService.updateOrder(ORDER_ID, newDueDate, "새 메모", USER_ID, Role.MASTER, null);
 
@@ -315,7 +319,7 @@ class OrderServiceTest {
     void updateOrder_hubManagerSameHub_success() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", HUB_ID, "허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         OrderDetailResponse result = orderService.updateOrder(ORDER_ID, null, "메모 수정", USER_ID, Role.HUB_MANAGER, HUB_ID);
@@ -339,7 +343,7 @@ class OrderServiceTest {
     // 존재하지 않는 주문 취소 시도 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void cancelOrder_orderNotFound_throwsException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
                 orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
@@ -353,7 +357,7 @@ class OrderServiceTest {
     void cancelOrder_alreadyCancelled_throwsException() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.cancel(USER_ID, "이미 취소됨");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() ->
                 orderService.cancelOrder(ORDER_ID, "재취소 시도", USER_ID, Role.MASTER, null)
@@ -368,7 +372,7 @@ class OrderServiceTest {
         UUID otherHubId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", otherHubId, "다른허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         assertThatThrownBy(() ->
@@ -382,7 +386,7 @@ class OrderServiceTest {
     @Test
     void cancelOrder_masterRole_success() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         OrderDetailResponse result = orderService.cancelOrder(ORDER_ID, "단순 변심", USER_ID, Role.MASTER, null);
 
@@ -397,7 +401,7 @@ class OrderServiceTest {
     void cancelOrder_hubManagerSameHub_success() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", HUB_ID, "허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         OrderDetailResponse result = orderService.cancelOrder(ORDER_ID, "재고 소진", USER_ID, Role.HUB_MANAGER, HUB_ID);

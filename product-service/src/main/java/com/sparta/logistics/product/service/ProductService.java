@@ -94,6 +94,15 @@ public class ProductService {
     }
 
     // -------------------------------------------------------
+    // 배치 조회: 내부 서비스 전용
+    // -------------------------------------------------------
+    public List<ProductResponse> getProducts(List<UUID> productIds) {
+        return productRepository.findAllById(productIds).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    // -------------------------------------------------------
     // 수정: MASTER, HUB_MANAGER(담당 허브), COMPANY_MANAGER(본인 업체)
     // -------------------------------------------------------
     @Transactional
