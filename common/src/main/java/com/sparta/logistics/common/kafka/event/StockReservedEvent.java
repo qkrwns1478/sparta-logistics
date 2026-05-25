@@ -12,8 +12,8 @@ import java.util.UUID;
  * 토픽: stock.reserved
  * 발행: HubService / 구독: DeliveryService
  * <p>
- * 재고 예약이 완료되면 발행한다.
- * DeliveryService는 이 이벤트를 받아 배송 및 경로를 생성한다.
+ * 재고 예약이 완료되면 발행함
+ * DeliveryService는 이 이벤트를 받아 배송 및 경로를 생성함
  * <p>
  * 파티션 키: orderId
  * */

@@ -11,8 +11,8 @@ import java.util.UUID;
  * 토픽: stock.reservation.failed
  * 발행: HubService / 구독: OrderService
  * <p>
- * 재고 부족 등으로 예약에 실패했을 때 발행한다.
- * OrderService는 이 이벤트를 받아 주문을 CANCELLED 처리한다. (Choreography 보상)
+ * 재고 부족 등으로 예약에 실패했을 때 발행함
+ * OrderService는 이 이벤트를 받아 주문을 CANCELLED 처리함 (Choreography 보상)
  * <p>
  * 파티션 키: orderId
  * */
