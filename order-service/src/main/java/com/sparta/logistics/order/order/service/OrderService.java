@@ -3,11 +3,8 @@ package com.sparta.logistics.order.order.service;
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.kafka.KafkaTopics;
-import com.sparta.logistics.common.kafka.event.CancelDeliveryCommand;
 import com.sparta.logistics.common.kafka.event.OrderCreatedEvent;
 import com.sparta.logistics.common.kafka.event.OrderItemPayload;
-import com.sparta.logistics.common.kafka.event.RestoreStockCommand;
-import com.sparta.logistics.common.kafka.event.RestoreStockItemPayload;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
 import com.sparta.logistics.order.client.response.CompanyResponse;
@@ -18,6 +15,7 @@ import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
+import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import feign.FeignException;
@@ -44,6 +42,7 @@ public class OrderService {
     private final CompanyServiceClient companyServiceClient;
     private final ProductServiceClient productServiceClient;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final CancelOrderOrchestrator cancelOrderOrchestrator;
 
     /**
      * 주문 생성
@@ -210,12 +209,10 @@ public class OrderService {
     }
 
     /**
-     * 주문 취소 요청 (Orchestration Saga Step 3-1)
+     * 주문 취소 요청 (Orchestration Saga Step 3-1 진입점)
      * <p>
-     * 즉시 CANCELLED 처리하지 않고 CANCELLING 상태로 전이한 뒤 cancel.delivery.command를 발행함
-     * 실제 CANCELLED 확정은 stock.restored.ack 수신 후 confirmOrderCancelled()가 담당함
-     * <p>
-     * 상태 전이 유효성은 Order.startCancelling()이 내부에서 처리함 (canTransitionTo 테이블)
+     * 권한 검사 + 주문 조회 완료 후 CancelOrderOrchestrator.start()에 위임
+     * CANCELLING 전이 및 cancel.delivery.command 발행은 오케스트레이터가 담당
      * */
     @Transactional
     public OrderDetailResponse cancelOrder(UUID orderId, String cancelReason, UUID userId, Role role, UUID userHubId) {
@@ -231,91 +228,26 @@ public class OrderService {
             checkHubPermission(order.getRequesterCompanyId(), userHubId);
         }
 
-        // CANCELLING 전이 + 취소자 및 취소 사유 저장 (내부에서 상태 전이 유효성 검사)
-        order.startCancelling(userId, cancelReason);
-        orderRepository.save(order);
-
-        // Orchestration Saga Step 3-1: cancel.delivery.command 발행 → DeliveryService 배송 취소 트리거
-        kafkaTemplate.send(
-                KafkaTopics.CANCEL_DELIVERY_COMMAND,
-                order.getId().toString(),
-                CancelDeliveryCommand.builder()
-                        .eventId(UUID.randomUUID())
-                        .orderId(order.getId())
-                        .deliveryId(order.getDeliveryId()) // PENDING 상태면 null일 수 있음
-                        .build()
-        );
-        log.info("[cancelOrder] CANCELLING 전이 + cancel.delivery.command 발행 orderId={}", order.getId());
+        // Orchestration Saga Step 3-1: CANCELLING 전이 + cancel.delivery.command 발행
+        cancelOrderOrchestrator.start(order, userId, cancelReason);
 
         return OrderDetailResponse.from(order);
     }
 
     /**
-     * Orchestration Saga Step 3-3: delivery.cancelled.ack 수신 후 restore.stock.command 발행
-     * DeliveryCancelledAckConsumer에서 호출됨
-     * <p>
-     * CANCELLING 상태가 아니면 이미 처리된 이벤트로 간주하고 무시함
+     * Orchestration Saga Step 3-3: delivery.cancelled.ack 수신 후 처리
+     * DeliveryCancelledAckConsumer에서 호출됨 → CancelOrderOrchestrator.onDeliveryCancelled()에 위임
      * */
-    @Transactional
     public void handleDeliveryCancelled(UUID orderId) {
-        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
-                .orElse(null);
-
-        if (order == null) {
-            log.warn("[delivery.cancelled.ack] 주문을 찾을 수 없음 orderId={}", orderId);
-            return;
-        }
-
-        if (order.getStatus() != OrderStatus.CANCELLING) {
-            log.warn("[delivery.cancelled.ack] 멱등성 처리: CANCELLING 상태가 아님 orderId={} status={}",
-                    orderId, order.getStatus());
-            return;
-        }
-
-        List<RestoreStockItemPayload> items = order.getOrderItems().stream()
-                .map(item -> RestoreStockItemPayload.builder()
-                        .productId(item.getProductId())
-                        .quantity(item.getQuantity())
-                        .build())
-                .toList();
-
-        kafkaTemplate.send(
-                KafkaTopics.RESTORE_STOCK_COMMAND,
-                orderId.toString(),
-                RestoreStockCommand.builder()
-                        .eventId(UUID.randomUUID())
-                        .orderId(orderId)
-                        .orderItems(items)
-                        .build()
-        );
-        log.info("[delivery.cancelled.ack] restore.stock.command 발행 orderId={} itemCount={}",
-                orderId, items.size());
+        cancelOrderOrchestrator.onDeliveryCancelled(orderId);
     }
 
     /**
-     * Orchestration Saga Step 3-5: stock.restored.ack 수신 후 주문 CANCELLED 확정
-     * StockRestoredAckConsumer에서 호출됨
-     * <p>
-     * CANCELLING 상태가 아니면 이미 처리된 이벤트로 간주하고 무시함
+     * Orchestration Saga Step 3-5: stock.restored.ack 수신 후 처리
+     * StockRestoredAckConsumer에서 호출됨 → CancelOrderOrchestrator.onStockRestored()에 위임
      * */
-    @Transactional
     public void confirmOrderCancelled(UUID orderId) {
-        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
-                .orElse(null);
-
-        if (order == null) {
-            log.warn("[stock.restored.ack] 주문을 찾을 수 없음 orderId={}", orderId);
-            return;
-        }
-
-        if (order.getStatus() != OrderStatus.CANCELLING) {
-            log.warn("[stock.restored.ack] 멱등성 처리: CANCELLING 상태가 아님 orderId={} status={}",
-                    orderId, order.getStatus());
-            return;
-        }
-
-        order.confirmCancelled();
-        log.info("[stock.restored.ack] 주문 CANCELLED 확정 orderId={}", orderId);
+        cancelOrderOrchestrator.onStockRestored(orderId);
     }
 
     // ===== Kafka 이벤트 발행 =====

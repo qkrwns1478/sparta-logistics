@@ -13,6 +13,7 @@ import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
+import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import feign.FeignException;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,9 @@ class OrderServiceTest {
     @SuppressWarnings("rawtypes")
     @Mock
     private KafkaTemplate kafkaTemplate;
+
+    @Mock
+    private CancelOrderOrchestrator cancelOrderOrchestrator;
 
     private final UUID REQUESTER_COMPANY_ID = UUID.randomUUID();
     private final UUID RECEIVER_COMPANY_ID = UUID.randomUUID();
@@ -368,12 +372,15 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
-    // 이미 취소된 주문을 다시 취소 시도 시 ORDER_NOT_CANCELLABLE 예외가 발생하는지 검증
+    // 이미 취소된 주문에 대해 오케스트레이터가 ORDER_NOT_CANCELLABLE을 던지면 서비스가 그대로 전파하는지 검증
+    // 실제 상태 전이 검사(Order.startCancelling → canTransitionTo)는 CancelOrderOrchestratorTest에서 검증
     @Test
     void cancelOrder_alreadyCancelled_throwsException() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.cancel(USER_ID, "이미 취소됨");
         when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        doThrow(new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE))
+                .when(cancelOrderOrchestrator).start(any(Order.class), any(UUID.class), any(String.class));
 
         assertThatThrownBy(() ->
                 orderService.cancelOrder(ORDER_ID, "재취소 시도", USER_ID, Role.MASTER, null)
@@ -398,30 +405,23 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.ORDER_HUB_ACCESS_DENIED));
     }
 
-    // MASTER 역할로 주문 취소 요청 시 CANCELLING으로 전이되고 cancel.delivery.command가 발행되는지 검증
+    // MASTER 역할로 주문 취소 요청 시 CancelOrderOrchestrator.start()가 호출되는지 검증
     @Test
-    @SuppressWarnings("unchecked")
-    void cancelOrder_masterRole_success() {
+    void cancelOrder_masterRole_delegatesToOrchestrator() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        ReflectionTestUtils.setField(order, "id", ORDER_ID); // Kafka 파티션 키 생성에 필요
         when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
 
         OrderDetailResponse result = orderService.cancelOrder(ORDER_ID, "단순 변심", USER_ID, Role.MASTER, null);
 
         assertThat(result).isNotNull();
-        // Phase 3: 즉시 CANCELLED가 아닌 CANCELLING 상태로 전이됨
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLING);
-        assertThat(order.getCancelReason()).isEqualTo("단순 변심");
-        assertThat(order.getCancelledBy()).isEqualTo(USER_ID);
-        verify(kafkaTemplate).send(eq(KafkaTopics.CANCEL_DELIVERY_COMMAND), eq(ORDER_ID.toString()), any());
+        // CANCELLING 전이 + Kafka 발행은 CancelOrderOrchestrator가 담당 (CancelOrderOrchestratorTest에서 검증)
+        verify(cancelOrderOrchestrator).start(eq(order), eq(USER_ID), eq("단순 변심"));
     }
 
-    // HUB_MANAGER가 담당 허브의 주문 취소 요청 시 CANCELLING으로 전이되는지 검증
+    // HUB_MANAGER가 담당 허브의 주문 취소 요청 시 오케스트레이터에 올바른 인자가 전달되는지 검증
     @Test
-    @SuppressWarnings("unchecked")
-    void cancelOrder_hubManagerSameHub_success() {
+    void cancelOrder_hubManagerSameHub_delegatesToOrchestrator() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        ReflectionTestUtils.setField(order, "id", ORDER_ID); // Kafka 파티션 키 생성에 필요
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", HUB_ID, "허브", "서울", "ACTIVE");
         when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
@@ -429,8 +429,7 @@ class OrderServiceTest {
         OrderDetailResponse result = orderService.cancelOrder(ORDER_ID, "재고 소진", USER_ID, Role.HUB_MANAGER, HUB_ID);
 
         assertThat(result).isNotNull();
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLING);
-        verify(kafkaTemplate).send(eq(KafkaTopics.CANCEL_DELIVERY_COMMAND), eq(ORDER_ID.toString()), any());
+        verify(cancelOrderOrchestrator).start(eq(order), eq(USER_ID), eq("재고 소진"));
     }
 
     // ===== acceptOrder (Choreography Saga Step 1-4) =====
@@ -525,76 +524,23 @@ class OrderServiceTest {
 
     // ===== handleDeliveryCancelled (Orchestration Saga Step 3-3) =====
 
-    // CANCELLING 주문에 delivery.cancelled.ack 수신 시 restore.stock.command가 발행되는지 검증
+    // delivery.cancelled.ack 수신 시 CancelOrderOrchestrator.onDeliveryCancelled()에 위임하는지 검증
+    // CANCELLING 상태 검사, restore.stock.command 발행 등 상세 동작은 CancelOrderOrchestratorTest에서 검증
     @Test
-    @SuppressWarnings("unchecked")
-    void handleDeliveryCancelled_cancellingOrder_publishesRestoreCommand() {
-        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        ReflectionTestUtils.setField(order, "id", ORDER_ID);
-        order.startCancelling(USER_ID, "단순 변심");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
-
+    void handleDeliveryCancelled_delegatesToOrchestrator() {
         orderService.handleDeliveryCancelled(ORDER_ID);
 
-        verify(kafkaTemplate).send(eq(KafkaTopics.RESTORE_STOCK_COMMAND), eq(ORDER_ID.toString()), any());
-    }
-
-    // CANCELLING이 아닌 상태에서 delivery.cancelled.ack 수신 시 멱등성이 보장되는지 검증
-    @Test
-    void handleDeliveryCancelled_notCancellingOrder_idempotent() {
-        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        // PENDING 상태 — CANCELLING이 아님
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
-
-        assertThatCode(() -> orderService.handleDeliveryCancelled(ORDER_ID))
-                .doesNotThrowAnyException();
-    }
-
-    // 주문이 존재하지 않으면 예외 없이 무시하는지 검증
-    @Test
-    void handleDeliveryCancelled_orderNotFound_noException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
-
-        assertThatCode(() -> orderService.handleDeliveryCancelled(ORDER_ID))
-                .doesNotThrowAnyException();
+        verify(cancelOrderOrchestrator).onDeliveryCancelled(ORDER_ID);
     }
 
     // ===== confirmOrderCancelled (Orchestration Saga Step 3-5) =====
 
-    // CANCELLING 주문에 stock.restored.ack 수신 시 CANCELLED로 확정되는지 검증
+    // stock.restored.ack 수신 시 CancelOrderOrchestrator.onStockRestored()에 위임하는지 검증
+    // CANCELLED 확정, 멱등성 등 상세 동작은 CancelOrderOrchestratorTest에서 검증
     @Test
-    void confirmOrderCancelled_cancellingOrder_confirmedCancelled() {
-        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        order.startCancelling(USER_ID, "단순 변심");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
-
+    void confirmOrderCancelled_delegatesToOrchestrator() {
         orderService.confirmOrderCancelled(ORDER_ID);
 
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        assertThat(order.getCancelledAt()).isNotNull();
-        // cancelledBy, cancelReason은 startCancelling() 시점에 이미 저장됨
-        assertThat(order.getCancelledBy()).isEqualTo(USER_ID);
-        assertThat(order.getCancelReason()).isEqualTo("단순 변심");
-    }
-
-    // CANCELLING이 아닌 상태에서 stock.restored.ack 수신 시 멱등성이 보장되는지 검증
-    @Test
-    void confirmOrderCancelled_notCancellingOrder_idempotent() {
-        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        order.cancel(null, "이미 취소됨"); // CANCELLED 상태
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
-
-        assertThatCode(() -> orderService.confirmOrderCancelled(ORDER_ID))
-                .doesNotThrowAnyException();
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-    }
-
-    // 주문이 존재하지 않으면 예외 없이 무시하는지 검증
-    @Test
-    void confirmOrderCancelled_orderNotFound_noException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
-
-        assertThatCode(() -> orderService.confirmOrderCancelled(ORDER_ID))
-                .doesNotThrowAnyException();
+        verify(cancelOrderOrchestrator).onStockRestored(ORDER_ID);
     }
 }
