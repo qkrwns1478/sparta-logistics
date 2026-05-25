@@ -12,6 +12,8 @@ import com.sparta.logistics.hub.hubstock.dto.response.HubStockCreateResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockListResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
 import com.sparta.logistics.hub.hubstock.enums.HubStockChangeType;
+import com.sparta.logistics.hub.hubstock.event.dto.inbound.RestoreStockCommand;
+import com.sparta.logistics.hub.hubstock.event.publisher.HubStockEventPublisher;
 import com.sparta.logistics.hub.hubstock.service.helper.HubStockLockHelper;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
 import com.sparta.logistics.hub.hubstocklog.entity.HubStockLog;
@@ -23,6 +25,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 
 import java.util.UUID;
 
@@ -34,6 +39,7 @@ public class HubStockService {
     private final HubRepository hubRepository;
     private final HubStockLockHelper hubStockLockHelper;
     private final HubStockLogRepository hubStockLogRepository;
+    private final HubStockEventPublisher hubStockEventPublisher;
 
     private static final int MAX_RETRY = 3;
 
@@ -99,5 +105,37 @@ public class HubStockService {
         throw new BusinessException(HubStockErrorCode.HUB_STOCK_ADJUST_FAILED);
     }
 
+    @Transactional
+    public void restoreStock(RestoreStockCommand command) {
 
+        for (RestoreStockCommand.OrderItem item : command.getOrderItems()) {
+
+            HubStock hubStock = hubStockRepository
+                    .findByProductIdAndDeletedAtIsNull(item.getProductId())
+                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+            int beforeQuantity = hubStock.getAvailable();
+            hubStock.restore(item.getQuantity());
+            int afterQuantity = hubStock.getAvailable();
+
+            // 재고 변경 이력 기록
+            hubStockLogRepository.save(HubStockLog.create(
+                    hubStock,
+                    item.getQuantity(),
+                    beforeQuantity,
+                    afterQuantity,
+                    HubStockChangeType.CANCEL_RESTORE
+            ));
+        }
+
+        // // DB 커밋 성공 후 ack 발행 (커밋 전 발행 시 정합성 문제 방지)
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        hubStockEventPublisher.publishStockRestoredAck(command.getOrderId());
+                    }
+                }
+        );
+    }
 }
