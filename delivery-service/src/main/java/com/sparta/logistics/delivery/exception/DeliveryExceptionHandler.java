@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.exception;
 
+import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.exception.CommonErrorCode;
 import com.sparta.logistics.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,13 +28,11 @@ public class DeliveryExceptionHandler {
      * DataIntegrityViolationException → 409 Conflict 반환.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
+    public void handleDataIntegrityViolation(
             DataIntegrityViolationException e, HttpServletRequest req) {
         log.warn("[Data Integrity Violation] method={}, uri={}, message={}",
                 req.getMethod(), req.getRequestURI(), e.getMessage());
-        return ResponseEntity
-                .status(CommonErrorCode.CONFLICT.getStatus())
-                .body(ApiResponse.error(CommonErrorCode.CONFLICT));
+        throw new BusinessException(DeliveryErrorCode.DELIVERY_CONFLICT);
     }
 
     /**
@@ -41,12 +40,10 @@ public class DeliveryExceptionHandler {
      * DeliveryEntity·DeliveryManagerEntity의 @Version 충돌 시 발생. 409 Conflict 반환.
      */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(
+    public void handleOptimisticLock(
             ObjectOptimisticLockingFailureException e, HttpServletRequest req) {
         log.warn("[Optimistic Lock] method={}, uri={}, entity={}",
                 req.getMethod(), req.getRequestURI(), e.getPersistentClassName());
-        return ResponseEntity
-                .status(CommonErrorCode.CONFLICT.getStatus())
-                .body(ApiResponse.error(CommonErrorCode.CONFLICT));
+        throw new BusinessException(DeliveryErrorCode.DELIVERY_CONFLICT);
     }
 }
