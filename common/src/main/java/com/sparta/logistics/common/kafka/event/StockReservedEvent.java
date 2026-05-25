@@ -23,10 +23,8 @@ import java.util.UUID;
 @Builder
 public class StockReservedEvent {
     private UUID orderId;
-    // 출발 허브 ID (상품 재고를 가진 허브)
-    private UUID sourceHubId;
     // 도착 허브 ID (수령 업체 소속 허브)
     private UUID destinationHubId;
-    // 예약 완료된 항목 목록
+    // 예약 완료된 항목 목록 (각 항목이 sourceHubId를 개별로 보유)
     private List<StockReservedItemPayload> orderItems;
 }

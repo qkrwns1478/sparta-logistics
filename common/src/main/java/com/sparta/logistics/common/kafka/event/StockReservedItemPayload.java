@@ -14,6 +14,8 @@ import java.util.UUID;
 @Builder
 public class StockReservedItemPayload {
     private UUID productId;
-    //실제로 예약된 수량
+    // 실제로 예약된 수량
     private Integer reservedQuantity;
+    // 상품 재고를 보유한 출발 허브 ID (아이템마다 허브가 다를 수 있음)
+    private UUID sourceHubId;
 }
