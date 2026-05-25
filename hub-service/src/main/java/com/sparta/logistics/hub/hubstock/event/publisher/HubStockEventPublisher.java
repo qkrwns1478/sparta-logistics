@@ -2,6 +2,7 @@ package com.sparta.logistics.hub.hubstock.event.publisher;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
 import com.sparta.logistics.common.kafka.event.StockReservationFailedEvent;
 import com.sparta.logistics.common.kafka.event.StockReservedEvent;
 import com.sparta.logistics.common.kafka.event.StockRestoredAckEvent;
@@ -68,6 +69,26 @@ public class HubStockEventPublisher {
             log.info("[Kafka] stock.reserved 발행 - orderId: {}", event.getOrderId());
         } catch (JsonProcessingException e) {
             log.error("[Kafka] stock.reserved 발행 실패 - orderId: {}", event.getOrderId(), e);
+        }
+    }
+
+    public void publishHubStockUpdated(UUID productId, UUID hubId, Integer available, Long hubStockVersion) {
+
+        try {
+            HubStockUpdatedEvent event = HubStockUpdatedEvent.builder()
+                    .eventId(UUID.randomUUID())
+                    .productId(productId)
+                    .hubId(hubId)
+                    .available(available)
+                    .hubStockVersion(hubStockVersion)
+                    .build();
+
+            String message = objectMapper.writeValueAsString(event);
+            kafkaTemplate.send("hub.stock.updated", message);
+
+            log.info("[Kafka] hub.stock.updated 발행 - productId: {}", productId);
+        } catch (JsonProcessingException e) {
+            log.error("[Kafka] hub.stock.updated 발행 실패 - productId: {}", productId, e);
         }
     }
 }

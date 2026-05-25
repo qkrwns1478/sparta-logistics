@@ -73,6 +73,8 @@ public class HubStockService {
                     HubStockChangeType.INBOUND
             ));
 
+            registerHubStockUpdatedEvent(savedStock);
+
             return HubStockCreateResponse.from(savedStock);
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(HubStockErrorCode.HUB_STOCK_ALREADY_EXISTS);
@@ -129,17 +131,12 @@ public class HubStockService {
                     afterQuantity,
                     HubStockChangeType.CANCEL_RESTORE
             ));
+
+            registerHubStockUpdatedEvent(hubStock);
         }
 
         // DB 커밋 성공 후 ack 발행 (커밋 전 발행 시 정합성 문제 방지)
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        hubStockEventPublisher.publishStockRestoredAck(command.getEventId(), command.getOrderId());
-                    }
-                }
-        );
+        registerStockRestoredAckEvent(command.getEventId(), command.getOrderId());
     }
 
     @Transactional
@@ -189,21 +186,55 @@ public class HubStockService {
                     .sourceHubId(item.getHubId())
                     .build()
             );
+
+            registerHubStockUpdatedEvent(hubStock);
         }
 
         // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)
+        StockReservedEvent reservedEvent = StockReservedEvent.builder()
+                .eventId(event.getEventId())
+                .orderId(event.getOrderId())
+                .destinationHubId(destinationHubId)
+                .orderItems(reservedItems)
+                .build();
+        registerStockReservedEvent(reservedEvent);
+    }
+
+    // 재고 변경 후 Order Service 스냅샷 갱신을 위한 이벤트 등록 (커밋 후 발행)
+    private void registerHubStockUpdatedEvent(HubStock hubStock) {
+
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        StockReservedEvent reservedEvent = StockReservedEvent.builder()
-                                .eventId(event.getEventId())
-                                .orderId(event.getOrderId())
-                                .destinationHubId(destinationHubId)
-                                .orderItems(reservedItems)
-                                .build();
+                        hubStockEventPublisher.publishHubStockUpdated(
+                                hubStock.getProductId(),
+                                hubStock.getHub().getId(),
+                                hubStock.getAvailable(),
+                                hubStock.getVersion()
+                        );
+                    }
+                }
+        );
+    }
 
-                        hubStockEventPublisher.publishStockReserved(reservedEvent);
+    private void registerStockRestoredAckEvent(UUID eventId, UUID orderId) {
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        hubStockEventPublisher.publishStockRestoredAck(eventId, orderId);
+                    }
+                }
+        );
+    }
+
+    private void registerStockReservedEvent(StockReservedEvent event) {
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        hubStockEventPublisher.publishStockReserved(event);
                     }
                 }
         );
