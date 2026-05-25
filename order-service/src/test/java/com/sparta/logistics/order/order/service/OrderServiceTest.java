@@ -24,6 +24,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import org.springframework.test.util.ReflectionTestUtils;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -82,6 +84,14 @@ class OrderServiceTest {
         when(itemRequest.getQuantity()).thenReturn(2);
         when(productServiceClient.getProduct(PRODUCT_ID)).thenReturn(ApiResponse.ok(product));
 
+        // Mock save()가 JPA UUID 생성을 대신 수행하도록 설정
+        // 실제 JPA는 save() 시 @GeneratedValue(UUID)로 ID를 할당하지만, Mock은 그렇지 않음
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            ReflectionTestUtils.setField(savedOrder, "id", ORDER_ID);
+            return savedOrder;
+        });
+
         OrderDetailResponse result = orderService.createOrder(
                 REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, "메모", List.of(itemRequest), USER_ID
         );
@@ -89,8 +99,8 @@ class OrderServiceTest {
         verify(companyServiceClient).checkCompanyExists(REQUESTER_COMPANY_ID);
         verify(companyServiceClient).checkCompanyExists(RECEIVER_COMPANY_ID);
         verify(orderRepository).save(any(Order.class));
-        // order.created 이벤트가 Kafka로 발행되는지 검증
-        verify(kafkaTemplate).send(eq(KafkaTopics.ORDER_CREATED), any(String.class), any());
+        // order.created 이벤트가 orderId 파티션 키와 함께 Kafka로 발행되는지 검증
+        verify(kafkaTemplate).send(eq(KafkaTopics.ORDER_CREATED), eq(ORDER_ID.toString()), any());
         assertThat(result).isNotNull();
     }
 
