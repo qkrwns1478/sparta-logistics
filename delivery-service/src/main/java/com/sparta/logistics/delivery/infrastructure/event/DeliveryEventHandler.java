@@ -38,9 +38,16 @@ public class DeliveryEventHandler {
         }
 
         // user-service Feign 호출 — 트랜잭션 범위 밖
+        // data() null 을 catch 바깥에서 명시적으로 체크: data()==null 은 NPE→USER_SERVICE_UNAVAILABLE 오분류 방지
         String slackId;
         try {
-            slackId = userServiceClient.getUser(event.receiverId()).data().slackId();
+            var userResponse = userServiceClient.getUser(event.receiverId());
+            if (userResponse.data() == null) {
+                log.warn("[Kafka] slackId 없음(data=null) — receiverId={}, orderId={}", event.receiverId(), event.orderId());
+                eventPublisher.publishCreationFailed(event.orderId(), "SLACK_ID_NOT_FOUND");
+                return;
+            }
+            slackId = userResponse.data().slackId();
         } catch (Exception e) {
             log.warn("[Kafka] user-service 호출 실패 — orderId={}", event.orderId(), e);
             eventPublisher.publishCreationFailed(event.orderId(), "USER_SERVICE_UNAVAILABLE");
@@ -53,8 +60,13 @@ public class DeliveryEventHandler {
             return;
         }
 
-        deliveryService.createDelivery(event, slackId);
-        log.info("[Kafka] 배송 생성 완료 — orderId={}", event.orderId());
+        try {
+            deliveryService.createDelivery(event, slackId);
+            log.info("[Kafka] 배송 생성 완료 — orderId={}", event.orderId());
+        } catch (Exception e) {
+            log.error("[Kafka] 배송 생성 실패 — orderId={}", event.orderId(), e);
+            eventPublisher.publishCreationFailed(event.orderId(), "CREATE_FAILED");
+        }
     }
 
     @KafkaListener(topics = "ai.deadline.calculated", groupId = "delivery-service")
