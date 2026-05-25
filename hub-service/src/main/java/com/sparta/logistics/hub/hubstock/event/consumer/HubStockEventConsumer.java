@@ -30,4 +30,11 @@ public class HubStockEventConsumer {
             log.error("[Kafka] restore.stock.command 역직렬화 실패 - message: {}", message, e);
         }
     }
+
+    @KafkaListener(topics = "delivery.creation.failed", groupId = "hub-service")
+    public void consumeDeliveryCreationFailed(String message) {
+
+        // todo: delivery.creation.failed order_items가 포함되어야 재고 복구 처리 가능
+        log.info("[Kafka] delivery.creation.failed 수신 - message: {}", message);
+    }
 }
