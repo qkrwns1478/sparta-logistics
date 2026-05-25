@@ -3,6 +3,7 @@ package com.sparta.logistics.hub.hubstock.event.publisher;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockReservationFailedEvent;
+import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockReservedEvent;
 import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockRestoredAckEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,19 @@ public class HubStockEventPublisher {
             log.info("[Kafka] stock.reservation.failed 발행 - orderId: {}, productId: {}", orderId, productId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] stock.reservation.failed 발행 실패 - orderId: {}", orderId, e);
+        }
+    }
+
+    public void publishStockReserved(StockReservedEvent event) {
+
+        try {
+            String message = objectMapper.writeValueAsString(event);
+
+            kafkaTemplate.send("stock.reserved", message);
+
+            log.info("[Kafka] stock.reserved 발행 - orderId: {}", event.getOrderId());
+        } catch (JsonProcessingException e) {
+            log.error("[Kafka] stock.reserved 발행 실패 - orderId: {}", event.getOrderId(), e);
         }
     }
 }

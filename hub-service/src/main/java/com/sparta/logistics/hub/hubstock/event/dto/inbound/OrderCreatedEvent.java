@@ -11,6 +11,7 @@ import java.util.UUID;
 public class OrderCreatedEvent {
     private UUID orderId;
     private UUID requesterCompanyId;
+    private UUID receiverCompanyId;
     private List<OrderItem> orderItems;
 
     @Getter

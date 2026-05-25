@@ -1,6 +1,7 @@
 package com.sparta.logistics.hub.hubstock.service;
 
 import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.hub.client.CompanyClient;
 import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.exception.HubStockErrorCode;
 import com.sparta.logistics.hub.hub.entity.Hub;
@@ -14,6 +15,7 @@ import com.sparta.logistics.hub.hubstock.entity.HubStock;
 import com.sparta.logistics.hub.hubstock.enums.HubStockChangeType;
 import com.sparta.logistics.hub.hubstock.event.dto.inbound.OrderCreatedEvent;
 import com.sparta.logistics.hub.hubstock.event.dto.inbound.RestoreStockCommand;
+import com.sparta.logistics.hub.hubstock.event.dto.outbound.StockReservedEvent;
 import com.sparta.logistics.hub.hubstock.event.publisher.HubStockEventPublisher;
 import com.sparta.logistics.hub.hubstock.service.helper.HubStockLockHelper;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
@@ -30,6 +32,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -41,6 +45,7 @@ public class HubStockService {
     private final HubStockLockHelper hubStockLockHelper;
     private final HubStockLogRepository hubStockLogRepository;
     private final HubStockEventPublisher hubStockEventPublisher;
+    private final CompanyClient companyClient;
 
     private static final int MAX_RETRY = 3;
 
@@ -143,6 +148,13 @@ public class HubStockService {
     @Transactional
     public void reserveStock(OrderCreatedEvent event) {
 
+        // stock.reserved 발행 시 필요
+        UUID destinationHubId = companyClient
+                .getCompany(event.getReceiverCompanyId()).getHubId();
+
+        // stock.reserved 발행 시 필요한 리스트
+        List<StockReservedEvent.ReservedItem> reservedItems = new ArrayList<>();
+
         for (OrderCreatedEvent.OrderItem item : event.getOrderItems()) {
 
             HubStock hubStock = hubStockRepository
@@ -171,8 +183,28 @@ public class HubStockService {
                     afterQuantity,
                     HubStockChangeType.ORDER_DECREASE
             ));
+
+            // 아이템마다 sourceHubId 포함해서 리스트에 추가
+            reservedItems.add(new StockReservedEvent.ReservedItem(
+                    item.getProductId(),
+                    item.getQuantity(),
+                    item.getHubId()
+            ));
         }
 
-        // todo: 성공 시 stock.reserved 발행 (source_hub_id, destination_hub_id 페이로드 합의 후)
+        // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        StockReservedEvent reservedEvent = new StockReservedEvent(
+                                event.getOrderId(),
+                                destinationHubId,
+                                reservedItems
+                        );
+                        hubStockEventPublisher.publishStockReserved(reservedEvent);
+                    }
+                }
+        );
     }
 }
