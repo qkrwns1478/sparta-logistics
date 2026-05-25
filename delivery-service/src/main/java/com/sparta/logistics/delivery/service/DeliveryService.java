@@ -12,6 +12,7 @@ import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
+import com.sparta.logistics.delivery.infrastructure.event.DeliveryEventPublisher;
 import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class DeliveryService {
     private final DeliveryRepository deliveryRepository;
     private final DeliveryLogRepository deliveryLogRepository;
     private final DeliveryPermissionChecker permissionChecker;
+    private final DeliveryEventPublisher eventPublisher;
 
     // 배송 단건 조회
     @Transactional(readOnly = true)
@@ -99,9 +101,9 @@ public class DeliveryService {
     @Transactional
     public void createDelivery(StockReservedEventDto event, String slackId) {
         // 멱등성 보장: Kafka at-least-once 중복 소비 방어
-        // orderId UNIQUE 제약이 최종 방어선이지만, 명시적 체크로 DataIntegrityViolationException 사전 차단
-        if (deliveryRepository.existsByOrderId(event.orderId())) {
-            log.info("[createDelivery] 이미 처리된 주문 — orderId={}", event.orderId());
+        // orderId 단독 체크 시 같은 주문의 다른 허브 이벤트를 중복으로 차단하므로 orderId+sourceHubId 조합 사용
+        if (deliveryRepository.existsByOrderIdAndSourceHubId(event.orderId(), event.sourceHubId())) {
+            log.info("[createDelivery] 이미 처리된 주문+허브 조합 — orderId={}, sourceHubId={}", event.orderId(), event.sourceHubId());
             return;
         }
         DeliveryEntity entity = new DeliveryEntity(
@@ -113,6 +115,9 @@ public class DeliveryService {
                 slackId
         );
         deliveryRepository.save(entity);
+        // 트랜잭션 커밋 후 발행이 이상적이나 소규모 프로젝트 기준 단순 구조 채택
+        // 추후 outbox 패턴으로 전환 시 이 호출 제거
+        eventPublisher.publishCreated(entity.getId(), event.orderId());
     }
 
     // ai.deadline.calculated 이벤트 수신 시 호출
