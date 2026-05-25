@@ -22,6 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class AiDeadlineCalculatedEvent {
+    private UUID eventId;
     private UUID deliveryId;
     private UUID orderId;
     // AI가 산출한 최종 발송 시한

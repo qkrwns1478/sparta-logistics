@@ -22,6 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class DeliveryCreatedEvent {
+    private UUID eventId;
     private UUID deliveryId;
     private UUID orderId;
     private UUID sourceHubId;

@@ -22,6 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class StockReservedEvent {
+    private UUID eventId;
     private UUID orderId;
     // 도착 허브 ID (수령 업체 소속 허브)
     private UUID destinationHubId;
