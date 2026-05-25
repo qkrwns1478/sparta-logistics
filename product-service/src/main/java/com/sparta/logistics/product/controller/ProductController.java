@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Tag(name = "Product", description = "상품 관리 API")
@@ -73,6 +74,19 @@ public class ProductController {
         Page<ProductResponse> result = productService.searchProducts(condition, pageable);
 
         return ResponseEntity.ok(ApiResponse.ok("요청이 성공적으로 처리되었습니다.", result));
+    }
+
+    // -------------------------------------------------------
+    // GET /api/v1/products/batch — 배치 조회 (내부 서비스 전용)
+    // -------------------------------------------------------
+    @Operation(summary = "상품 배치 조회", description = "Order Service 내부 통신 전용")
+    @GetMapping("/batch")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProducts(
+            @RequestParam("ids") List<UUID> ids) {
+
+        return ResponseEntity.ok(
+                ApiResponse.ok("요청이 성공적으로 처리되었습니다.",
+                        productService.getProducts(ids)));
     }
 
     // -------------------------------------------------------
