@@ -2,6 +2,7 @@ package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
@@ -21,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +30,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,6 +55,10 @@ class OrderServiceTest {
     @Mock
     private ProductServiceClient productServiceClient;
 
+    @SuppressWarnings("rawtypes")
+    @Mock
+    private KafkaTemplate kafkaTemplate;
+
     private final UUID REQUESTER_COMPANY_ID = UUID.randomUUID();
     private final UUID RECEIVER_COMPANY_ID = UUID.randomUUID();
     private final UUID PRODUCT_ID = UUID.randomUUID();
@@ -62,8 +69,9 @@ class OrderServiceTest {
 
     // ===== createOrder =====
 
-    // 정상 요청 시 업체/상품 검증 후 주문이 저장되고 응답이 반환되는지 검증
+    // 정상 요청 시 업체/상품 검증 후 주문이 저장되고, order.created 이벤트가 발행되며, 응답이 반환되는지 검증
     @Test
+    @SuppressWarnings("unchecked")
     void createOrder_success() {
         ProductResponse product = new ProductResponse(
                 PRODUCT_ID, "테스트 상품", REQUESTER_COMPANY_ID, "업체명",
@@ -81,6 +89,8 @@ class OrderServiceTest {
         verify(companyServiceClient).checkCompanyExists(REQUESTER_COMPANY_ID);
         verify(companyServiceClient).checkCompanyExists(RECEIVER_COMPANY_ID);
         verify(orderRepository).save(any(Order.class));
+        // order.created 이벤트가 Kafka로 발행되는지 검증
+        verify(kafkaTemplate).send(eq(KafkaTopics.ORDER_CREATED), any(String.class), any());
         assertThat(result).isNotNull();
     }
 
@@ -404,5 +414,45 @@ class OrderServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    // ===== acceptOrder (Choreography Saga Step 1-4) =====
+
+    // delivery.created 이벤트 수신 시 PENDING 주문이 ACCEPTED로 전이되고 deliveryId가 저장되는지 검증
+    @Test
+    void acceptOrder_pendingOrder_transitionsToAccepted() {
+        UUID deliveryId = UUID.randomUUID();
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.acceptOrder(ORDER_ID, deliveryId);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
+        assertThat(order.getDeliveryId()).isEqualTo(deliveryId);
+    }
+
+    // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
+    @Test
+    void acceptOrder_orderNotFound_noException() {
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+
+        // 예외가 발생하지 않아야 함 — Kafka 불필요한 재시도 방지
+        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, UUID.randomUUID()))
+                .doesNotThrowAnyException();
+    }
+
+    // 이미 ACCEPTED 상태인 주문에 대해 멱등성이 보장되는지 검증 (중복 이벤트 처리)
+    @Test
+    void acceptOrder_alreadyAccepted_idempotent() {
+        UUID deliveryId = UUID.randomUUID();
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.accept();                      // 이미 ACCEPTED
+        order.linkDelivery(deliveryId);
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        // 중복 이벤트여도 예외 없이 무시되어야 함
+        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, deliveryId))
+                .doesNotThrowAnyException();
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
     }
 }

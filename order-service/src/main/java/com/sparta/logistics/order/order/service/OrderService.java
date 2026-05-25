@@ -2,6 +2,9 @@ package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.common.kafka.KafkaTopics;
+import com.sparta.logistics.common.kafka.event.OrderCreatedEvent;
+import com.sparta.logistics.common.kafka.event.OrderItemPayload;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
 import com.sparta.logistics.order.client.response.CompanyResponse;
@@ -19,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +40,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CompanyServiceClient companyServiceClient;
     private final ProductServiceClient productServiceClient;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     /**
      * 주문 생성
@@ -83,7 +88,37 @@ public class OrderService {
 
         order.calculateTotalAmount();
         orderRepository.save(order);
+
+        // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
+        publishOrderCreatedEvent(order);
+
         return OrderDetailResponse.from(order);
+    }
+
+    /**
+     * Choreography Saga Step 1-4: delivery.created 이벤트 수신 후 주문 상태를 ACCEPTED로 전이하고 deliveryId를 저장함
+     * DeliveryCreatedConsumer에서 호출됨
+     * 멱등성 보장: PENDING 상태가 아닌 경우 이미 처리된 이벤트로 간주하고 무시함
+     * */
+    @Transactional
+    public void acceptOrder(UUID orderId, UUID deliveryId) {
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElse(null);
+
+        if (order == null) {
+            log.warn("[delivery.created] 주문을 찾을 수 없음 — 무시 orderId={}", orderId);
+            return;
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            log.warn("[delivery.created] 멱등성 처리: 이미 처리된 주문 — 무시 orderId={} status={}",
+                    orderId, order.getStatus());
+            return;
+        }
+
+        order.accept();
+        order.linkDelivery(deliveryId);
+        log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryId={}", orderId, deliveryId);
     }
 
     /** 주문 목록 조회 **/
@@ -173,6 +208,32 @@ public class OrderService {
 
         order.cancel(userId, cancelReason);
         return OrderDetailResponse.from(order);
+    }
+
+    // ===== Kafka 이벤트 발행 =====
+
+    /**
+     * order.created 이벤트를 Kafka로 발행함
+     * 파티션 키: orderId — 동일 주문의 이벤트 순서를 보장함
+     * */
+    private void publishOrderCreatedEvent(Order order) {
+        List<OrderItemPayload> payloads = order.getOrderItems().stream()
+                .map(item -> OrderItemPayload.builder()
+                        .productId(item.getProductId())
+                        .quantity(item.getQuantity())
+                        .hubId(item.getHubId())
+                        .build())
+                .toList();
+
+        OrderCreatedEvent event = OrderCreatedEvent.builder()
+                .orderId(order.getId())
+                .orderItems(payloads)
+                .requesterCompanyId(order.getRequesterCompanyId())
+                .receiverCompanyId(order.getReceiverCompanyId())
+                .build();
+
+        kafkaTemplate.send(KafkaTopics.ORDER_CREATED, order.getId().toString(), event);
+        log.info("[order.created] 이벤트 발행 orderId={} itemCount={}", order.getId(), payloads.size());
     }
 
     private void validateCompanyExists(UUID companyId) {

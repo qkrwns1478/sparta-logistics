@@ -18,14 +18,14 @@ spring:
       hibernate:
         default_schema: schema_order
 
-feign:
-  circuitbreaker:
-    enabled: true
-
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: order-service-group
+
+feign:
+  circuitbreaker:
+    enabled: true
 
 eureka:
   instance:
