@@ -1,6 +1,7 @@
 package com.sparta.logistics.delivery.entity.enums;
 
 public enum DeliveryEventType {
+    CREATED,          // 배송 생성 (Kafka stock.reserved 이벤트)
     MANAGER_ASSIGNED, // 배송 담당자 배정
     ROUTE_UPDATED,    // 배송 경로 변경
     STATUS_CHANGED,   // 배송 상태 변경

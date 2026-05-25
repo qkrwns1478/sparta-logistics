@@ -125,6 +125,16 @@ public class DeliveryService {
         );
         deliveryRepository.save(entity);
 
+        // 생성 로그 — actorId는 시스템 생성이므로 null
+        deliveryLogRepository.save(new DeliveryLogEntity(
+                entity.getId(),
+                DeliveryEventType.CREATED,
+                entity.getStatus(),
+                "orderId=" + event.orderId() + ", sourceHubId=" + event.sourceHubId(),
+                null,
+                null
+        ));
+
         // hub-service 구간 정보로 DeliveryRoute 일괄 저장
         for (HubRouteSegmentResponse seg : routeSegments) {
             RouteType routeType = seg.lastMile() ? RouteType.HUB_TO_COMPANY : RouteType.HUB_TO_HUB;
