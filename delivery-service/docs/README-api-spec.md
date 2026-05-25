@@ -115,7 +115,7 @@ Content-Type: application/json
 }
 ```
 
-**허용 상태 전이** → [`README-state-machine.md`](./README-state-machine.md) 참고
+**허용 상태 전이** → [`README-state-machine.md`](README-state-machine.md) 참고
 
 **응답 200 OK** — DeliveryDetailResponse
 
