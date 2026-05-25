@@ -2,7 +2,9 @@ package com.sparta.logistics.delivery.infrastructure.event;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sparta.logistics.delivery.client.HubServiceClient;
 import com.sparta.logistics.delivery.client.UserServiceClient;
+import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.dto.event.AiDeadlineCalculatedEvent;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.service.DeliveryService;
@@ -10,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Slf4j
 @Component
@@ -19,6 +23,7 @@ public class DeliveryEventHandler {
     private final DeliveryService deliveryService;
     private final DeliveryEventPublisher eventPublisher;
     private final UserServiceClient userServiceClient;
+    private final HubServiceClient hubServiceClient;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "stock.reserved", groupId = "delivery-service")
@@ -60,8 +65,18 @@ public class DeliveryEventHandler {
             return;
         }
 
+        // hub-service Feign 호출 — 트랜잭션 범위 밖 (경로 정보는 주문 완료 시점에 확정)
+        List<HubRouteSegmentResponse> routeSegments;
         try {
-            deliveryService.createDelivery(event, slackId);
+            routeSegments = hubServiceClient.getRouteSegments(event.sourceHubId(), event.destinationHubId());
+        } catch (Exception e) {
+            log.warn("[Kafka] hub-service 호출 실패 — orderId={}", event.orderId(), e);
+            eventPublisher.publishCreationFailed(event.orderId(), "HUB_SERVICE_UNAVAILABLE");
+            return;
+        }
+
+        try {
+            deliveryService.createDelivery(event, slackId, routeSegments);
             log.info("[Kafka] 배송 생성 완료 — orderId={}", event.orderId());
         } catch (Exception e) {
             log.error("[Kafka] 배송 생성 실패 — orderId={}", event.orderId(), e);

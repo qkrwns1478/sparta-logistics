@@ -7,14 +7,18 @@ import com.sparta.logistics.delivery.dto.DeliveryListResponse;
 import com.sparta.logistics.delivery.dto.DeliverySearchCond;
 import com.sparta.logistics.delivery.dto.DeliveryStatusChangeRequest;
 import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
+import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
+import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
+import com.sparta.logistics.delivery.entity.enums.RouteType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import com.sparta.logistics.delivery.infrastructure.event.DeliveryEventPublisher;
 import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
+import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -30,6 +35,7 @@ import java.util.UUID;
 public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
+    private final DeliveryRouteRepository deliveryRouteRepository;
     private final DeliveryLogRepository deliveryLogRepository;
     private final DeliveryPermissionChecker permissionChecker;
     private final DeliveryEventPublisher eventPublisher;
@@ -98,14 +104,17 @@ public class DeliveryService {
     }
 
     // DeliveryEventHandler에서 Feign 호출 후 진입 — 트랜잭션 범위 최소화
+    // DeliveryEntity + DeliveryRouteEntity[] 를 단일 트랜잭션으로 저장: 하나 실패 시 전체 롤백
     @Transactional
-    public void createDelivery(StockReservedEventDto event, String slackId) {
+    public void createDelivery(StockReservedEventDto event, String slackId,
+                               List<HubRouteSegmentResponse> routeSegments) {
         // 멱등성 보장: Kafka at-least-once 중복 소비 방어
         // orderId 단독 체크 시 같은 주문의 다른 허브 이벤트를 중복으로 차단하므로 orderId+sourceHubId 조합 사용
         if (deliveryRepository.existsByOrderIdAndSourceHubId(event.orderId(), event.sourceHubId())) {
             log.info("[createDelivery] 이미 처리된 주문+허브 조합 — orderId={}, sourceHubId={}", event.orderId(), event.sourceHubId());
             return;
         }
+
         DeliveryEntity entity = new DeliveryEntity(
                 event.orderId(),
                 event.receiverId(),
@@ -115,6 +124,21 @@ public class DeliveryService {
                 slackId
         );
         deliveryRepository.save(entity);
+
+        // hub-service 구간 정보로 DeliveryRoute 일괄 저장
+        for (HubRouteSegmentResponse seg : routeSegments) {
+            RouteType routeType = seg.lastMile() ? RouteType.HUB_TO_COMPANY : RouteType.HUB_TO_HUB;
+            deliveryRouteRepository.save(new DeliveryRouteEntity(
+                    entity,
+                    seg.sequence(),
+                    routeType,
+                    seg.sourceHubId(),
+                    seg.destinationHubId(),
+                    seg.estimatedDistance(),
+                    seg.estimatedDuration()
+            ));
+        }
+
         // 트랜잭션 커밋 후 발행이 이상적이나 소규모 프로젝트 기준 단순 구조 채택
         // 추후 outbox 패턴으로 전환 시 이 호출 제거
         eventPublisher.publishCreated(entity.getId(), event.orderId());

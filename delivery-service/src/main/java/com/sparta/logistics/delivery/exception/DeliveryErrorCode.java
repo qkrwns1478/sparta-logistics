@@ -23,7 +23,11 @@ public enum DeliveryErrorCode implements ErrorCode {
     ROUTE_NOT_FOUND(HttpStatus.NOT_FOUND, "DELIVERY_ROUTE_404", "배송경로를 찾을 수 없습니다."),
 
     HUB_NOT_FOUND(HttpStatus.BAD_REQUEST, "DELIVERY_HUB_001", "존재하지 않는 허브입니다."),
-    HUB_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "DELIVERY_HUB_503", "Hub Service를 현재 사용할 수 없습니다.");
+    HUB_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "DELIVERY_HUB_503", "Hub Service를 현재 사용할 수 없습니다."),
+
+    USER_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "DELIVERY_USER_503", "User Service를 현재 사용할 수 없습니다."),
+
+    NO_AVAILABLE_MANAGER(HttpStatus.CONFLICT, "DELIVERY_ASSIGN_001", "배정 가능한 배송 담당자가 없습니다.");
 
     private final HttpStatus status;
     private final String code;
