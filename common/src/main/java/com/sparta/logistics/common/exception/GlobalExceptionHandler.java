@@ -5,8 +5,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -99,34 +97,6 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(INVALID_REQUEST_BODY));
-    }
-
-    /**
-     * DB UNIQUE/PK 제약 위반 예외 처리 (멱등성 safety-net)
-     * 애플리케이션 레벨의 중복 체크를 통과한 경우에도 동시 요청 경쟁 조건에서 발생 가능.
-     * DataIntegrityViolationException → 409 Conflict 반환.
-     */
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
-            DataIntegrityViolationException e, HttpServletRequest req) {
-        log.warn("[Data Integrity Violation] method={}, uri={}, message={}",
-                req.getMethod(), req.getRequestURI(), e.getMessage());
-        return ResponseEntity
-                .status(CommonErrorCode.CONFLICT.getStatus())
-                .body(ApiResponse.error(CommonErrorCode.CONFLICT));
-    }
-
-    /**
-     * 낙관적 락 충돌 예외 처리 (동시 수정 충돌)
-     * 두 트랜잭션이 같은 엔티티를 동시에 수정하려 할 때 발생. 409 Conflict 반환.
-     */
-    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(ObjectOptimisticLockingFailureException e, HttpServletRequest req) {
-        log.warn("[Optimistic Lock] method={}, uri={}, entity={}",
-                req.getMethod(), req.getRequestURI(), e.getPersistentClassName());
-        return ResponseEntity
-                .status(CommonErrorCode.CONFLICT.getStatus())
-                .body(ApiResponse.error(CommonErrorCode.CONFLICT));
     }
 
     /**
