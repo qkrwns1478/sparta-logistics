@@ -12,6 +12,7 @@ import com.sparta.logistics.hub.hubstock.dto.response.HubStockCreateResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockListResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
 import com.sparta.logistics.hub.hubstock.enums.HubStockChangeType;
+import com.sparta.logistics.hub.hubstock.event.dto.inbound.OrderCreatedEvent;
 import com.sparta.logistics.hub.hubstock.event.dto.inbound.RestoreStockCommand;
 import com.sparta.logistics.hub.hubstock.event.publisher.HubStockEventPublisher;
 import com.sparta.logistics.hub.hubstock.service.helper.HubStockLockHelper;
@@ -137,5 +138,32 @@ public class HubStockService {
                     }
                 }
         );
+    }
+
+    @Transactional
+    public void reserveStock(OrderCreatedEvent event) {
+
+        for (OrderCreatedEvent.OrderItem item : event.getOrderItems()) {
+
+            HubStock hubStock = hubStockRepository
+                    .findByProductIdAndDeletedAtIsNull(item.getProductId())
+                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+            int beforeQuantity = hubStock.getAvailable();
+            hubStock.reserve(item.getQuantity());
+            int afterQuantity = hubStock.getAvailable();
+
+            // 재고 변경 이력 기록
+            hubStockLogRepository.save(HubStockLog.create(
+                    hubStock,
+                    item.getQuantity(),
+                    beforeQuantity,
+                    afterQuantity,
+                    HubStockChangeType.ORDER_DECREASE
+            ));
+        }
+
+        // todo: 재고 부족 시 stock.reservation.failed 발행
+        // todo: 성공 시 stock.reserved 발행 (source_hub_id, destination_hub_id 페이로드 합의 후)
     }
 }

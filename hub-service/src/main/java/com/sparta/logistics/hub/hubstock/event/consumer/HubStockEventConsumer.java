@@ -1,7 +1,9 @@
 package com.sparta.logistics.hub.hubstock.event.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sparta.logistics.hub.hubstock.event.dto.inbound.OrderCreatedEvent;
 import com.sparta.logistics.hub.hubstock.event.dto.inbound.RestoreStockCommand;
 import com.sparta.logistics.hub.hubstock.service.HubStockService;
 import lombok.RequiredArgsConstructor;
@@ -36,5 +38,19 @@ public class HubStockEventConsumer {
 
         // todo: delivery.creation.failed order_items가 포함되어야 재고 복구 처리 가능
         log.info("[Kafka] delivery.creation.failed 수신 - message: {}", message);
+    }
+
+    @KafkaListener(topics = "order.created", groupId = "hub-service")
+    public void consumeOrderCreated(String message) {
+
+        try {
+            OrderCreatedEvent event = objectMapper.readValue(message, OrderCreatedEvent.class);
+
+            log.info("[Kafka] order.created 수신 - orderId: {}", event.getOrderId());
+
+            hubStockService.reserveStock(event);
+        } catch (JsonProcessingException e) {
+            log.error("[Kafka] order.created 역직렬화 실패 - message: {}", message, e);
+        }
     }
 }
