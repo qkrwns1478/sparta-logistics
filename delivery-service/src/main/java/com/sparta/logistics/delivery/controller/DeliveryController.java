@@ -5,6 +5,7 @@ import com.sparta.logistics.delivery.dto.DeliveryListResponse;
 import com.sparta.logistics.delivery.dto.DeliverySearchCond;
 import com.sparta.logistics.delivery.dto.DeliveryStatusChangeRequest;
 import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
+import com.sparta.logistics.delivery.service.DeliveryAssignmentService;
 import com.sparta.logistics.delivery.service.DeliveryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -32,6 +34,7 @@ import java.util.UUID;
 public class DeliveryController {
 
     private final DeliveryService deliveryService;
+    private final DeliveryAssignmentService deliveryAssignmentService;
 
     // 배송 단건 조회 (권한 검사 포함)
     @GetMapping("/{deliveryId}")
@@ -93,4 +96,21 @@ public class DeliveryController {
     }
 
     // 배송 생성은 Kafka stock.reserved 이벤트를 통해 자동 생성됨 (DeliveryEventHandler 참고)
+
+    /**
+     * 수동 배차 API — 배송에 담당자를 라운드 로빈 방식으로 배정한다.
+     * 권한: MASTER 전체 허용 / HUB_MANAGER 는 자기 허브 배송만 허용.
+     *
+     * <p>추후 delivery.created Kafka consumer 에서 호출 시 이 엔드포인트 변경 없이 서비스 메서드만 재사용.
+     */
+    @PostMapping("/{deliveryId}/assign")
+    public ResponseEntity<Void> assignManagers(
+            @PathVariable UUID deliveryId,
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-User-HubId", required = false) UUID hubId
+    ) {
+        deliveryAssignmentService.assignManagers(deliveryId, userId, role, hubId);
+        return ResponseEntity.ok().build();
+    }
 }
