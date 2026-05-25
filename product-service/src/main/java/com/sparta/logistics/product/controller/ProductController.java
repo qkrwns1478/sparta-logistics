@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Tag(name = "Product", description = "상품 관리 API")
@@ -30,8 +31,8 @@ public class ProductController {
 
     private static final String USER_ID_HEADER      = "X-User-Id";
     private static final String USER_ROLE_HEADER     = "X-User-Role";
-    private static final String USER_HUB_HEADER      = "X-User-Hub-Id";
-    private static final String USER_COMPANY_HEADER  = "X-User-Company-Id";
+    private static final String USER_HUB_HEADER      = "X-User-HubId";
+    private static final String USER_COMPANY_HEADER  = "X-User-CompanyId";
 
     private final ProductService productService;
 
@@ -42,13 +43,12 @@ public class ProductController {
     @PostMapping
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
             @Valid @RequestBody CreateRequest request,
-            @RequestHeader(USER_ID_HEADER) UUID userId,
             @RequestHeader(USER_ROLE_HEADER) Role userRole,
             @RequestHeader(value = USER_HUB_HEADER, required = false) UUID userHubId,
             @RequestHeader(value = USER_COMPANY_HEADER, required = false) UUID userCompanyId) {
 
         ProductResponse response =
-                productService.createProduct(request, userId, userRole, userHubId, userCompanyId);
+                productService.createProduct(request, userRole, userHubId, userCompanyId);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("상품이 생성되었습니다.", response));
@@ -73,6 +73,19 @@ public class ProductController {
         Page<ProductResponse> result = productService.searchProducts(condition, pageable);
 
         return ResponseEntity.ok(ApiResponse.ok("요청이 성공적으로 처리되었습니다.", result));
+    }
+
+    // -------------------------------------------------------
+    // GET /api/v1/products/batch — 배치 조회 (내부 서비스 전용)
+    // -------------------------------------------------------
+    @Operation(summary = "상품 배치 조회", description = "Order Service 내부 통신 전용")
+    @GetMapping("/batch")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProducts(
+            @RequestParam("ids") List<UUID> ids) {
+
+        return ResponseEntity.ok(
+                ApiResponse.ok("요청이 성공적으로 처리되었습니다.",
+                        productService.getProducts(ids)));
     }
 
     // -------------------------------------------------------
@@ -128,7 +141,7 @@ public class ProductController {
     // DELETE /api/v1/products/by-company/{companyId} — 내부 통신용
     // -------------------------------------------------------
     @Operation(summary = "업체 삭제 시 연관 상품 일괄 삭제", description = "Company Service 내부 통신 전용")
-    @DeleteMapping("/by-company/{companyId}")
+    @DeleteMapping("/internal/by-company/{companyId}")
     public ResponseEntity<Void> deleteByCompanyId(@PathVariable UUID companyId) {
         productService.deleteAllByCompanyId(companyId);
         return ResponseEntity.ok().build();

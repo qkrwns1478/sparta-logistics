@@ -26,10 +26,12 @@ public class HubCacheService {
         return hubFeignClient.getHub(hubId);
     }
 
-    @Cacheable(value = "hubs-batch", key = "#hubIds.toString()")
     public Map<UUID, String> getHubNameMap(List<UUID> hubIds) {
         return hubFeignClient.getHubsByIds(hubIds)
                 .stream()
-                .collect(Collectors.toMap(HubResponse::hubId, HubResponse::hubName));
+                .collect(Collectors.toMap(
+                        HubResponse::hubId,
+                        HubResponse::name
+                ));
     }
 }
