@@ -1,6 +1,8 @@
 package com.sparta.logistics.hub.hubstock.entity;
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.hub.exception.HubStockErrorCode;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import jakarta.persistence.*;
 import lombok.*;
@@ -51,5 +53,25 @@ public class HubStock extends BaseEntity {
 
     public void adjustAvailable(Integer changeQuantity) {
         this.available += changeQuantity;
+    }
+
+    public void reserve(int quantity) {
+
+        if (this.available < quantity) {
+            throw new BusinessException(HubStockErrorCode.HUB_STOCK_INSUFFICIENT);
+        }
+
+        this.available -= quantity;
+        this.reserved += quantity;
+    }
+
+    public void restore(int quantity) {
+
+        if (this.reserved < quantity) {
+            throw new BusinessException(HubStockErrorCode.HUB_STOCK_INVALID_RESTORE_QUANTITY);
+        }
+
+        this.available += quantity;
+        this.reserved -= quantity;
     }
 }
