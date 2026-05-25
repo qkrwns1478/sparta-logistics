@@ -168,7 +168,7 @@ public class HubStockService {
                         item.getProductId(),
                         "재고 부족"
                 );
-                return;
+                throw new BusinessException(HubStockErrorCode.HUB_STOCK_INSUFFICIENT);
             }
 
             int beforeQuantity = hubStock.getAvailable();
