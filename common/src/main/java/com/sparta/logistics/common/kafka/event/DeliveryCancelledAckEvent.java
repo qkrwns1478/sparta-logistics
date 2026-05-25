@@ -22,6 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class DeliveryCancelledAckEvent {
+    private UUID eventId;
     private UUID deliveryId;
     private UUID orderId;
 }

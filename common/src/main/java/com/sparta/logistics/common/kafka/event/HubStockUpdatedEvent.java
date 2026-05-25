@@ -22,6 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class HubStockUpdatedEvent {
+    private UUID eventId;
     private UUID productId;
     private UUID hubId;
     // 변경 후 가용 재고

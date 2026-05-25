@@ -22,5 +22,6 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class StockRestoredAckEvent {
+    private UUID eventId;
     private UUID orderId;
 }

@@ -21,6 +21,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class StockReservationFailedEvent {
+    private UUID eventId;
     private UUID orderId;
     //예약 실패한 상품 ID
     private UUID productId;

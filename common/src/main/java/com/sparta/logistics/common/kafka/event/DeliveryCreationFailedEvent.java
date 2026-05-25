@@ -22,6 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class DeliveryCreationFailedEvent {
+    private UUID eventId;
     private UUID orderId;
     // 생성 실패한 배송 ID (생성 자체가 실패한 경우 null)
     private UUID deliveryId;

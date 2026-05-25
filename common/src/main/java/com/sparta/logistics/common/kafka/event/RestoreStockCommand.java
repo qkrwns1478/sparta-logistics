@@ -22,6 +22,8 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class RestoreStockCommand {
+    // 메시지 고유 ID — Idempotent Consumer의 중복 소비 방지에 사용
+    private UUID eventId;
     private UUID orderId;
     // 복구할 항목 목록 (productId, quantity)
     private List<RestoreStockItemPayload> orderItems;

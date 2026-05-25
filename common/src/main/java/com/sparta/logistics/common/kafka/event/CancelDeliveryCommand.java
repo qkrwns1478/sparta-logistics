@@ -21,6 +21,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class CancelDeliveryCommand {
+    private UUID eventId;
     private UUID orderId;
     private UUID deliveryId;
 }
