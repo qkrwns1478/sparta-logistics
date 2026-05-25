@@ -20,7 +20,8 @@ public enum OrderErrorCode implements ErrorCode {
     COMPANY_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "ORDER_009", "업체 서비스 연결에 실패했습니다."),
     PRODUCT_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "ORDER_010", "상품 서비스 연결에 실패했습니다."),
     ORDER_HUB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "ORDER_011", "담당 허브의 주문만 처리할 수 있습니다."),
-    PRODUCT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "ORDER_012", "현재 주문할 수 없는 상품입니다.");
+    PRODUCT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "ORDER_012", "현재 주문할 수 없는 상품입니다."),
+    ORDER_INVALID_STATE_TRANSITION(HttpStatus.CONFLICT, "ORDER_016", "현재 주문 상태에서 허용되지 않는 상태 전이입니다.");
 
     private final HttpStatus status;
     private final String code;

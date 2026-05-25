@@ -22,6 +22,11 @@ feign:
   circuitbreaker:
     enabled: true
 
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: order-service-group
+
 eureka:
   instance:
     instance-id: ${spring.application.name}:${server.port}

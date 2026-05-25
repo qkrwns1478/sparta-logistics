@@ -18,6 +18,10 @@ spring:
     user:
       name: test
       password: test
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: order-service-group
 
 eureka:
   client:

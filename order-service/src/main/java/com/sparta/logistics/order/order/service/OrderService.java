@@ -75,7 +75,8 @@ public class OrderService {
                     productId,
                     product.name(),
                     product.price(),
-                    quantity
+                    quantity,
+                    product.hubId()
             );
             order.addOrderItem(orderItem);
         });
