@@ -1,6 +1,6 @@
 package com.sparta.logistics.hub.client;
 
-import com.sparta.logistics.hub.client.dto.CompanyResponse;
+import com.sparta.logistics.hub.client.response.CompanyResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

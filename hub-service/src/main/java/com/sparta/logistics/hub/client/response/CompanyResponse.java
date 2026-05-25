@@ -1,4 +1,4 @@
-package com.sparta.logistics.hub.client.dto;
+package com.sparta.logistics.hub.client.response;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

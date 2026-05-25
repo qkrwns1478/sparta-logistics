@@ -1,4 +1,4 @@
-package com.sparta.logistics.hub.hubstock.event.consumer;
+package com.sparta.logistics.hub.kafka.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

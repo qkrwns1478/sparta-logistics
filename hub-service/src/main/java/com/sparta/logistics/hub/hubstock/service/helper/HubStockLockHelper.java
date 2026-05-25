@@ -5,7 +5,7 @@ import com.sparta.logistics.hub.exception.HubStockErrorCode;
 import com.sparta.logistics.hub.hubstock.dto.request.AdjustHubStockRequest;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockAdjustResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
-import com.sparta.logistics.hub.hubstock.event.publisher.HubStockEventPublisher;
+import com.sparta.logistics.hub.kafka.publisher.HubStockEventPublisher;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
 import com.sparta.logistics.hub.hubstocklog.entity.HubStockLog;
 import com.sparta.logistics.hub.hubstocklog.repository.HubStockLogRepository;
