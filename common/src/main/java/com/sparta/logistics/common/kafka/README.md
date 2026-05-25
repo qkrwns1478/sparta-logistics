@@ -21,7 +21,7 @@ common/src/main/java/com/sparta/logistics/common/kafka/
 
 | DTO | 핵심 필드 |
 |---|---|
-| `OrderCreatedEvent` | `orderId`, `orderItems[]{productId, quantity, hubId}`, `requesterCompanyId` |
+| `OrderCreatedEvent` | `orderId`, `orderItems[]{productId, quantity, hubId}`, `requesterCompanyId`, `receiverCompanyId` |
 | `StockReservedEvent` | `orderId`, `sourceHubId`, `destinationHubId`, `orderItems[]{productId, reservedQuantity}` |
 | `StockReservationFailedEvent` | `orderId`, `productId`, `reason` |
 | `DeliveryCreatedEvent` | `deliveryId`, `orderId`, `sourceHubId`, `destinationHubId`, `companyDeliveryManagerId` |
