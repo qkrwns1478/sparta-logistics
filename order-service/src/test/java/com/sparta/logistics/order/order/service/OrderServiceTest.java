@@ -427,6 +427,53 @@ class OrderServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     }
 
+    // ===== deleteOrder =====
+
+    // MASTER 이외의 역할로 삭제 시도 시 ORDER_DELETE_PERMISSION_DENIED 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_nonMasterRole_throwsPermissionDenied() {
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.HUB_MANAGER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED));
+    }
+
+    // 존재하지 않는 주문 삭제 시도 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_orderNotFound_throwsException() {
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    // PENDING 상태의 주문 삭제 시도 시 ORDER_NOT_DELETABLE 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_pendingOrder_throwsNotDeletable() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_NOT_DELETABLE));
+    }
+
+    // CANCELLED 상태의 주문을 MASTER가 삭제하면 soft delete가 적용되는지 검증
+    @Test
+    void deleteOrder_cancelledOrder_success() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.cancel(USER_ID, "단순 변심");
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER);
+
+        assertThat(order.isDeleted()).isTrue();
     // 상태키가 PROCESSING이면 취소 시 ORDER_PROCESSING_IN_PROGRESS 예외가 발생하는지 검증
     @Test
     void cancelOrder_whenProcessing_throwsProcessingInProgress() {
