@@ -13,7 +13,8 @@
 2. [[Choreography Saga] 주문 생성](#2-choreography-saga--주문-생성)
 3. [[Choreography Saga] 주문 생성 보상 트랜잭션](#3-choreography-saga--주문-생성-보상-트랜잭션)
 4. [[Orchestration Saga] 주문 취소](#4-orchestration-saga--주문-취소)
-5. [주문 상태 전이](#5-주문-상태-전이)
+5. [[Orchestration Saga] 주문 취소 보상 트랜잭션](#5-orchestration-saga--주문-취소-보상-트랜잭션)
+6. [주문 상태 전이](#6-주문-상태-전이)
 
 ---
 
@@ -32,6 +33,8 @@
 | 9 | `stock.restored.ack` | HubService | OrderService (Orch.) | Orchestration |
 | 10 | `hub.stock.updated` | HubService | OrderService | 스냅샷 동기화 |
 | 11 | `ai.deadline.calculated` | SlackService | DeliveryService | Choreography |
+| 12 | `delivery.cancellation.failed` | DeliveryService | OrderService (Orch.) | Orchestration 보상 |
+| 13 | `stock.restoration.failed` | HubService | OrderService (Orch.) | Orchestration 보상 |
 
 - 토픽명 상수: `common/.../kafka/KafkaTopics.java`
 - 메시지 DTO: `common/.../kafka/event/`
@@ -240,7 +243,7 @@ sequenceDiagram
 | 권한 검사 | `OrderService.cancelOrder()`에서 MASTER·HUB_MANAGER 여부 및 허브 담당 검사 후 위임 |
 | 다음 단계 | Step 3-2: DeliveryService 배송 취소 |
 
-### [Step 3-2] `cancel.delivery.command` 구독 → `delivery.cancelled.ack` 발행
+### [Step 3-2] `cancel.delivery.command` 구독 → `delivery.cancelled.ack` / `delivery.cancellation.failed` 발행
 
 | 항목 | 내용 |
 |---|---|
@@ -248,8 +251,10 @@ sequenceDiagram
 | 구독 토픽 | `cancel.delivery.command` |
 | 처리 내용 | 배송 상태 확인 후 취소 처리 (`PENDING`/`ACCEPTED` → 취소 가능, `IN_TRANSIT` 이상 → 취소 불가) |
 | 성공 시 발행 | `delivery.cancelled.ack` (`deliveryId`, `orderId`) |
+| 실패 시 발행 | `delivery.cancellation.failed` (`orderId`, `deliveryId`, `reason`) |
 | 파티션 키 | `orderId` |
-| 다음 단계 | Step 3-3: OrderService `restore.stock.command` 발행 |
+| 다음 단계 (성공) | Step 3-3: OrderService `restore.stock.command` 발행 |
+| 다음 단계 (실패) | Step 4-1: OrderService CANCELLING → 이전 상태 복구 |
 
 ### [Step 3-3] `delivery.cancelled.ack` 구독 → `restore.stock.command` 발행
 
@@ -267,16 +272,18 @@ sequenceDiagram
 | 멱등성 | CANCELLING이 아닌 경우 no-op |
 | 다음 단계 | Step 3-4: HubService 재고 복구 |
 
-### [Step 3-4] `restore.stock.command` 구독 → `stock.restored.ack` 발행
+### [Step 3-4] `restore.stock.command` 구독 → `stock.restored.ack` / `stock.restoration.failed` 발행
 
 | 항목 | 내용 |
 |---|---|
 | 서비스 | **HubService** |
 | 구독 토픽 | `restore.stock.command` |
 | 처리 내용 | `orderItems` 순회하여 각 상품 `reserved` 차감 + `available` 복구, `HubStockChangeType.CANCEL_RESTORE` 이력 기록 |
-| 발행 토픽 | `stock.restored.ack` (`orderId`) |
+| 성공 시 발행 | `stock.restored.ack` (`orderId`) |
+| 실패 시 발행 | `stock.restoration.failed` (`orderId`, `reason`) |
 | 파티션 키 | `orderId` |
-| 다음 단계 | Step 3-5: OrderService CANCELLED 확정 |
+| 다음 단계 (성공) | Step 3-5: OrderService CANCELLED 확정 |
+| 다음 단계 (실패) | Step 4-2: OrderService `restore.stock.command` 재발행 |
 
 ### [Step 3-5] `stock.restored.ack` 구독 → 주문 CANCELLED 확정
 
@@ -293,7 +300,85 @@ sequenceDiagram
 
 ---
 
-## 5. 주문 상태 전이
+## 5. [Orchestration Saga] 주문 취소 보상 트랜잭션
+
+취소 흐름에서 외부 서비스가 실패할 수 있는 단계는 두 곳입니다.
+
+| 실패 단계 | 실패 시 이미 완료된 것 | 보상 방향 |
+|---|---|---|
+| Step 3-2: 배송 취소 거부 | 없음 | 주문 `CANCELLING` → 이전 상태(`PENDING`/`ACCEPTED`) 복구 |
+| Step 3-4: 재고 복구 실패 | 배송 취소 완료 | `restore.stock.command` 재발행 (재시도) |
+
+### Step 3-2 실패 — 배송 취소 거부
+
+```mermaid
+sequenceDiagram
+    participant Orch as CancelOrderOrchestrator
+    participant D as DeliveryService
+    participant O as OrderService
+
+    Orch->>D: cancel.delivery.command
+    Note over D: 배송 취소 불가 (IN_TRANSIT 등)
+    D->>O: delivery.cancellation.failed
+    Note over O: DeliveryCancellationFailedConsumer
+    O->>Orch: onDeliveryCancellationFailed(orderId)
+    Note over Orch: Step 4-1 / CANCELLING → PENDING or ACCEPTED 복구
+```
+
+### [Step 4-1] `delivery.cancellation.failed` 구독 → 주문 이전 상태 복구
+
+| 항목 | 내용 |
+|---|---|
+| 서비스 | **OrderService** |
+| 담당 컴포넌트 | `CancelOrderOrchestrator.onDeliveryCancellationFailed()` |
+| 컨슈머 | `DeliveryCancellationFailedConsumer` |
+| 구독 토픽 | `delivery.cancellation.failed` |
+| 처리 내용 | `CANCELLING` → 이전 상태 복구, `cancelledBy`·`cancelReason` 초기화 |
+| 이전 상태 판별 | `deliveryId == null` → `PENDING` / `deliveryId != null` → `ACCEPTED` |
+| 멱등성 | CANCELLING이 아닌 경우 no-op |
+| 비고 | 이 시점에서 재고·배송 모두 변경된 것이 없으므로 주문 상태만 복구하면 됨 |
+
+---
+
+### Step 3-4 실패 — 재고 복구 실패
+
+```mermaid
+sequenceDiagram
+    participant Orch as CancelOrderOrchestrator
+    participant H as HubService
+    participant O as OrderService
+
+    Orch->>H: restore.stock.command
+    Note over H: 재고 복구 실패
+    H->>O: stock.restoration.failed
+    Note over O: StockRestorationFailedConsumer
+    O->>Orch: onStockRestorationFailed(orderId)
+    Note over Orch: Step 4-2 / restore.stock.command 재발행
+    Orch->>H: restore.stock.command (재시도)
+```
+
+### [Step 4-2] `stock.restoration.failed` 구독 → `restore.stock.command` 재발행
+
+| 항목 | 내용 |
+|---|---|
+| 서비스 | **OrderService** |
+| 담당 컴포넌트 | `CancelOrderOrchestrator.onStockRestorationFailed()` |
+| 컨슈머 | `StockRestorationFailedConsumer` |
+| 구독 토픽 | `stock.restoration.failed` |
+| 처리 내용 | `restore.stock.command` 재발행 |
+| 멱등성 | CANCELLING이 아닌 경우 no-op |
+| 비고 | 재고 복구는 `reserved` 차감 + `available` 증가로 멱등 연산이므로 재시도 안전. 이 시점에서 배송 취소는 이미 완료되어 원복 불가 |
+
+---
+
+### 공통 안전망 — `CANCELLING` 타임아웃 감지
+
+명시적 실패 이벤트가 유실되거나 재시도가 반복 실패하는 경우를 커버합니다.
+`CancellingSagaTimeoutChecker`(`@Scheduled`)가 주기적으로 `CANCELLING` 상태를 순회하여 일정 시간 이상 고착된 주문을 경고 로그로 남깁니다. 자동 복구는 하지 않습니다.
+
+---
+
+## 6. 주문 상태 전이
 
 ```mermaid
 stateDiagram-v2
@@ -306,6 +391,8 @@ stateDiagram-v2
     ACCEPTED --> CANCELLED : delivery.creation.failed (Step 2-2)
     ACCEPTED --> CANCELLING : 취소 요청 (Step 3-1)
     CANCELLING --> CANCELLED : stock.restored.ack (Step 3-5)
+    CANCELLING --> PENDING : delivery.cancellation.failed (Step 4-1)
+    CANCELLING --> ACCEPTED : delivery.cancellation.failed (Step 4-1)
     IN_DELIVERY --> COMPLETED : 배송 완료
     CANCELLED --> [*]
     COMPLETED --> [*]
@@ -321,6 +408,8 @@ stateDiagram-v2
 | `ACCEPTED` | `CANCELLED` | `delivery.creation.failed` 수신 (Step 2-2) |
 | `ACCEPTED` | `CANCELLING` | 취소 요청 (MASTER·HUB_MANAGER, Step 3-1) |
 | `CANCELLING` | `CANCELLED` | `stock.restored.ack` 수신 (Step 3-5) |
+| `CANCELLING` | `PENDING` | `delivery.cancellation.failed` 수신, 취소 요청 당시 PENDING이었던 경우 (Step 4-1) |
+| `CANCELLING` | `ACCEPTED` | `delivery.cancellation.failed` 수신, 취소 요청 당시 ACCEPTED이었던 경우 (Step 4-1) |
 | `IN_DELIVERY` 이상 | 취소 불가 | `ORDER_NOT_CANCELLABLE` 예외 |
 
 ※ `CANCELLING` 중에는 수정 불가(`isModifiable()` = false)
