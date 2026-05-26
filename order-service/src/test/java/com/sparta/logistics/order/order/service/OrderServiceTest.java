@@ -3,6 +3,7 @@ package com.sparta.logistics.order.order.service;
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.kafka.KafkaTopics;
+import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
@@ -15,6 +16,8 @@ import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
+import com.sparta.logistics.order.stock.entity.ProductStockSnapshot;
+import com.sparta.logistics.order.stock.repository.ProductStockSnapshotRepository;
 import feign.FeignException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +43,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +68,9 @@ class OrderServiceTest {
 
     @Mock
     private CancelOrderOrchestrator cancelOrderOrchestrator;
+
+    @Mock
+    private ProductStockSnapshotRepository snapshotRepository;
 
     private final UUID REQUESTER_COMPANY_ID = UUID.randomUUID();
     private final UUID RECEIVER_COMPANY_ID = UUID.randomUUID();
@@ -542,5 +549,86 @@ class OrderServiceTest {
         orderService.confirmOrderCancelled(ORDER_ID);
 
         verify(cancelOrderOrchestrator).onStockRestored(ORDER_ID);
+    }
+
+    // ===== syncSnapshot =====
+
+    // 해당 productId의 스냅샷이 없을 때 신규 스냅샷이 생성되는지 검증
+    @Test
+    void syncSnapshot_newProduct_createsSnapshot() {
+        HubStockUpdatedEvent event = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(200)
+                .hubStockVersion(1L)
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+
+        orderService.syncSnapshot(event);
+
+        verify(snapshotRepository).save(any(ProductStockSnapshot.class));
+    }
+
+    // 기존 스냅샷이 있고 이벤트 버전이 더 최신이면 스냅샷이 갱신되는지 검증
+    @Test
+    void syncSnapshot_existingProduct_newerVersion_updatesSnapshot() {
+        ProductStockSnapshot existing = ProductStockSnapshot.create(PRODUCT_ID, HUB_ID, 100, 2L);
+        HubStockUpdatedEvent event = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(150)
+                .hubStockVersion(3L)  // 기존 버전(2) 보다 최신
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(existing));
+
+        orderService.syncSnapshot(event);
+
+        assertThat(existing.getAvailable()).isEqualTo(150);
+        assertThat(existing.getHubStockVersion()).isEqualTo(3L);
+        // 신규 저장은 불필요 — JPA dirty checking으로 처리됨
+        verify(snapshotRepository, never()).save(any());
+    }
+
+    // 이벤트 버전이 저장된 버전보다 낮거나 같으면 구버전으로 간주하고 스냅샷을 갱신하지 않는지 검증
+    @Test
+    void syncSnapshot_existingProduct_olderOrSameVersion_ignored() {
+        ProductStockSnapshot existing = ProductStockSnapshot.create(PRODUCT_ID, HUB_ID, 100, 5L);
+        int originalAvailable = existing.getAvailable();
+
+        HubStockUpdatedEvent sameVersionEvent = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(999)
+                .hubStockVersion(5L)  // 같은 버전 → 무시
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(existing));
+
+        orderService.syncSnapshot(sameVersionEvent);
+
+        // 갱신 없이 기존 available 유지
+        assertThat(existing.getAvailable()).isEqualTo(originalAvailable);
+        verify(snapshotRepository, never()).save(any());
+    }
+
+    // 이벤트 수신 시 예외 없이 처리되는지 검증 (Kafka 재시도 방지)
+    @Test
+    void syncSnapshot_noException_onAnyInput() {
+        HubStockUpdatedEvent event = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(50)
+                .hubStockVersion(1L)
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+
+        assertThatCode(() -> orderService.syncSnapshot(event)).doesNotThrowAnyException();
     }
 }

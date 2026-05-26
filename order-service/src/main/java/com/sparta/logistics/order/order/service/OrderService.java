@@ -3,6 +3,7 @@ package com.sparta.logistics.order.order.service;
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.kafka.KafkaTopics;
+import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
 import com.sparta.logistics.common.kafka.event.OrderCreatedEvent;
 import com.sparta.logistics.common.kafka.event.OrderItemPayload;
 import com.sparta.logistics.order.client.CompanyServiceClient;
@@ -18,6 +19,8 @@ import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
+import com.sparta.logistics.order.stock.entity.ProductStockSnapshot;
+import com.sparta.logistics.order.stock.repository.ProductStockSnapshotRepository;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,7 @@ public class OrderService {
     private final ProductServiceClient productServiceClient;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final CancelOrderOrchestrator cancelOrderOrchestrator;
+    private final ProductStockSnapshotRepository snapshotRepository;
 
     /**
      * 주문 생성
@@ -248,6 +252,38 @@ public class OrderService {
      * */
     public void confirmOrderCancelled(UUID orderId) {
         cancelOrderOrchestrator.onStockRestored(orderId);
+    }
+
+    /**
+     * 재고 스냅샷 동기화: hub.stock.updated 이벤트 수신 후 ProductStockSnapshot 갱신
+     * HubStockUpdatedConsumer에서 호출됨
+     * <p>
+     * hubStockVersion 비교 → 저장된 버전보다 낮거나 같은 이벤트는 구버전으로 간주하고 무시함
+     * 신규 상품: 스냅샷이 없는 경우 새로 생성함
+     * */
+    @Transactional
+    public void syncSnapshot(HubStockUpdatedEvent event) {
+        snapshotRepository.findByProductId(event.getProductId())
+                .ifPresentOrElse(
+                        s -> {
+                            if (s.getHubStockVersion() >= event.getHubStockVersion()) {
+                                log.warn("[hub.stock.updated] 구버전 이벤트 무시 productId={} storedVersion={} eventVersion={}",
+                                        event.getProductId(), s.getHubStockVersion(), event.getHubStockVersion());
+                                return;
+                            }
+                            s.update(event.getAvailable(), event.getHubStockVersion());
+                            log.info("[hub.stock.updated] 스냅샷 갱신 productId={} available={} version={}",
+                                    event.getProductId(), event.getAvailable(), event.getHubStockVersion());
+                        },
+                        () -> {
+                            snapshotRepository.save(ProductStockSnapshot.create(
+                                    event.getProductId(), event.getHubId(),
+                                    event.getAvailable(), event.getHubStockVersion()
+                            ));
+                            log.info("[hub.stock.updated] 스냅샷 신규 생성 productId={} available={} version={}",
+                                    event.getProductId(), event.getAvailable(), event.getHubStockVersion());
+                        }
+                );
     }
 
     // ===== Kafka 이벤트 발행 =====
