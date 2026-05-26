@@ -32,9 +32,17 @@ public class HubStockEventPublisher {
 
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send(KafkaTopics.STOCK_RESTORED_ACK, message);
+            kafkaTemplate.send(KafkaTopics.STOCK_RESTORED_ACK, message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("[Kafka] stock.restored.ack 발행 실패 - orderId: {}",
+                                    orderId, ex);
+                        } else {
+                            log.info("[Kafka] stock.restored.ack 발행 성공 - orderId: {}",
+                                    orderId);
+                        }
+                    });
 
-            log.info("[Kafka] stock.restored.ack 발행 - orderId: {}", orderId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] stock.restored.ack 발행 실패 - orderId: {}", orderId, e);
         }
@@ -52,9 +60,17 @@ public class HubStockEventPublisher {
 
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send(KafkaTopics.STOCK_RESERVATION_FAILED, message);
+            kafkaTemplate.send(KafkaTopics.STOCK_RESERVATION_FAILED, message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("[Kafka] stock.reservation.failed 발행 실패 - orderId: {}, productId: {}",
+                                    orderId, productId, ex);
+                        } else {
+                            log.info("[Kafka] stock.reservation.failed 발행 성공 - orderId: {}, productId: {}",
+                                    orderId, productId);
+                        }
+                    });
 
-            log.info("[Kafka] stock.reservation.failed 발행 - orderId: {}, productId: {}", orderId, productId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] stock.reservation.failed 발행 실패 - orderId: {}", orderId, e);
         }
@@ -65,9 +81,17 @@ public class HubStockEventPublisher {
         try {
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send(KafkaTopics.STOCK_RESERVED, message);
+            kafkaTemplate.send(KafkaTopics.STOCK_RESERVED, message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("[Kafka] stock.reserved 발행 실패 - orderId: {}",
+                                    event.getOrderId(), ex);
+                        } else {
+                            log.info("[Kafka] stock.reserved 발행 성공 - orderId: {}",
+                                    event.getOrderId());
+                        }
+                    });
 
-            log.info("[Kafka] stock.reserved 발행 - orderId: {}", event.getOrderId());
         } catch (JsonProcessingException e) {
             log.error("[Kafka] stock.reserved 발행 실패 - orderId: {}", event.getOrderId(), e);
         }
@@ -85,9 +109,18 @@ public class HubStockEventPublisher {
                     .build();
 
             String message = objectMapper.writeValueAsString(event);
-            kafkaTemplate.send(KafkaTopics.HUB_STOCK_UPDATED, message);
 
-            log.info("[Kafka] hub.stock.updated 발행 - productId: {}", productId);
+            kafkaTemplate.send(KafkaTopics.HUB_STOCK_UPDATED, message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("[Kafka] hub.stock.updated 발행 실패 - productId: {}",
+                                    productId, ex);
+                        } else {
+                            log.info("[Kafka] hub.stock.updated 발행 성공 - productId: {}",
+                                    productId);
+                        }
+                    });
+
         } catch (JsonProcessingException e) {
             log.error("[Kafka] hub.stock.updated 발행 실패 - productId: {}", productId, e);
         }
