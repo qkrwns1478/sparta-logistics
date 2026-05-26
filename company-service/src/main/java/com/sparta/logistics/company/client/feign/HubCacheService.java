@@ -1,6 +1,6 @@
 package com.sparta.logistics.company.client.feign;
 
-import com.sparta.logistics.company.client.dto.HubResponse;
+import com.sparta.logistics.company.client.model.HubResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -26,11 +26,12 @@ public class HubCacheService {
         return hubFeignClient.getHub(hubId);
     }
 
-    // TODO: 허브 정보 변경 시 캐시 무효화(Cache Evict) 처리 필요
-    @Cacheable(value = "hubs-batch", key = "#hubIds.toString()")
     public Map<UUID, String> getHubNameMap(List<UUID> hubIds) {
         return hubFeignClient.getHubsByIds(hubIds)
                 .stream()
-                .collect(Collectors.toMap(HubResponse::hubId, HubResponse::hubName));
+                .collect(Collectors.toMap(
+                        HubResponse::hubId,
+                        HubResponse::name
+                ));
     }
 }

@@ -89,21 +89,34 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody OrderUpdateRequest request,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") Role role
+            @RequestHeader("X-User-Role") Role role,
+            @RequestHeader(value = "X-User-HubId", required = false) UUID userHubId
     ) {
-        OrderDetailResponse response = orderService.updateOrder(orderId, request.getDueDate(), request.getRequestMemo(), userId, role);
+        OrderDetailResponse response = orderService.updateOrder(orderId, request.getDueDate(), request.getRequestMemo(), userId, role, userHubId);
         return ResponseEntity.ok(ApiResponse.ok("주문이 수정되었습니다.", response));
     }
 
     /** 주문 취소 **/
-    @DeleteMapping("/{orderId}")
+    @PostMapping("/{orderId}/cancel")
     public ResponseEntity<ApiResponse<OrderDetailResponse>> cancelOrder(
             @PathVariable UUID orderId,
             @RequestBody OrderCancelRequest request,
             @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") Role role,
+            @RequestHeader(value = "X-User-HubId", required = false) UUID userHubId
+    ) {
+        OrderDetailResponse response = orderService.cancelOrder(orderId, request.getCancelReason(), userId, role, userHubId);
+        return ResponseEntity.ok(ApiResponse.ok("주문이 취소되었습니다.", response));
+    }
+
+    /** 주문 삭제 (Soft Delete) **/
+    @DeleteMapping("/{orderId}")
+    public ResponseEntity<ApiResponse<Void>> deleteOrder(
+            @PathVariable UUID orderId,
+            @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader("X-User-Role") Role role
     ) {
-        OrderDetailResponse response = orderService.cancelOrder(orderId, request.getCancelReason(), userId, role);
-        return ResponseEntity.ok(ApiResponse.ok("주문이 취소되었습니다.", response));
+        orderService.deleteOrder(orderId, userId, role);
+        return ResponseEntity.ok(ApiResponse.ok("주문이 삭제되었습니다.", null));
     }
 }

@@ -13,60 +13,48 @@ import java.util.UUID;
 
 
 @Entity
-@Builder
-@Table(name="p_user")
+@Table(name="p_user", indexes = {
+        @Index(name = "idx_user_username_deleted_at", columnList = "username, deleted_at")
+})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
-@Setter
+@Builder
 public class UserEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID Id;
+    private UUID id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true, length = 10)
     private String username;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String password;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String name;
 
+    @Column(unique = true, length = 255)
     private String email;
 
+    @Column(length = 255)
     private String slackId;
 
-    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
     private Role role;
 
-    @Column(nullable = false)
-    private UserStatus status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20) DEFAULT 'PENDING'")
+    @Builder.Default
+    private UserStatus status = UserStatus.PENDING;
 
     private UUID hubId;
 
     private UUID companyId;
 
-    private LocalDateTime last_login_at; // 마지막 로그인 일시
-
-    @Builder
-    public UserEntity(String username, String password, String name, String email,
-                      String slackId, Role role, UserStatus status, UUID hubId, UUID companyId) {
-
-        this.username = username;
-        this.password = password;
-        this.name = name;
-        this.email = email;
-        this.slackId = slackId;
-        this.role = role;
-        this.status = status;
-        this.hubId = hubId;
-        this.companyId = companyId;
-        this.last_login_at = LocalDateTime.now();
-
-        validateRoleConstraints();
-    }
+    private LocalDateTime lastLoginAt; // 마지막 로그인 일시
 
     public void validateRoleConstraints() {
         if (this.role == null) return;
@@ -75,27 +63,24 @@ public class UserEntity extends BaseEntity {
             case HUB_MANAGER:
             case DELIVERY_MANAGER:
                 if (this.hubId == null) {
-                    throw new IllegalArgumentException(this.role + "은(는) hubId가 필수입니다.");
+                    throw new BusinessException(UserErrorCode.HUB_ID_REQUIRED);
                 }
                 break;
             case COMPANY_MANAGER:
                 if (this.companyId == null) {
-                    throw new IllegalArgumentException(this.role + "은(는) companyId가 필수입니다.");
+                    throw new BusinessException(UserErrorCode.COMPANY_ID_REQUIRED);
                 }
                 break;
             case MASTER:
                 if (this.hubId != null || this.companyId != null) {
-                    throw new IllegalArgumentException("MASTER는 hubId와 companyId를 가질 수 없습니다.");
+                    throw new BusinessException(UserErrorCode.MASTER_CANNOT_HAVE_HUB_OR_COMPANY);
                 }
                 break;
         }
     }
 
-    public void updateRoleAndIds(Role role, UUID hubId, UUID companyId) {
-        this.role = role;
-        this.hubId = hubId;
-        this.companyId = companyId;
-        validateRoleConstraints(); // 변경 시에도 검증
+    public void updateLastLoginAt() {
+        this.lastLoginAt = LocalDateTime.now();
     }
 
     public void approve(){
@@ -105,11 +90,28 @@ public class UserEntity extends BaseEntity {
         this.status = UserStatus.APPROVED;
     }
 
+    // 첫 번째 가입자 → MASTER + APPROVED 강제 설정
+    public void setRoleAndApprove() {
+        this.role = Role.MASTER;
+        this.status = UserStatus.APPROVED;
+    }
+
     public void reject(){
         if(this.status !=UserStatus.PENDING){
             throw new BusinessException(UserErrorCode.ALREADY_PROCESSED);
         }
         this.status = UserStatus.REJECTED;
+    }
+
+    public void update(String name, String email,String slackId,Role role,UUID hubId,UUID companyId){
+        this.name = name;
+        this.email = email;
+        this.slackId = slackId;
+        this.role = role;
+        this.hubId = hubId;
+        this.companyId = companyId;
+
+        validateRoleConstraints();
     }
 
 }

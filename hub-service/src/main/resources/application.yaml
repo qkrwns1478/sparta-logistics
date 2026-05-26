@@ -12,6 +12,7 @@ spring:
     password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
+    defer-datasource-initialization: true
     properties:
       hibernate:
         default_schema: schema_hub
@@ -19,6 +20,9 @@ spring:
     redis:
       host: localhost
       port: 6379
+  sql:
+    init:
+      mode: always
 
 eureka:
   instance:

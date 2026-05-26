@@ -1,7 +1,6 @@
 package com.sparta.logistics.company.client.feign;
 
-import com.sparta.logistics.company.client.dto.HubExistsResponse;
-import com.sparta.logistics.company.client.dto.HubResponse;
+import com.sparta.logistics.company.client.model.HubResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,18 +22,18 @@ public interface HubFeignClient {
      * 404 Not Found → 허브 없음
      */
     @GetMapping("/api/v1/hubs/{hubId}/exists")
-    HubExistsResponse checkHubExists(@PathVariable("hubId") UUID hubId);
+    void checkHubExists(@PathVariable("hubId") UUID hubId);
 
     /**
      * 단건 허브 이름 조회
      */
-    @GetMapping("/api/v1/hubs/{hubId}")
+    @GetMapping("/{hubId}")
     HubResponse getHub(@PathVariable UUID hubId);
 
     /**
      * 배치 조회 (목록 조회용 N+1 방지)
      */
-    @GetMapping("/api/v1/hubs")
+    @GetMapping("/api/v1/hubs/batch")
     List<HubResponse> getHubsByIds(@RequestParam("ids") List<UUID> hubIds);
 
 }

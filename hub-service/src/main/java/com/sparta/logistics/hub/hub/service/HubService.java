@@ -1,5 +1,6 @@
 package com.sparta.logistics.hub.hub.service;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.hub.dto.request.CreateHubRequest;
@@ -11,6 +12,9 @@ import com.sparta.logistics.hub.hub.repository.HubRepository;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,8 +32,14 @@ public class HubService {
     private final HubRouteRepository hubRouteRepository;
 
 
+    @CacheEvict(value = "hubList", allEntries = true)
     @Transactional
-    public HubCreateResponse createHub(CreateHubRequest request) {
+    public HubCreateResponse createHub(CreateHubRequest request, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubErrorCode.HUB_FORBIDDEN);
+        }
 
         // 허브 이름 중복 체크
         if (hubRepository.existsByName(request.getName())) {
@@ -49,11 +59,24 @@ public class HubService {
             hubRepository.flush();
             return HubCreateResponse.from(savedHub);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            String message = e.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("p_hub_name_key")) {
+                throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            }
+            throw e;
         }
+
     }
 
-    // todo: 반복적인 조회와 낮은 빈도의 수정을 고려하여 캐싱 적용
+    @Cacheable(
+            value = "hubList",
+            key = "#name +" +
+                    " ':' + #address +" +
+                    " ':' + #status +" +
+                    " ':' + #pageable.pageNumber +" +
+                    " ':' + #pageable.pageSize +" +
+                    " ':' + #pageable.sort.toString()"
+    )
     @Transactional(readOnly = true)
     public Page<HubListResponse> getHubList(String name, String address, HubStatus status, Pageable pageable) {
 
@@ -61,7 +84,7 @@ public class HubService {
                 .map(HubListResponse::from);
     }
 
-    // todo: 반복적인 조회와 낮은 빈도의 수정을 고려하여 캐싱 적용
+    @Cacheable(value = "hubs", key = "#hubId")
     @Transactional(readOnly = true)
     public HubDetailResponse getHub(UUID hubId) {
 
@@ -74,8 +97,17 @@ public class HubService {
         return hubRepository.existsByIdAndDeletedAtIsNull(hubId);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "hubs", key = "#hubId"),
+            @CacheEvict(value = "hubList", allEntries = true)
+    })
     @Transactional
-    public HubUpdateResponse updateHub(UUID hubId, UpdateHubRequest request) {
+    public HubUpdateResponse updateHub(UUID hubId, UpdateHubRequest request, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubErrorCode.HUB_FORBIDDEN);
+        }
 
         Hub hub = findByHubId(hubId);
 
@@ -97,14 +129,27 @@ public class HubService {
             hubRepository.flush();
             return HubUpdateResponse.from(hub);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            String message = e.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("p_hub_name_key")) {
+                throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            }
+            throw e;
         }
+
     }
 
-    // todo: 연관 허브 경로 비활성화
     // todo: 배송 담당자 논리 삭제 연동
+    @Caching(evict = {
+            @CacheEvict(value = "hubs", key = "#hubId"),
+            @CacheEvict(value = "hubList", allEntries = true)
+    })
     @Transactional
-    public HubDeleteResponse deleteHub(UUID hubId, UUID userId) {
+    public HubDeleteResponse deleteHub(UUID hubId, UUID userId, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubErrorCode.HUB_FORBIDDEN);
+        }
 
         Hub hub = findByHubId(hubId);
         hub.delete(userId);
@@ -115,9 +160,22 @@ public class HubService {
         return HubDeleteResponse.from(hub);
     }
 
+    @Transactional(readOnly = true)
+    public List<HubBatchResponse> getHubsByIds(List<UUID> hubIds) {
+
+        return hubRepository.findAllByIdInAndDeletedAtIsNull(hubIds)
+                .stream()
+                .map(HubBatchResponse::from)
+                .toList();
+    }
+
     private Hub findByHubId(UUID hubId) {
 
         return hubRepository.findByIdAndDeletedAtIsNull(hubId)
                 .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+    }
+
+    private boolean isMaster(Role role) {
+        return role.equals(Role.MASTER);
     }
 }
