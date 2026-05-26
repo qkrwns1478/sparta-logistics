@@ -44,6 +44,7 @@ public class DeliveryService {
     private final DeliveryLogRepository deliveryLogRepository;
     private final DeliveryPermissionChecker permissionChecker;
     private final DeliveryEventPublisher eventPublisher;
+    private final DeliveryAssignmentService assignmentService;
 
     // 배송 단건 조회
     @Transactional(readOnly = true)
@@ -160,6 +161,9 @@ public class DeliveryService {
             );
         }
 
+        // 배차 — 담당자 없으면 null 허용 후 계속 진행
+        assignmentService.assignManagersForSystem(entity.getId());
+
         // 트랜잭션 커밋 후 발행이 이상적이나 소규모 프로젝트 기준 단순 구조 채택
         // 추후 outbox 패턴으로 전환 시 이 호출 제거
         eventPublisher.publishCreated(
@@ -167,7 +171,7 @@ public class DeliveryService {
                 event.orderId(),
                 entity.getSourceHubId(),
                 entity.getDestinationHubId(),
-                null  // companyDeliveryManagerId: 배차 전이므로 null
+                entity.getCompanyDeliveryManagerId()
         );
     }
 
