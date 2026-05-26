@@ -39,7 +39,6 @@ public class ProductService {
     @Transactional
     public ProductResponse createProduct(
             CreateRequest request,
-            UUID requestUserId,
             Role requestUserRole,
             UUID requestUserHubId,
             UUID requestUserCompanyId) {
@@ -91,6 +90,15 @@ public class ProductService {
         Product product = findActiveProductOrThrow(productId);
 
         return toResponse(product);
+    }
+
+    // -------------------------------------------------------
+    // 배치 조회: 내부 서비스 전용
+    // -------------------------------------------------------
+    public List<ProductResponse> getProducts(List<UUID> productIds) {
+        return productRepository.findAllById(productIds).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     // -------------------------------------------------------
@@ -171,7 +179,8 @@ public class ProductService {
         if (role == Role.MASTER) return;
         if (role == Role.HUB_MANAGER && userHubId != null
                 && userHubId.equals(targetHubId)) return;
-        if (role == Role.COMPANY_MANAGER && userCompanyId != null) return;
+        if (role == Role.COMPANY_MANAGER && userCompanyId != null
+                && userCompanyId.equals(targetCompanyId)) return;
 
         throw new BusinessException(ProductErrorCode.PRODUCT_ACCESS_DENIED);
     }
