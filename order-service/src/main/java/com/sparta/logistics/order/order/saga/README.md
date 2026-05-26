@@ -216,15 +216,11 @@ sequenceDiagram
     Note over Orch: Step 3-1 / CANCELLING 전이
     Orch->>D: cancel.delivery.command
     Note over D: Step 3-2 / 배송 취소
-    D->>O: delivery.cancelled.ack
-    Note over O: DeliveryCancelledAckConsumer
-    O->>Orch: onDeliveryCancelled(orderId)
+    D->>Orch: delivery.cancelled.ack
     Note over Orch: Step 3-3
     Orch->>H: restore.stock.command
     Note over H: Step 3-4 / 재고 복구
-    H->>O: stock.restored.ack
-    Note over O: StockRestoredAckConsumer
-    O->>Orch: onStockRestored(orderId)
+    H->>Orch: stock.restored.ack
     Note over Orch: Step 3-5 / CANCELLED 확정
 ```
 
