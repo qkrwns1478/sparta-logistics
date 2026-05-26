@@ -30,8 +30,8 @@ public enum UserErrorCode implements ErrorCode {
     INVALID_PAGE_SIZE("페이지 크기는 10, 30, 50만 허용됩니다.", HttpStatus.BAD_REQUEST, "USER-011"),
     HUB_ID_REQUIRED("HUB_MANAGER 또는 DELIVERY_MANAGER는 hubId가 필수입니다.", HttpStatus.BAD_REQUEST, "USER-012"),
     COMPANY_ID_REQUIRED("COMPANY_MANAGER는 companyId가 필수입니다.", HttpStatus.BAD_REQUEST, "USER-013"),
-    MASTER_CANNOT_HAVE_HUB_OR_COMPANY("MASTER는 hubId와 companyId를 입력할 수 없습니다.", HttpStatus.BAD_REQUEST, "REQ-014");
-
+    MASTER_CANNOT_HAVE_HUB_OR_COMPANY("MASTER는 hubId와 companyId를 입력할 수 없습니다.", HttpStatus.BAD_REQUEST, "USER-014"),
+    COMPANY_ID_NOT_ALLOWED("허브 담당자 또는 배송 담당자는 업체 ID를 가질 수 없습니다.",HttpStatus.BAD_REQUEST, "USER-015");
 
 
     private final String message;
