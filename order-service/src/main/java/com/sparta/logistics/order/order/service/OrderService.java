@@ -51,11 +51,12 @@ public class OrderService {
     /**
      * 주문 생성
      * 1. requesterCompanyId / receiverCompanyId 존재 여부 검증 (Company Service) ✅
-     * 2. 각 상품 정보(이름·단가) 조회 (Product Service) ✅
-     * 3. Order 및 OrderItem 생성 (PENDING) ✅
-     * 4. Hub Service에 재고 예약 요청 // TODO: Kafka Choreography Saga
-     * 5. Delivery Service에서 배송 및 경로 자동 생성 // TODO: Kafka Choreography Saga
-     * 6. Notification Service에서 AI 발송 시간 계산 후 슬랙 알림 발송 // TODO: Kafka Choreography Saga
+     * 2. 스냅샷 기반 재고 사전 검증 (스냅샷이 있는 상품만, 없으면 통과) ✅
+     * 3. 각 상품 정보(이름·단가) 조회 (Product Service) ✅
+     * 4. Order 및 OrderItem 생성 (PENDING) ✅
+     * 5. Hub Service에 재고 예약 요청 // TODO: Kafka Choreography Saga
+     * 6. Delivery Service에서 배송 및 경로 자동 생성 // TODO: Kafka Choreography Saga
+     * 7. Notification Service에서 AI 발송 시간 계산 후 슬랙 알림 발송 // TODO: Kafka Choreography Saga
      * */
     @Transactional
     public OrderDetailResponse createOrder(
@@ -70,14 +71,17 @@ public class OrderService {
         validateCompanyExists(requesterCompanyId);
         validateCompanyExists(receiverCompanyId);
 
-        Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
-
         // 동일 productId의 quantity 합산 (중복 OrderItem row 생성 방지)
         Map<UUID, Integer> mergedItems = items.stream()
                 .collect(Collectors.groupingBy(
                         OrderItemRequest::getProductId,
                         Collectors.summingInt(OrderItemRequest::getQuantity)
                 ));
+
+        // 스냅샷 기반 재고 사전 검증 (스냅샷이 없는 상품은 건너뜀)
+        validateStockBySnapshot(mergedItems);
+
+        Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
 
         mergedItems.forEach((productId, quantity) -> {
             ProductResponse product = fetchProduct(productId);
@@ -311,6 +315,23 @@ public class OrderService {
 
         kafkaTemplate.send(KafkaTopics.ORDER_CREATED, order.getId().toString(), event);
         log.info("[order.created] 이벤트 발행 orderId={} itemCount={}", order.getId(), payloads.size());
+    }
+
+    /**
+     * 스냅샷 기반 재고 사전 검증
+     * 스냅샷이 있는 상품만 검사하며, 스냅샷이 없는 상품은 건너뜀
+     * 재고 부족 시 Hub 서비스 호출 없이 즉시 예외를 던짐
+     * */
+    private void validateStockBySnapshot(Map<UUID, Integer> mergedItems) {
+        mergedItems.forEach((productId, quantity) ->
+                snapshotRepository.findByProductId(productId).ifPresent(snapshot -> {
+                    if (snapshot.getAvailable() < quantity) {
+                        log.warn("[재고 사전 검증] 재고 부족 productId={} available={} requested={}",
+                                productId, snapshot.getAvailable(), quantity);
+                        throw new BusinessException(OrderErrorCode.PRODUCT_STOCK_INSUFFICIENT);
+                    }
+                })
+        );
     }
 
     private void validateCompanyExists(UUID companyId) {

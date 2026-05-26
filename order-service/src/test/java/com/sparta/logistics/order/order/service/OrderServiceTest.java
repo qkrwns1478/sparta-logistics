@@ -187,6 +187,53 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.PRODUCT_SERVICE_UNAVAILABLE));
     }
 
+    // 스냅샷 재고가 주문 수량보다 적으면 PRODUCT_STOCK_INSUFFICIENT 예외가 발생하는지 검증
+    // Hub 서비스 호출 없이 즉시 반환되어야 함
+    @Test
+    void createOrder_snapshotStockInsufficient_throwsException() {
+        OrderItemRequest itemRequest = mock(OrderItemRequest.class);
+        when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
+        when(itemRequest.getQuantity()).thenReturn(10);
+
+        ProductStockSnapshot snapshot = ProductStockSnapshot.create(PRODUCT_ID, HUB_ID, 5, 1L); // available=5 < requested=10
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(snapshot));
+
+        assertThatThrownBy(() ->
+                orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.PRODUCT_STOCK_INSUFFICIENT));
+
+        // 재고 부족이 확정되면 Product Service 호출 없이 즉시 실패해야 함
+        verify(productServiceClient, never()).getProduct(any());
+    }
+
+    // 해당 상품의 스냅샷이 없으면 사전 검증을 건너뛰고 주문 생성을 계속 진행하는지 검증
+    @Test
+    void createOrder_noSnapshot_skipsPreValidationAndProceeds() {
+        ProductResponse product = new ProductResponse(
+                PRODUCT_ID, "테스트 상품", REQUESTER_COMPANY_ID, "업체명",
+                HUB_ID, "허브명", 10_000L, "설명", "AVAILABLE"
+        );
+        OrderItemRequest itemRequest = mock(OrderItemRequest.class);
+        when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
+        when(itemRequest.getQuantity()).thenReturn(5);
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty()); // 스냅샷 없음
+        when(productServiceClient.getProduct(PRODUCT_ID)).thenReturn(ApiResponse.ok(product));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            ReflectionTestUtils.setField(savedOrder, "id", ORDER_ID);
+            return savedOrder;
+        });
+
+        OrderDetailResponse result = orderService.createOrder(
+                REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID
+        );
+
+        assertThat(result).isNotNull();
+        verify(orderRepository).save(any(Order.class));
+    }
+
     // ===== getOrders =====
 
     // MASTER 역할은 userId 필터 없이 전체 주문을 조회하는지 검증
