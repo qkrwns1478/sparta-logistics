@@ -187,23 +187,42 @@ sequenceDiagram
 
 `CancelOrderOrchestrator`가 중앙에서 커맨드를 발행하고 ACK를 수신하며 취소 흐름을 조율합니다.
 
+### CancelOrderOrchestrator 클래스
+
+| 항목 | 내용 |
+|---|---|
+| 역할 | Orchestration Saga 중앙 조율자. Step 3-1/3-3/3-5에서 커맨드 발행 및 상태 전이를 담당 |
+| 의존성 | `OrderRepository`, `KafkaTemplate` |
+| 메서드 | `start(Order, UUID, String)` / `onDeliveryCancelled(UUID)` / `onStockRestored(UUID)` |
+| 트랜잭션 | 메서드별 `@Transactional` (각 단계 독립 트랜잭션) |
+| 멱등성 전략 | 주문 없음 → warn 후 no-op / CANCELLING 아님 → warn 후 no-op |
+| 커맨드 식별 | 발행 시 `eventId = UUID.randomUUID()` 부여 |
+| 파티션 키 | 모든 발행에 `orderId` 사용 → 동일 주문의 명령 순서 보장 |
+
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant O as OrderService
+    participant Orch as CancelOrderOrchestrator
     participant D as DeliveryService
     participant H as HubService
 
     C->>O: DELETE /orders/{orderId}
-    Note over O: Step 3-1 / CANCELLING 전이
-    O->>D: cancel.delivery.command
+    Note over O: 권한 검사 + 주문 조회
+    O->>Orch: start(order, userId, cancelReason)
+    Note over Orch: Step 3-1 / CANCELLING 전이
+    Orch->>D: cancel.delivery.command
     Note over D: Step 3-2 / 배송 취소
     D->>O: delivery.cancelled.ack
-    Note over O: Step 3-3
-    O->>H: restore.stock.command
+    Note over O: DeliveryCancelledAckConsumer
+    O->>Orch: onDeliveryCancelled(orderId)
+    Note over Orch: Step 3-3
+    Orch->>H: restore.stock.command
     Note over H: Step 3-4 / 재고 복구
     H->>O: stock.restored.ack
-    Note over O: Step 3-5 / CANCELLED 확정
+    Note over O: StockRestoredAckConsumer
+    O->>Orch: onStockRestored(orderId)
+    Note over Orch: Step 3-5 / CANCELLED 확정
 ```
 
 ### [Step 3-1] `cancel.delivery.command` 발행
@@ -211,6 +230,7 @@ sequenceDiagram
 | 항목 | 내용 |
 |---|---|
 | 서비스 | **OrderService** |
+| 담당 컴포넌트 | `CancelOrderOrchestrator.start()` |
 | 진입점 | `OrderService.cancelOrder()` → `CancelOrderOrchestrator.start()` |
 | 발행 토픽 | `cancel.delivery.command` |
 | 파티션 키 | `orderId` |
@@ -236,6 +256,7 @@ sequenceDiagram
 | 항목 | 내용 |
 |---|---|
 | 서비스 | **OrderService** |
+| 담당 컴포넌트 | `CancelOrderOrchestrator.onDeliveryCancelled()` |
 | 컨슈머 | `DeliveryCancelledAckConsumer` |
 | 구독 토픽 | `delivery.cancelled.ack` |
 | 위임 메서드 | `OrderService.handleDeliveryCancelled()` → `CancelOrderOrchestrator.onDeliveryCancelled()` |
@@ -262,6 +283,7 @@ sequenceDiagram
 | 항목 | 내용 |
 |---|---|
 | 서비스 | **OrderService** |
+| 담당 컴포넌트 | `CancelOrderOrchestrator.onStockRestored()` |
 | 컨슈머 | `StockRestoredAckConsumer` |
 | 구독 토픽 | `stock.restored.ack` |
 | 위임 메서드 | `OrderService.confirmOrderCancelled()` → `CancelOrderOrchestrator.onStockRestored()` |
