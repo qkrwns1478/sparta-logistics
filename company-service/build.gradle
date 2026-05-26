@@ -6,15 +6,16 @@ description = 'company-service'
 
 dependencies {
     implementation project(':common')
-    // Web
+    // web layer
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    // JPA
+    // persistence
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
-    // OpenFeign (서비스 간 통신)
+    // external communication
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
-    // Redis (캐싱)
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // test
+    testImplementation 'com.h2database:h2'
 }
