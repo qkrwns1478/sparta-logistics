@@ -447,15 +447,14 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
-    // 이미 취소된 주문에 대해 오케스트레이터가 ORDER_NOT_CANCELLABLE을 던지면 서비스가 그대로 전파하는지 검증
-    // 실제 상태 전이 검사(Order.startCancelling → canTransitionTo)는 CancelOrderOrchestratorTest에서 검증
+    // 이미 취소된 주문은 isModifiable() 검사에서 ORDER_NOT_CANCELLABLE 예외가 발생하는지 검증
     @Test
     void cancelOrder_alreadyCancelled_throwsException() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.cancel(USER_ID, "이미 취소됨");
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
-        doThrow(new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE))
-                .when(cancelOrderOrchestrator).start(any(Order.class), any(UUID.class), any(String.class));
+        // 오케스트레이터 호출 이전에 서비스 자체에서 예외를 던지므로 stub 불필요
+        // 실제 상태 전이 검사(Order.startCancelling -> canTransitionTo)는 CancelOrderOrchestratorTest에서 검증
 
         assertThatThrownBy(() ->
                 orderService.cancelOrder(ORDER_ID, "재취소 시도", USER_ID, Role.MASTER, null)

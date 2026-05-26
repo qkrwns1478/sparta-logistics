@@ -70,15 +70,15 @@ public class CancelOrderOrchestrator {
     @Transactional
     @SuppressWarnings("unchecked")
     public void onDeliveryCancelled(UUID orderId) {
-        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId).orElse(null);
+        Order order = orderRepository.findById(orderId).orElse(null);
 
         if (order == null) {
-            log.warn("[CancelSaga] onDeliveryCancelled — 주문 없음 orderId={}", orderId);
+            log.warn("[CancelSaga] onDeliveryCancelled 주문 없음 orderId={}", orderId);
             return;
         }
 
         if (order.getStatus() != OrderStatus.CANCELLING) {
-            log.warn("[CancelSaga] onDeliveryCancelled — CANCELLING 아님, 무시 orderId={} status={}",
+            log.warn("[CancelSaga] onDeliveryCancelled CANCELLING 아님 orderId={} status={}",
                     orderId, order.getStatus());
             return;
         }
@@ -110,15 +110,15 @@ public class CancelOrderOrchestrator {
      * */
     @Transactional
     public void onStockRestored(UUID orderId) {
-        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId).orElse(null);
+        Order order = orderRepository.findById(orderId).orElse(null);
 
         if (order == null) {
-            log.warn("[CancelSaga] onStockRestored — 주문 없음 orderId={}", orderId);
+            log.warn("[CancelSaga] onStockRestored 주문 없음 orderId={}", orderId);
             return;
         }
 
         if (order.getStatus() != OrderStatus.CANCELLING) {
-            log.warn("[CancelSaga] onStockRestored — CANCELLING 아님, 무시 orderId={} status={}",
+            log.warn("[CancelSaga] onStockRestored CANCELLING 아님 orderId={} status={}",
                     orderId, order.getStatus());
             return;
         }

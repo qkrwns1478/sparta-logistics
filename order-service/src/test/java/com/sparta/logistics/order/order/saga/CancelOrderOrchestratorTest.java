@@ -83,7 +83,7 @@ class CancelOrderOrchestratorTest {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         ReflectionTestUtils.setField(order, "id", ORDER_ID);
         order.startCancelling(USER_ID, "단순 변심");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         orchestrator.onDeliveryCancelled(ORDER_ID);
 
@@ -93,7 +93,7 @@ class CancelOrderOrchestratorTest {
     // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
     @Test
     void onDeliveryCancelled_orderNotFound_noException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatCode(() -> orchestrator.onDeliveryCancelled(ORDER_ID)).doesNotThrowAnyException();
     }
@@ -103,7 +103,7 @@ class CancelOrderOrchestratorTest {
     void onDeliveryCancelled_notCancelling_idempotent() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         // PENDING 상태 — CANCELLING이 아님
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         assertThatCode(() -> orchestrator.onDeliveryCancelled(ORDER_ID)).doesNotThrowAnyException();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
@@ -116,7 +116,7 @@ class CancelOrderOrchestratorTest {
     void onStockRestored_cancellingOrder_transitionsToCancelled() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.startCancelling(USER_ID, "단순 변심");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         orchestrator.onStockRestored(ORDER_ID);
 
@@ -130,7 +130,7 @@ class CancelOrderOrchestratorTest {
     // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
     @Test
     void onStockRestored_orderNotFound_noException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatCode(() -> orchestrator.onStockRestored(ORDER_ID)).doesNotThrowAnyException();
     }
@@ -140,7 +140,7 @@ class CancelOrderOrchestratorTest {
     void onStockRestored_notCancelling_idempotent() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.cancel(null, "이미 취소됨"); // CANCELLED 상태
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         assertThatCode(() -> orchestrator.onStockRestored(ORDER_ID)).doesNotThrowAnyException();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
