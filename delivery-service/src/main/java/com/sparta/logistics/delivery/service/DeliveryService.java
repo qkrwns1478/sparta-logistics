@@ -14,6 +14,7 @@ import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
 import com.sparta.logistics.delivery.entity.DeliveryOrderItemEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
+import com.sparta.logistics.delivery.entity.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.entity.enums.RouteType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
@@ -179,6 +180,33 @@ public class DeliveryService {
 
         List<DeliveryOrderItemEntity> items = deliveryOrderItemRepository.findByDeliveryId(deliveryId);
         eventPublisher.publishStarted(deliveryId, entity.getOrderId(), items);
+    }
+
+    // cancel.delivery.command 수신 시 호출 — 취소 가능 여부 확인 후 상태 전이
+    @Transactional
+    public boolean cancelDeliveryByCommand(UUID deliveryId) {
+        DeliveryEntity entity = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+
+        DeliveryStatus status = entity.getStatus();
+
+        if (status == DeliveryStatus.CANCELLED) {
+            log.info("[Saga] 이미 취소된 배송 — deliveryId={}", deliveryId);
+            return true;
+        }
+
+        if (status == DeliveryStatus.HUB_MOVING || status == DeliveryStatus.DESTINATION_HUB_ARRIVED
+                || status == DeliveryStatus.OUT_FOR_DELIVERY || status == DeliveryStatus.COMPLETED) {
+            log.warn("[Saga] 배송 취소 불가 — deliveryId={}, status={}", deliveryId, status);
+            return false;
+        }
+
+        entity.changeStatus(DeliveryStatus.CANCELLED);
+        deliveryLogRepository.save(new DeliveryLogEntity(
+                deliveryId, DeliveryEventType.CANCELLED, DeliveryStatus.CANCELLED,
+                "주문 취소 Saga 명령으로 배송 취소", null, null
+        ));
+        return true;
     }
 
     private DeliveryEntity findActiveOrThrow(UUID deliveryId) {
