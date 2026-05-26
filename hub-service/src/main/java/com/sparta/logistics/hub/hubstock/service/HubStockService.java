@@ -248,7 +248,8 @@ public class HubStockService {
                     }
                 }
         );
-      
+    }
+    
     private void checkHubStockPermission(Role role, UUID userHubId, UUID hubId) {
 
         if (role == Role.MASTER) return;
