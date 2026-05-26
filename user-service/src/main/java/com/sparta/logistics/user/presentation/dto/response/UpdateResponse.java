@@ -1,16 +1,15 @@
 package com.sparta.logistics.user.presentation.dto.response;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.user.domain.model.entity.UserEntity;
 import com.sparta.logistics.user.domain.model.enums.UserStatus;
-import com.sparta.logistics.common.domain.Role;
 import lombok.Builder;
-
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Builder
-public record GetResponse( // 조회 응답
+public record UpdateResponse( // 수정 응답
         UUID userId,
         String username,
         String name,
@@ -20,13 +19,10 @@ public record GetResponse( // 조회 응답
         UserStatus status,
         UUID hubId,
         UUID companyId,
-        LocalDateTime lastLoginAt,
-        LocalDateTime createdAt,
         LocalDateTime updatedAt
-
 ) {
-    public static GetResponse from(UserEntity user){
-        return GetResponse.builder()
+    public static UpdateResponse from(UserEntity user) {
+        return UpdateResponse.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
                 .name(user.getName())
@@ -36,8 +32,6 @@ public record GetResponse( // 조회 응답
                 .status(user.getStatus())
                 .hubId(user.getHubId())
                 .companyId(user.getCompanyId())
-                .lastLoginAt(user.getLastLoginAt())
-                .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
     }

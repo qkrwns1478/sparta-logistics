@@ -174,7 +174,7 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
 
                 return response.writeWith(Mono.just(buffer));
             } catch (Exception e) {
-                log.error("JSON 변환 중 예외 발생", e);
+                log.warn("JSON 변환 중 예외 발생", e);
                 return response.setComplete();
             }
         });
