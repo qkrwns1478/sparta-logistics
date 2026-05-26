@@ -9,6 +9,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "p_order")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Order extends BaseEntity {
@@ -63,6 +65,10 @@ public class Order extends BaseEntity {
      * */
     @Column(name = "delivery_id")
     private UUID deliveryId;
+
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
@@ -145,6 +151,14 @@ public class Order extends BaseEntity {
                 && this.status != OrderStatus.CANCELLING // 취소 진행 중도 수정 불가
                 && this.status != OrderStatus.COMPLETED
                 && this.status != OrderStatus.IN_DELIVERY;
+    }
+
+    public boolean isDeletable() {
+        return this.status == OrderStatus.CANCELLED || this.status == OrderStatus.COMPLETED;
+    }
+
+    public void delete(UUID deletedBy) {
+        softDelete(deletedBy);
     }
 
     // 상태 전이 유효성 테이블

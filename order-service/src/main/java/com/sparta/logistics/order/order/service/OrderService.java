@@ -15,6 +15,8 @@ import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.lock.OrderLockManager;
+import com.sparta.logistics.order.order.lock.OrderProcessStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
@@ -31,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -47,6 +50,7 @@ public class OrderService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final CancelOrderOrchestrator cancelOrderOrchestrator;
     private final ProductStockSnapshotRepository snapshotRepository;
+    private final OrderLockManager orderLockManager;
 
     /**
      * 주문 생성
@@ -81,10 +85,12 @@ public class OrderService {
         // 스냅샷 기반 재고 사전 검증 (스냅샷이 없는 상품은 건너뜀)
         validateStockBySnapshot(mergedItems);
 
+        Map<UUID, ProductResponse> productMap = fetchProducts(new ArrayList<>(mergedItems.keySet()));
+
         Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
 
         mergedItems.forEach((productId, quantity) -> {
-            ProductResponse product = fetchProduct(productId);
+            ProductResponse product = productMap.get(productId);
             OrderItem orderItem = OrderItem.create(
                     order,
                     productId,
@@ -112,16 +118,16 @@ public class OrderService {
      * */
     @Transactional
     public void acceptOrder(UUID orderId, UUID deliveryId) {
-        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+        Order order = orderRepository.findById(orderId)
                 .orElse(null);
 
         if (order == null) {
-            log.warn("[delivery.created] 주문을 찾을 수 없음 — 무시 orderId={}", orderId);
+            log.warn("[delivery.created] 주문을 찾을 수 없음 orderId={}", orderId);
             return;
         }
 
         if (order.getStatus() != OrderStatus.PENDING) {
-            log.warn("[delivery.created] 멱등성 처리: 이미 처리된 주문 — 무시 orderId={} status={}",
+            log.warn("[delivery.created] 이미 처리된 주문 orderId={} status={}",
                     orderId, order.getStatus());
             return;
         }
@@ -139,7 +145,7 @@ public class OrderService {
      */
     @Transactional
     public void cancelOrderByCompensation(UUID orderId, String reason) {
-        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+        Order order = orderRepository.findById(orderId)
                 .orElse(null);
 
         if (order == null) {
@@ -200,20 +206,33 @@ public class OrderService {
             throw new BusinessException(OrderErrorCode.ORDER_UPDATE_PERMISSION_DENIED);
         }
 
-        Order order = findOrder(orderId);
+        // 1. CANCELLING 상태 사전 차단
+        orderLockManager.getStatusKey(orderId).ifPresent(s -> {
+            if (s == OrderProcessStatus.CANCELLING) {
+                throw new BusinessException(OrderErrorCode.ORDER_ALREADY_CANCELLING);
+            }
+        });
 
-        // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 수정 가능
-        if (role == Role.HUB_MANAGER) {
-            checkHubPermission(order.getRequesterCompanyId(), userHubId);
+        // 2. 분산 락 획득
+        orderLockManager.acquireLock(orderId);
+        try {
+            Order order = findOrder(orderId);
+
+            // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 수정 가능
+            if (role == Role.HUB_MANAGER) {
+                checkHubPermission(order.getRequesterCompanyId(), userHubId);
+            }
+
+            // CANCELLED COMPLETED, IN_DELIVERY 상태는 수정 불가
+            if (!order.isModifiable()) {
+                throw new BusinessException(OrderErrorCode.ORDER_NOT_MODIFIABLE);
+            }
+
+            order.update(dueDate, requestMemo);
+            return OrderDetailResponse.from(order);
+        } finally {
+            orderLockManager.releaseLock(orderId);
         }
-
-        // CANCELLED COMPLETED, IN_DELIVERY 상태는 수정 불가
-        if (!order.isModifiable()) {
-            throw new BusinessException(OrderErrorCode.ORDER_NOT_MODIFIABLE);
-        }
-
-        order.update(dueDate, requestMemo);
-        return OrderDetailResponse.from(order);
     }
 
     /**
@@ -229,17 +248,69 @@ public class OrderService {
             throw new BusinessException(OrderErrorCode.ORDER_CANCEL_PERMISSION_DENIED);
         }
 
-        Order order = findOrder(orderId);
+        // 1. 상태 키 사전 차단 (fast-fail)
+        orderLockManager.getStatusKey(orderId).ifPresent(s -> {
+            if (s == OrderProcessStatus.PROCESSING) {
+                throw new BusinessException(OrderErrorCode.ORDER_PROCESSING_IN_PROGRESS);
+            }
+            if (s == OrderProcessStatus.CANCELLING) {
+                throw new BusinessException(OrderErrorCode.ORDER_ALREADY_CANCELLING);
+            }
+        });
 
-        // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 취소 가능
-        if (role == Role.HUB_MANAGER) {
-            checkHubPermission(order.getRequesterCompanyId(), userHubId);
+        // 2. 분산 락 획득
+        orderLockManager.acquireLock(orderId);
+        try {
+            // 3. 락 획득 후 재확인
+            orderLockManager.getStatusKey(orderId).ifPresent(s -> {
+                if (s == OrderProcessStatus.PROCESSING) {
+                    throw new BusinessException(OrderErrorCode.ORDER_PROCESSING_IN_PROGRESS);
+                }
+            });
+
+            // 4. CANCELLING 세팅
+            orderLockManager.setStatusKey(orderId, OrderProcessStatus.CANCELLING);
+
+            Order order = findOrder(orderId);
+
+            // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 취소 가능
+            if (role == Role.HUB_MANAGER) {
+                checkHubPermission(order.getRequesterCompanyId(), userHubId);
+            }
+
+            // CANCELLED, COMPLETED, IN_DELIVERY 상태는 취소 불가
+            if (!order.isModifiable()) {
+                throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
+            }
+
+            // Orchestration Saga Step 3-1: CANCELLING 전이 + cancel.delivery.command 발행
+            cancelOrderOrchestrator.start(order, userId, cancelReason);
+
+            return OrderDetailResponse.from(order);
+        } finally {
+            // 5. 상태 키 및 락 해제
+            orderLockManager.clearStatusKey(orderId);
+            orderLockManager.releaseLock(orderId);
+        }
+    }
+
+    /** 주문 삭제 (Soft Delete) **/
+    @Transactional
+    public void deleteOrder(UUID orderId, UUID userId, Role role) {
+        // MASTER만 삭제 가능
+        if (role != Role.MASTER) {
+            throw new BusinessException(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED);
         }
 
-        // Orchestration Saga Step 3-1: CANCELLING 전이 + cancel.delivery.command 발행
-        cancelOrderOrchestrator.start(order, userId, cancelReason);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
 
-        return OrderDetailResponse.from(order);
+        // CANCELLED 또는 COMPLETED 상태의 주문만 삭제 가능
+        if (!order.isDeletable()) {
+            throw new BusinessException(OrderErrorCode.ORDER_NOT_DELETABLE);
+        }
+
+        order.delete(userId);
     }
 
     /**
@@ -294,7 +365,7 @@ public class OrderService {
 
     /**
      * order.created 이벤트를 Kafka로 발행함
-     * 파티션 키: orderId — 동일 주문의 이벤트 순서를 보장함
+     * 파티션 키: orderId (동일 주문의 이벤트 순서를 보장함)
      * */
     private void publishOrderCreatedEvent(Order order) {
         List<OrderItemPayload> payloads = order.getOrderItems().stream()
@@ -344,16 +415,24 @@ public class OrderService {
         }
     }
 
-    private ProductResponse fetchProduct(UUID productId) {
+    private Map<UUID, ProductResponse> fetchProducts(List<UUID> productIds) {
         try {
-            // AVAILABLE 상태가 아닌 상품은 주문 불가
-            ProductResponse product = productServiceClient.getProduct(productId).data();
-            if (!"AVAILABLE".equals(product.status())) {
-                throw new BusinessException(OrderErrorCode.PRODUCT_NOT_AVAILABLE);
+            // 배치 조회 방식으로 N+1 문제 해결
+            List<ProductResponse> products = productServiceClient.getProducts(productIds).data();
+            Map<UUID, ProductResponse> productMap = products.stream()
+                    .collect(Collectors.toMap(ProductResponse::productId, p -> p));
+
+            for (UUID productId: productIds) {
+                ProductResponse product = productMap.get(productId);
+                if (product == null) {
+                    throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
+                }
+                // AVAILABLE 상태가 아닌 상품은 주문 불가
+                if (!"AVAILABLE".equals(product.status())) {
+                    throw new BusinessException(OrderErrorCode.PRODUCT_NOT_AVAILABLE);
+                }
             }
-            return product;
-        } catch (FeignException.NotFound e) {
-            throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
+            return productMap;
         } catch (FeignException e) {
             throw new BusinessException(OrderErrorCode.PRODUCT_SERVICE_UNAVAILABLE);
         }
@@ -370,7 +449,7 @@ public class OrderService {
     }
 
     private Order findOrder(UUID orderId) {
-        return orderRepository.findByIdAndDeletedAtIsNull(orderId)
+        return orderRepository.findById(orderId)
                 .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
