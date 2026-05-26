@@ -14,5 +14,5 @@ import java.util.UUID;
 @Builder
 public class DeliveryOrderItemPayload {
     private UUID productId;
-    private int quantity;
+    private Integer quantity;
 }

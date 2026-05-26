@@ -157,15 +157,15 @@ public class DeliveryService {
         // delivery.started 발행을 위해 orderItems 저장
         for (var item : event.orderItems()) {
             deliveryOrderItemRepository.save(
-                    new DeliveryOrderItemEntity(entity.getId(), item.productId(), item.reservedQuantity())
+                    new DeliveryOrderItemEntity(entity, item.productId(), item.reservedQuantity())
             );
         }
 
         // 배차 — 담당자 없으면 null 허용 후 계속 진행
         assignmentService.assignManagersForSystem(entity.getId());
 
-        // 트랜잭션 커밋 후 발행이 이상적이나 소규모 프로젝트 기준 단순 구조 채택
-        // 추후 outbox 패턴으로 전환 시 이 호출 제거
+        // 트랜잭션 커밋 후 발행이 이상적이나 우선적으로 단순 구조 채택
+        // 추후 outbox 패턴으로 전환 가능하다면 이 호출 제거
         eventPublisher.publishCreated(
                 entity.getId(),
                 event.orderId(),
@@ -176,13 +176,14 @@ public class DeliveryService {
     }
 
     // ai.deadline.calculated 이벤트 수신 시 호출 — deadline 저장 후 delivery.started 발행
+    // TODO: deadline이 null이어도 delivery.started가 발행되게 할 것인지 결정
     @Transactional
     public void updateFinalDispatchDeadline(UUID deliveryId, LocalDateTime deadline) {
         DeliveryEntity entity = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
         entity.updateFinalDispatchDeadline(deadline);
 
-        List<DeliveryOrderItemEntity> items = deliveryOrderItemRepository.findByDeliveryId(deliveryId);
+        List<DeliveryOrderItemEntity> items = deliveryOrderItemRepository.findByDelivery_Id(deliveryId);
         eventPublisher.publishStarted(deliveryId, entity.getOrderId(), items);
     }
 

@@ -2,9 +2,12 @@ package com.sparta.logistics.delivery.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -22,8 +25,9 @@ public class DeliveryOrderItemEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
-    private UUID deliveryId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_id", nullable = false)
+    private DeliveryEntity delivery;
 
     @Column(nullable = false)
     private UUID productId;
@@ -31,8 +35,8 @@ public class DeliveryOrderItemEntity {
     @Column(nullable = false)
     private int quantity;
 
-    public DeliveryOrderItemEntity(UUID deliveryId, UUID productId, int quantity) {
-        this.deliveryId = deliveryId;
+    public DeliveryOrderItemEntity(DeliveryEntity delivery, UUID productId, int quantity) {
+        this.delivery = delivery;
         this.productId = productId;
         this.quantity = quantity;
     }
