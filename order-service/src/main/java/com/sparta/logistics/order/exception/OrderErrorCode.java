@@ -22,7 +22,7 @@ public enum OrderErrorCode implements ErrorCode {
     ORDER_HUB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "ORDER_011", "담당 허브의 주문만 처리할 수 있습니다."),
     PRODUCT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "ORDER_012", "현재 주문할 수 없는 상품입니다."),
     ORDER_DELETE_PERMISSION_DENIED(HttpStatus.FORBIDDEN, "ORDER_013", "주문 삭제 권한이 없습니다."),
-    ORDER_NOT_DELETABLE(HttpStatus.BAD_REQUEST, "ORDER_014", "취소 또는 완료된 주문만 삭제할 수 있습니다.");
+    ORDER_NOT_DELETABLE(HttpStatus.BAD_REQUEST, "ORDER_014", "취소 또는 완료된 주문만 삭제할 수 있습니다."),
     ORDER_LOCK_CONFLICT(HttpStatus.CONFLICT, "ORDER_015", "주문이 처리 중입니다. 잠시 후 다시 시도해 주세요."),
     ORDER_ALREADY_CANCELLING(HttpStatus.CONFLICT, "ORDER_016", "취소가 이미 진행 중인 주문입니다."),
     ORDER_PROCESSING_IN_PROGRESS(HttpStatus.CONFLICT, "ORDER_017", "주문 처리 중에는 취소할 수 없습니다.");
