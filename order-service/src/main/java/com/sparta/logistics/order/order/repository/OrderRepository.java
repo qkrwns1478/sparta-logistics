@@ -14,12 +14,9 @@ import java.util.UUID;
 
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
-    Optional<Order> findByIdAndDeletedAtIsNull(UUID id);
-
     @Query("""
             SELECT o FROM Order o
-            WHERE o.deletedAt IS NULL
-              AND (:requesterUserId IS NULL OR o.requesterUserId = :requesterUserId)
+            WHERE (:requesterUserId IS NULL OR o.requesterUserId = :requesterUserId)
               AND (:requesterCompanyId IS NULL OR o.requesterCompanyId = :requesterCompanyId)
               AND (:receiverCompanyId IS NULL OR o.receiverCompanyId = :receiverCompanyId)
               AND (:status IS NULL OR o.status = :status)

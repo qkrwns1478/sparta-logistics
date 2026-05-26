@@ -2,6 +2,7 @@ package com.sparta.logistics.user.application.command;
 
 import com.sparta.logistics.user.domain.model.entity.UserEntity;
 import com.sparta.logistics.common.domain.Role;
+import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import lombok.Builder;
 
 import java.util.UUID;
@@ -20,7 +21,8 @@ public record SignupCommand(
 ) {
 
     public UserEntity toEntity(String encodedPassword) {
-        return UserEntity.builder()
+
+        UserEntity user = UserEntity.builder()
                 .username(username)
                 .password(encodedPassword)
                 .name(name)
@@ -29,7 +31,12 @@ public record SignupCommand(
                 .role(role)
                 .hubId(hubId)
                 .companyId(companyId)
+                .status(UserStatus.PENDING)
                 .build();
+
+        user.validateRoleConstraints();
+
+        return user;
 
     }
 }

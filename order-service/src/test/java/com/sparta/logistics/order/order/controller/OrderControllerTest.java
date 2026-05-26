@@ -181,7 +181,7 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.message").value("주문이 수정되었습니다."));
     }
 
-    // ===== DELETE /api/v1/orders/{orderId} =====
+    // ===== POST /api/v1/orders/{orderId}/cancel =====
 
     // 유효한 주문 취소 요청 시 200 응답과 취소 완료 메시지가 반환되는지 검증
     @Test
@@ -190,7 +190,7 @@ class OrderControllerTest {
         when(orderService.cancelOrder(eq(ORDER_ID), any(), eq(USER_ID), eq(Role.MASTER), any()))
                 .thenReturn(response);
 
-        mockMvc.perform(delete("/api/v1/orders/{orderId}", ORDER_ID)
+        mockMvc.perform(post("/api/v1/orders/{orderId}/cancel", ORDER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "cancelReason": "단순 변심" }
@@ -210,7 +210,7 @@ class OrderControllerTest {
         when(orderService.cancelOrder(eq(ORDER_ID), eq("재고 소진"), eq(USER_ID), eq(Role.HUB_MANAGER), eq(hubId)))
                 .thenReturn(response);
 
-        mockMvc.perform(delete("/api/v1/orders/{orderId}", ORDER_ID)
+        mockMvc.perform(post("/api/v1/orders/{orderId}/cancel", ORDER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "cancelReason": "재고 소진" }
@@ -221,5 +221,28 @@ class OrderControllerTest {
                 .andExpect(status().isOk());
 
         verify(orderService).cancelOrder(eq(ORDER_ID), eq("재고 소진"), eq(USER_ID), eq(Role.HUB_MANAGER), eq(hubId));
+    }
+
+    // ===== DELETE /api/v1/orders/{orderId} =====
+
+    // MASTER 역할로 삭제 요청 시 200 응답과 삭제 완료 메시지가 반환되는지 검증
+    @Test
+    void deleteOrder_masterRole_returns200WithMessage() throws Exception {
+        mockMvc.perform(delete("/api/v1/orders/{orderId}", ORDER_ID)
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", Role.MASTER.name()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("주문이 삭제되었습니다."));
+
+        verify(orderService).deleteOrder(eq(ORDER_ID), eq(USER_ID), eq(Role.MASTER));
+    }
+
+    // X-User-Role 헤더 없이 삭제 요청 시 400이 반환되는지 검증
+    @Test
+    void deleteOrder_missingRoleHeader_returns400() throws Exception {
+        mockMvc.perform(delete("/api/v1/orders/{orderId}", ORDER_ID)
+                        .header("X-User-Id", USER_ID.toString()))
+                .andExpect(status().isBadRequest());
     }
 }

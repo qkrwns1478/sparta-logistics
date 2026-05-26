@@ -33,7 +33,7 @@ public interface HubFeignClient {
     /**
      * 배치 조회 (목록 조회용 N+1 방지)
      */
-    @GetMapping("/api/v1/hubs")
+    @GetMapping("/api/v1/hubs/batch")
     List<HubResponse> getHubsByIds(@RequestParam("ids") List<UUID> hubIds);
 
 }
