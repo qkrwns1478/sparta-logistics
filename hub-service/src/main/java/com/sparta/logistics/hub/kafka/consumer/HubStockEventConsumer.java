@@ -2,6 +2,7 @@ package com.sparta.logistics.hub.kafka.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.OrderCreatedEvent;
 import com.sparta.logistics.common.kafka.event.RestoreStockCommand;
 import com.sparta.logistics.hub.hubstock.service.HubStockService;
@@ -18,7 +19,7 @@ public class HubStockEventConsumer {
     private final ObjectMapper objectMapper;
     private final HubStockService hubStockService;
 
-    @KafkaListener(topics = "restore.stock.command", groupId = "hub-service")
+    @KafkaListener(topics = KafkaTopics.RESTORE_STOCK_COMMAND, groupId = "hub-service")
     public void consumeRestoreStockCommand(String message) {
 
         try {
@@ -32,14 +33,14 @@ public class HubStockEventConsumer {
         }
     }
 
-    @KafkaListener(topics = "delivery.creation.failed", groupId = "hub-service")
+    @KafkaListener(topics = KafkaTopics.DELIVERY_CREATION_FAILED, groupId = "hub-service")
     public void consumeDeliveryCreationFailed(String message) {
 
         // todo: delivery.creation.failed order_items가 포함되어야 재고 복구 처리 가능
         log.info("[Kafka] delivery.creation.failed 수신 - message: {}", message);
     }
 
-    @KafkaListener(topics = "order.created", groupId = "hub-service")
+    @KafkaListener(topics = KafkaTopics.ORDER_CREATED, groupId = "hub-service")
     public void consumeOrderCreated(String message) {
 
         try {

@@ -2,6 +2,7 @@ package com.sparta.logistics.hub.kafka.publisher;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
 import com.sparta.logistics.common.kafka.event.StockReservationFailedEvent;
 import com.sparta.logistics.common.kafka.event.StockReservedEvent;
@@ -31,7 +32,7 @@ public class HubStockEventPublisher {
 
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send("stock.restored.ack", message);
+            kafkaTemplate.send(KafkaTopics.STOCK_RESTORED_ACK, message);
 
             log.info("[Kafka] stock.restored.ack 발행 - orderId: {}", orderId);
         } catch (JsonProcessingException e) {
@@ -51,7 +52,7 @@ public class HubStockEventPublisher {
 
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send("stock.reservation.failed", message);
+            kafkaTemplate.send(KafkaTopics.STOCK_RESERVATION_FAILED, message);
 
             log.info("[Kafka] stock.reservation.failed 발행 - orderId: {}, productId: {}", orderId, productId);
         } catch (JsonProcessingException e) {
@@ -64,7 +65,7 @@ public class HubStockEventPublisher {
         try {
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send("stock.reserved", message);
+            kafkaTemplate.send(KafkaTopics.STOCK_RESERVED, message);
 
             log.info("[Kafka] stock.reserved 발행 - orderId: {}", event.getOrderId());
         } catch (JsonProcessingException e) {
@@ -84,7 +85,7 @@ public class HubStockEventPublisher {
                     .build();
 
             String message = objectMapper.writeValueAsString(event);
-            kafkaTemplate.send("hub.stock.updated", message);
+            kafkaTemplate.send(KafkaTopics.HUB_STOCK_UPDATED, message);
 
             log.info("[Kafka] hub.stock.updated 발행 - productId: {}", productId);
         } catch (JsonProcessingException e) {
