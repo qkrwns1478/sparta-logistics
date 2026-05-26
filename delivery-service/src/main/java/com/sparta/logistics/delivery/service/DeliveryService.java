@@ -157,7 +157,7 @@ public class DeliveryService {
         // delivery.started 발행을 위해 orderItems 저장
         for (var item : event.orderItems()) {
             deliveryOrderItemRepository.save(
-                    new DeliveryOrderItemEntity(entity, item.productId(), item.reservedQuantity())
+                    new DeliveryOrderItemEntity(entity, item.productId(), item.sourceHubId(), item.reservedQuantity())
             );
         }
 

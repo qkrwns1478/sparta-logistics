@@ -72,6 +72,7 @@ public class DeliveryEventPublisher {
         List<DeliveryOrderItemPayload> payloads = items.stream()
                 .map(i -> DeliveryOrderItemPayload.builder()
                         .productId(i.getProductId())
+                        .hubId(i.getHubId())
                         .quantity(i.getQuantity())
                         .build())
                 .collect(Collectors.toList());

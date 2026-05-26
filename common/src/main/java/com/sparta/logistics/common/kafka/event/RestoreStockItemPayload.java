@@ -14,6 +14,7 @@ import java.util.UUID;
 @Builder
 public class RestoreStockItemPayload {
     private UUID productId;
+    private UUID hubId;
     // 복구할 수량
     private Integer quantity;
 }

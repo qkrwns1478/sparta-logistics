@@ -137,6 +137,7 @@ public class DeliveryEventHandler {
         return items.stream()
                 .map(i -> RestoreStockItemPayload.builder()
                         .productId(i.productId())
+                        .hubId(i.sourceHubId())
                         .quantity(i.reservedQuantity())
                         .build())
                 .collect(Collectors.toList());

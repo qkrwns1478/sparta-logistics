@@ -33,11 +33,15 @@ public class DeliveryOrderItemEntity {
     private UUID productId;
 
     @Column(nullable = false)
+    private UUID hubId;
+
+    @Column(nullable = false)
     private int quantity;
 
-    public DeliveryOrderItemEntity(DeliveryEntity delivery, UUID productId, int quantity) {
+    public DeliveryOrderItemEntity(DeliveryEntity delivery, UUID productId, UUID hubId, int quantity) {
         this.delivery = delivery;
         this.productId = productId;
+        this.hubId = hubId;
         this.quantity = quantity;
     }
 }
