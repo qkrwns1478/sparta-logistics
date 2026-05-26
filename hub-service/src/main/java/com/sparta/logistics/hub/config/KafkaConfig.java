@@ -1,5 +1,6 @@
 package com.sparta.logistics.hub.config;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -9,6 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +21,23 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
+
+    @Bean
+    public DefaultErrorHandler kafkaErrorHandler() {
+
+        // 1초 간격, 최대 3번 재시도
+        DefaultErrorHandler handler =
+                new DefaultErrorHandler(
+                        new FixedBackOff(1000L, 3)
+                );
+
+        // retry 의미 없는 예외 제외
+        handler.addNotRetryableExceptions(
+                JsonProcessingException.class
+        );
+
+        return handler;
+    }
 
     // 메시지 발행 설정
     @Bean
