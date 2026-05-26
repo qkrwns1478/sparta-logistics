@@ -4,7 +4,7 @@ import com.sparta.logistics.user.application.command.LoginCommand;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record LoginRequest(
+public record LoginRequest( // 로그인 요청
 
         @NotBlank(message = "아이디는 필수 입력값 입니다.")
         String username,
@@ -13,9 +13,13 @@ public record LoginRequest(
         String password
 ){
     public LoginCommand toCommand(){
-    return null;
-
-
+        return LoginCommand.builder()
+                .username(username)
+                .password(password)
+                .build();
     }
 
+
 }
+
+

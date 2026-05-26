@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Builder
-public record UserResponse( // 회원가입 응답
+public record SignupResponse( // 회원가입 응답
         UUID userId,
         String username,
         String name,
@@ -17,13 +17,14 @@ public record UserResponse( // 회원가입 응답
         UserStatus status,
         LocalDateTime createdAt
 ) {
-    public static UserResponse from(UserResult userResult) {
-        return UserResponse.builder()
+    public static SignupResponse from(UserResult userResult) {
+        return SignupResponse.builder()
                 .userId(userResult.userId())
                 .username(userResult.username())
                 .name(userResult.name())
                 .role(userResult.role())
                 .status(userResult.status())
+                .createdAt(userResult.createdAt())
                 .build();
     }
 }
