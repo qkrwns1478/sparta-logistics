@@ -25,16 +25,21 @@ import static com.sparta.logistics.common.domain.Role.HUB_MANAGER;
 import static com.sparta.logistics.common.domain.Role.MASTER;
 
 
+import com.sparta.logistics.user.application.validator.HubCompanyValidator;
+
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
     private final AuthService authService;
+    private final HubCompanyValidator hubCompanyValidator;
 
     // 회원가입 ( 모든 사용자 )
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<SignupResponse>> signUp(@Valid @RequestBody SignupRequest request) {
+
+        hubCompanyValidator.validate(request.hubId(), request.companyId());
 
         UserResult userResult = authService.signUp(request.toCommand());
 

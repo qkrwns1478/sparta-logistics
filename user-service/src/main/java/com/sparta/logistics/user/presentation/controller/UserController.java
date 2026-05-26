@@ -24,11 +24,14 @@ import java.util.UUID;
 
 import static com.sparta.logistics.common.domain.Role.MASTER;
 
+import com.sparta.logistics.user.application.validator.HubCompanyValidator;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/users")
 public class UserController {
     private final UserService userService;
+    private final HubCompanyValidator hubCompanyValidator;
     private static final List<Integer> ALLOWED_PAGE_SIZES = List.of(10, 30, 50);
 
     // 사용자 존재 여부 확인 (내부 서비스용)
@@ -77,6 +80,7 @@ public class UserController {
                                                                   @Valid @RequestBody UpdateRequest request
     ){
         if(MASTER.equals(role)){
+            hubCompanyValidator.validate(request.hubId(), request.companyId());
             UpdateResponse response = userService.updateUser(userId, request);
             return ResponseEntity.ok(ApiResponse.ok("사용자 정보가 수정되었습니다.", response));
         }
