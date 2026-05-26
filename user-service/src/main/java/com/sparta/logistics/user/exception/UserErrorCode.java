@@ -16,6 +16,7 @@ public enum UserErrorCode implements ErrorCode {
 
     USER_NOT_FOUND("존재하지 않는 사용자입니다.", HttpStatus.NOT_FOUND, "USER-001"),
     USER_ALREADY_EXISTS("이미 사용 중인 사용자명입니다.", HttpStatus.CONFLICT, "USER-002"),
+    EMAIL_ALREADY_EXISTS("이미 사용 중인 이메일입니다.", HttpStatus.CONFLICT, "USER-015"),
     USER_NOT_APPROVED("승인되지 않은 사용자입니다.", HttpStatus.FORBIDDEN, "USER-003"),
     ALREADY_PROCESSED("이미 처리된 사용자 상태입니다.", HttpStatus.BAD_REQUEST, "USER-004"),
     INVALID_ROLE_CONSTRAINT("역할에 맞지 않는 정보가 포함되어 있습니다.", HttpStatus.BAD_REQUEST, "USER-005"),
