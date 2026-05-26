@@ -28,12 +28,12 @@ public class KafkaProducerConfig {
     @Bean
     public ProducerFactory<String, Object> producerFactory() {
         Map<String, Object> props = new HashMap<>();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, true); // __TypeId__ 헤더 추가 — 컨슈머가 타입 헤더로 역직렬화 타입을 결정
-        props.put(ProducerConfig.ACKS_CONFIG, "all"); // 전체 ISR 확인(acks=all) + 멱등성 — 중복 발행 방지
-        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers); // 연결할 Kafka 브로커 주소
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class); // 파티션 키를 문자열로 직렬화
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class); // 페이로드(이벤트 객체)를 JSON으로 직렬화
+        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, true); // 메시지 헤더에 __TypeId__ 추가
+        props.put(ProducerConfig.ACKS_CONFIG, "all"); // ISR 전체가 확인해야 ack 반환
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true); // 멱등성 프로듀서 활성화
         return new DefaultKafkaProducerFactory<>(props);
     }
 

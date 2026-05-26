@@ -33,9 +33,9 @@ public class KafkaConsumerConfig {
         deserializer.addTrustedPackages("com.sparta.logistics.common.kafka.event");
 
         Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers); // 연결할 Kafka 브로커 주소
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId); // 컨슈머 그룹 ID
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 초기 오프셋 전략 (earliest: 파티션의 가장 오래된 메시지부터 읽음)
 
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
     }
