@@ -11,6 +11,8 @@ import com.sparta.logistics.order.exception.OrderErrorCode;
 import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.lock.OrderLockManager;
+import com.sparta.logistics.order.order.lock.OrderProcessStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
 import feign.FeignException;
@@ -52,6 +54,9 @@ class OrderServiceTest {
 
     @Mock
     private ProductServiceClient productServiceClient;
+
+    @Mock
+    private OrderLockManager orderLockManager;
 
     private final UUID REQUESTER_COMPANY_ID = UUID.randomUUID();
     private final UUID RECEIVER_COMPANY_ID = UUID.randomUUID();
@@ -328,6 +333,18 @@ class OrderServiceTest {
         assertThat(order.getRequestMemo()).isEqualTo("메모 수정");
     }
 
+    // CANCELLING 상태인 주문 수정 시도 시 ORDER_ALREADY_CANCELLING 예외가 발생하는지 검증
+    @Test
+    void updateOrder_whenCancelling_throwsAlreadyCancelling() {
+        when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.CANCELLING));
+
+        assertThatThrownBy(() ->
+                orderService.updateOrder(ORDER_ID, DUE_DATE, null, USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_ALREADY_CANCELLING));
+    }
+
     // ===== cancelOrder =====
 
     // COMPANY_MANAGER 역할로 취소 시도 시 ORDER_CANCEL_PERMISSION_DENIED 예외가 발생하는지 검증
@@ -408,5 +425,89 @@ class OrderServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    // ===== deleteOrder =====
+
+    // MASTER 이외의 역할로 삭제 시도 시 ORDER_DELETE_PERMISSION_DENIED 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_nonMasterRole_throwsPermissionDenied() {
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.HUB_MANAGER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED));
+    }
+
+    // 존재하지 않는 주문 삭제 시도 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_orderNotFound_throwsException() {
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    // PENDING 상태의 주문 삭제 시도 시 ORDER_NOT_DELETABLE 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_pendingOrder_throwsNotDeletable() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_NOT_DELETABLE));
+    }
+
+    // CANCELLED 상태의 주문을 MASTER가 삭제하면 soft delete가 적용되는지 검증
+    @Test
+    void deleteOrder_cancelledOrder_success() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.cancel(USER_ID, "단순 변심");
+        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER);
+
+        assertThat(order.isDeleted()).isTrue();
+    // 상태키가 PROCESSING이면 취소 시 ORDER_PROCESSING_IN_PROGRESS 예외가 발생하는지 검증
+    @Test
+    void cancelOrder_whenProcessing_throwsProcessingInProgress() {
+        when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.PROCESSING));
+
+        assertThatThrownBy(() ->
+                orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_PROCESSING_IN_PROGRESS));
+    }
+
+    // 상태키가 CANCELLING이면 취소 시 ORDER_ALREADY_CANCELLING 예외가 발생하는지 검증
+    @Test
+    void cancelOrder_whenAlreadyCancelling_throwsAlreadyCancelling() {
+        when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.CANCELLING));
+
+        assertThatThrownBy(() ->
+                orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_ALREADY_CANCELLING));
+    }
+
+    // 분산 락 획득 실패 시 ORDER_LOCK_CONFLICT 예외가 발생하는지 검증
+    @Test
+    void cancelOrder_lockAcquireFail_throwsLockConflict() {
+        doThrow(new BusinessException(OrderErrorCode.ORDER_LOCK_CONFLICT))
+                .when(orderLockManager).acquireLock(ORDER_ID);
+
+        assertThatThrownBy(() ->
+                orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_LOCK_CONFLICT));
     }
 }

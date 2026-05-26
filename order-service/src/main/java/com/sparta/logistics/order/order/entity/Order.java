@@ -56,6 +56,10 @@ public class Order extends BaseEntity {
     @Column(name = "cancel_reason")
     private String cancelReason;
 
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
@@ -97,5 +101,13 @@ public class Order extends BaseEntity {
         return this.status != OrderStatus.CANCELLED
                 && this.status != OrderStatus.COMPLETED
                 && this.status != OrderStatus.IN_DELIVERY;
+    }
+
+    public boolean isDeletable() {
+        return this.status == OrderStatus.CANCELLED || this.status == OrderStatus.COMPLETED;
+    }
+
+    public void delete(UUID deletedBy) {
+        softDelete(deletedBy);
     }
 }

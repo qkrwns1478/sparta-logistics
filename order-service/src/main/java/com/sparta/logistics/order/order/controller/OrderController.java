@@ -97,7 +97,7 @@ public class OrderController {
     }
 
     /** 주문 취소 **/
-    @DeleteMapping("/{orderId}")
+    @PostMapping("/{orderId}/cancel")
     public ResponseEntity<ApiResponse<OrderDetailResponse>> cancelOrder(
             @PathVariable UUID orderId,
             @RequestBody OrderCancelRequest request,
@@ -107,5 +107,16 @@ public class OrderController {
     ) {
         OrderDetailResponse response = orderService.cancelOrder(orderId, request.getCancelReason(), userId, role, userHubId);
         return ResponseEntity.ok(ApiResponse.ok("주문이 취소되었습니다.", response));
+    }
+
+    /** 주문 삭제 (Soft Delete) **/
+    @DeleteMapping("/{orderId}")
+    public ResponseEntity<ApiResponse<Void>> deleteOrder(
+            @PathVariable UUID orderId,
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") Role role
+    ) {
+        orderService.deleteOrder(orderId, userId, role);
+        return ResponseEntity.ok(ApiResponse.ok("주문이 삭제되었습니다.", null));
     }
 }

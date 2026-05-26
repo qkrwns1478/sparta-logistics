@@ -1,5 +1,6 @@
 package com.sparta.logistics.hub.hubroute.controller;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.request.UpdateHubRouteRequest;
@@ -24,9 +25,11 @@ public class HubRouteController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<HubRouteDetailResponse>> createHubRoute(
-            @RequestBody @Valid CreateHubRouteRequest request) {
+            @RequestBody @Valid CreateHubRouteRequest request,
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") Role role) {
 
-        HubRouteDetailResponse response = hubRouteService.createHubRoute(request);
+        HubRouteDetailResponse response = hubRouteService.createHubRoute(request, role);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("허브 경로가 생성되었습니다.", response));
@@ -55,9 +58,11 @@ public class HubRouteController {
     @PutMapping("/{routeId}")
     public ResponseEntity<ApiResponse<HubRouteUpdateResponse>> updateHubRoute(
             @PathVariable UUID routeId,
-            @RequestBody @Valid UpdateHubRouteRequest request) {
+            @RequestBody @Valid UpdateHubRouteRequest request,
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") Role role) {
 
-        HubRouteUpdateResponse response = hubRouteService.updateHubRoute(routeId, request);
+        HubRouteUpdateResponse response = hubRouteService.updateHubRoute(routeId, request, role);
 
         return ResponseEntity.ok(ApiResponse.ok("이동 경로가 수정되었습니다.", response));
     }
@@ -65,9 +70,10 @@ public class HubRouteController {
     @DeleteMapping("/{routeId}")
     public ResponseEntity<ApiResponse<HubRouteDeleteResponse>> deleteHubRoute(
             @PathVariable UUID routeId,
-            @RequestHeader("X-User-Id") UUID userId) {
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") Role role) {
 
-        HubRouteDeleteResponse response = hubRouteService.deleteHubRoute(routeId, userId);
+        HubRouteDeleteResponse response = hubRouteService.deleteHubRoute(routeId, userId, role);
 
         return ResponseEntity.ok(ApiResponse.ok("이동 경로가 삭제되었습니다.", response));
     }
