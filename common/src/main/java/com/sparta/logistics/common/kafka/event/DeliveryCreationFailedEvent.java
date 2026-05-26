@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,4 +29,7 @@ public class DeliveryCreationFailedEvent {
     private UUID deliveryId;
     // 실패 사유
     private String reason;
+
+    // 해당 허브에서 복구할 상품 List (상품 ID, 수량)
+    private List<RestoreStockItemPayload> itemsToRestore;
 }

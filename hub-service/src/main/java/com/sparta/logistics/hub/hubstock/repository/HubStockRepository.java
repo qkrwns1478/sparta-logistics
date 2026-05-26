@@ -32,4 +32,6 @@ public interface HubStockRepository extends JpaRepository<HubStock, UUID> {
     Optional<HubStock> findByIdWithLock(@Param("stockId") UUID stockId);
 
     boolean existsByIdAndDeletedAtIsNull(UUID stockId);
+
+    Optional<HubStock> findByProductIdAndDeletedAtIsNull(UUID productId);
 }
