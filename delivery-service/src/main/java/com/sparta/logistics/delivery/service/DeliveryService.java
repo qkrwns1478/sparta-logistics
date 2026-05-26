@@ -151,7 +151,13 @@ public class DeliveryService {
 
         // 트랜잭션 커밋 후 발행이 이상적이나 소규모 프로젝트 기준 단순 구조 채택
         // 추후 outbox 패턴으로 전환 시 이 호출 제거
-        eventPublisher.publishCreated(entity.getId(), event.orderId());
+        eventPublisher.publishCreated(
+                entity.getId(),
+                event.orderId(),
+                entity.getSourceHubId(),
+                entity.getDestinationHubId(),
+                null  // companyDeliveryManagerId: 배차 전이므로 null
+        );
     }
 
     // ai.deadline.calculated 이벤트 수신 시 호출

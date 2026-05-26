@@ -2,18 +2,23 @@ package com.sparta.logistics.delivery.infrastructure.event;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sparta.logistics.common.kafka.KafkaTopics;
+import com.sparta.logistics.common.kafka.event.AiDeadlineCalculatedEvent;
+import com.sparta.logistics.common.kafka.event.RestoreStockItemPayload;
 import com.sparta.logistics.delivery.client.HubServiceClient;
 import com.sparta.logistics.delivery.client.UserServiceClient;
 import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
-import com.sparta.logistics.delivery.dto.event.AiDeadlineCalculatedEvent;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
+import com.sparta.logistics.delivery.dto.event.StockReservedItemPayload;
 import com.sparta.logistics.delivery.service.DeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -26,7 +31,7 @@ public class DeliveryEventHandler {
     private final HubServiceClient hubServiceClient;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "stock.reserved", groupId = "delivery-service")
+    @KafkaListener(topics = KafkaTopics.STOCK_RESERVED, groupId = "delivery-service")
     public void handleStockReserved(String message) {
         StockReservedEventDto event;
         try {
@@ -38,7 +43,8 @@ public class DeliveryEventHandler {
 
         if (event.sourceHubId() == null || event.destinationHubId() == null) {
             log.warn("[Kafka] 허브 ID null — orderId={}", event.orderId());
-            eventPublisher.publishCreationFailed(event.orderId(), "INVALID_HUB_ID");
+            eventPublisher.publishCreationFailed(event.orderId(), null, "INVALID_HUB_ID",
+                    toRestoreItems(event.orderItems()));
             return;
         }
 
@@ -49,19 +55,22 @@ public class DeliveryEventHandler {
             var userResponse = userServiceClient.getUser(event.receiverId());
             if (userResponse.data() == null) {
                 log.warn("[Kafka] slackId 없음(data=null) — receiverId={}, orderId={}", event.receiverId(), event.orderId());
-                eventPublisher.publishCreationFailed(event.orderId(), "SLACK_ID_NOT_FOUND");
+                eventPublisher.publishCreationFailed(event.orderId(), null, "SLACK_ID_NOT_FOUND",
+                        toRestoreItems(event.orderItems()));
                 return;
             }
             slackId = userResponse.data().slackId();
         } catch (Exception e) {
             log.warn("[Kafka] user-service 호출 실패 — orderId={}", event.orderId(), e);
-            eventPublisher.publishCreationFailed(event.orderId(), "USER_SERVICE_UNAVAILABLE");
+            eventPublisher.publishCreationFailed(event.orderId(), null, "USER_SERVICE_UNAVAILABLE",
+                    toRestoreItems(event.orderItems()));
             return;
         }
 
         if (slackId == null) {
             log.warn("[Kafka] slackId 없음 — orderId={}", event.orderId());
-            eventPublisher.publishCreationFailed(event.orderId(), "SLACK_ID_NOT_FOUND");
+            eventPublisher.publishCreationFailed(event.orderId(), null, "SLACK_ID_NOT_FOUND",
+                    toRestoreItems(event.orderItems()));
             return;
         }
 
@@ -71,7 +80,8 @@ public class DeliveryEventHandler {
             routeSegments = hubServiceClient.getRouteSegments(event.sourceHubId(), event.destinationHubId());
         } catch (Exception e) {
             log.warn("[Kafka] hub-service 호출 실패 — orderId={}", event.orderId(), e);
-            eventPublisher.publishCreationFailed(event.orderId(), "HUB_SERVICE_UNAVAILABLE");
+            eventPublisher.publishCreationFailed(event.orderId(), null, "HUB_SERVICE_UNAVAILABLE",
+                    toRestoreItems(event.orderItems()));
             return;
         }
 
@@ -80,11 +90,12 @@ public class DeliveryEventHandler {
             log.info("[Kafka] 배송 생성 완료 — orderId={}", event.orderId());
         } catch (Exception e) {
             log.error("[Kafka] 배송 생성 실패 — orderId={}", event.orderId(), e);
-            eventPublisher.publishCreationFailed(event.orderId(), "CREATE_FAILED");
+            eventPublisher.publishCreationFailed(event.orderId(), null, "CREATE_FAILED",
+                    toRestoreItems(event.orderItems()));
         }
     }
 
-    @KafkaListener(topics = "ai.deadline.calculated", groupId = "delivery-service")
+    @KafkaListener(topics = KafkaTopics.AI_DEADLINE_CALCULATED, groupId = "delivery-service")
     public void handleAiDeadlineCalculated(String message) {
         AiDeadlineCalculatedEvent event;
         try {
@@ -93,7 +104,17 @@ public class DeliveryEventHandler {
             log.error("[Kafka] ai.deadline.calculated 역직렬화 실패: {}", message, e);
             return;
         }
-        deliveryService.updateFinalDispatchDeadline(event.deliveryId(), event.finalDispatchDeadlineAt());
-        log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.deliveryId());
+        deliveryService.updateFinalDispatchDeadline(event.getDeliveryId(), event.getFinalDispatchDeadlineAt());
+        log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.getDeliveryId());
+    }
+
+    private List<RestoreStockItemPayload> toRestoreItems(List<StockReservedItemPayload> items) {
+        if (items == null) return Collections.emptyList();
+        return items.stream()
+                .map(i -> RestoreStockItemPayload.builder()
+                        .productId(i.productId())
+                        .quantity(i.reservedQuantity())
+                        .build())
+                .collect(Collectors.toList());
     }
 }
