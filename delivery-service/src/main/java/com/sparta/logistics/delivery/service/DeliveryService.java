@@ -12,12 +12,14 @@ import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
+import com.sparta.logistics.delivery.entity.DeliveryOrderItemEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.entity.enums.RouteType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import com.sparta.logistics.delivery.infrastructure.event.DeliveryEventPublisher;
 import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
+import com.sparta.logistics.delivery.repository.DeliveryOrderItemRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,7 @@ public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryRouteRepository deliveryRouteRepository;
+    private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final DeliveryLogRepository deliveryLogRepository;
     private final DeliveryPermissionChecker permissionChecker;
     private final DeliveryEventPublisher eventPublisher;
@@ -149,6 +152,13 @@ public class DeliveryService {
             ));
         }
 
+        // delivery.started 발행을 위해 orderItems 저장
+        for (var item : event.orderItems()) {
+            deliveryOrderItemRepository.save(
+                    new DeliveryOrderItemEntity(entity.getId(), item.productId(), item.reservedQuantity())
+            );
+        }
+
         // 트랜잭션 커밋 후 발행이 이상적이나 소규모 프로젝트 기준 단순 구조 채택
         // 추후 outbox 패턴으로 전환 시 이 호출 제거
         eventPublisher.publishCreated(
@@ -160,12 +170,15 @@ public class DeliveryService {
         );
     }
 
-    // ai.deadline.calculated 이벤트 수신 시 호출
+    // ai.deadline.calculated 이벤트 수신 시 호출 — deadline 저장 후 delivery.started 발행
     @Transactional
     public void updateFinalDispatchDeadline(UUID deliveryId, LocalDateTime deadline) {
         DeliveryEntity entity = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
         entity.updateFinalDispatchDeadline(deadline);
+
+        List<DeliveryOrderItemEntity> items = deliveryOrderItemRepository.findByDeliveryId(deliveryId);
+        eventPublisher.publishStarted(deliveryId, entity.getOrderId(), items);
     }
 
     private DeliveryEntity findActiveOrThrow(UUID deliveryId) {
