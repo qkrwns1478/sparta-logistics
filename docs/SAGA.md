@@ -284,8 +284,6 @@ sequenceDiagram
 - 비고
     - [x]  배송 취소 명령(`cancel.delivery.command`)을 수신했을 때, 배송이 **이미 이동 중(HUB_MOVING 이후**)이라면? ✅
 
-      [[260526] 배송 중 취소 처리 문제](https://www.notion.so/260526-36c2dc3ef5148019b4add151131f3d94?pvs=21)
-
         - 현재 `DeliveryStatus` 상태 전이에서는 모든 진행 상태에서 CANCELLED 전이를 허용하고 있으나, 재고 복구 방식이 **허브에서 출발 전인지, 후인지**로 달라지기 때문에 정책 결정이 필요합니다.
         - [x]  출발 전(HUB_WAITING 이전)만 취소 허용 ⭕
             - 상태에서 `HUB_MOVING` 이후 → `CANCELLED` 전이를 차단
