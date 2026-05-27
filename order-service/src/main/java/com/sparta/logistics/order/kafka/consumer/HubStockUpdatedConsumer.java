@@ -1,9 +1,8 @@
 package com.sparta.logistics.order.kafka.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,24 +24,17 @@ import org.springframework.stereotype.Component;
 public class HubStockUpdatedConsumer {
 
     private final OrderService orderService;
-    private final ObjectMapper objectMapper;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.HUB_STOCK_UPDATED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(String message) {
-        HubStockUpdatedEvent event;
-        try {
-            event = objectMapper.readValue(message, HubStockUpdatedEvent.class);
-        } catch (JsonProcessingException e) {
-            log.error("[hub.stock.updated] 역직렬화 실패: {}", message, e);
-            return;
-        }
-
-        log.info("[hub.stock.updated] 수신 productId={} hubId={} available={} version={}",
-                event.getProductId(), event.getHubId(), event.getAvailable(), event.getHubStockVersion());
-
-        orderService.syncSnapshot(event);
+        parser.parse(message, HubStockUpdatedEvent.class).ifPresent(event -> {
+            log.info("[hub.stock.updated] 수신 productId={} hubId={} available={} version={}",
+                    event.getProductId(), event.getHubId(), event.getAvailable(), event.getHubStockVersion());
+            orderService.syncSnapshot(event);
+        });
     }
 }

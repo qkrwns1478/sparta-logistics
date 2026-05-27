@@ -1,9 +1,8 @@
 package com.sparta.logistics.order.kafka.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCreatedEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,24 +24,17 @@ import org.springframework.stereotype.Component;
 public class DeliveryCreatedConsumer {
 
     private final OrderService orderService;
-    private final ObjectMapper objectMapper;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CREATED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(String message) {
-        DeliveryCreatedEvent event;
-        try {
-            event = objectMapper.readValue(message, DeliveryCreatedEvent.class);
-        } catch (JsonProcessingException e) {
-            log.error("[delivery.created] 역직렬화 실패: {}", message, e);
-            return;
-        }
-
-        log.info("[delivery.created] 수신 orderId={} deliveryId={} totalDeliveryCount={}",
-                event.getOrderId(), event.getDeliveryId(), event.getTotalDeliveryCount());
-
-        orderService.acceptOrder(event.getOrderId(), event.getDeliveryId(), event.getTotalDeliveryCount());
+        parser.parse(message, DeliveryCreatedEvent.class).ifPresent(event -> {
+            log.info("[delivery.created] 수신 orderId={} deliveryId={} totalDeliveryCount={}",
+                    event.getOrderId(), event.getDeliveryId(), event.getTotalDeliveryCount());
+            orderService.acceptOrder(event.getOrderId(), event.getDeliveryId(), event.getTotalDeliveryCount());
+        });
     }
 }

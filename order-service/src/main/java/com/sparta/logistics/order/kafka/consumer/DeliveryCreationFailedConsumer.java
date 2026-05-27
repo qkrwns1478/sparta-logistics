@@ -1,9 +1,8 @@
 package com.sparta.logistics.order.kafka.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCreationFailedEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,24 +25,17 @@ import org.springframework.stereotype.Component;
 public class DeliveryCreationFailedConsumer {
 
     private final OrderService orderService;
-    private final ObjectMapper objectMapper;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CREATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(String message) {
-        DeliveryCreationFailedEvent event;
-        try {
-            event = objectMapper.readValue(message, DeliveryCreationFailedEvent.class);
-        } catch (JsonProcessingException e) {
-            log.error("[delivery.creation.failed] 역직렬화 실패: {}", message, e);
-            return;
-        }
-
-        log.info("[delivery.creation.failed] 수신 orderId={} deliveryId={} reason={}",
-                event.getOrderId(), event.getDeliveryId(), event.getReason());
-
-        orderService.cancelOrderByCompensation(event.getOrderId(), event.getReason());
+        parser.parse(message, DeliveryCreationFailedEvent.class).ifPresent(event -> {
+            log.info("[delivery.creation.failed] 수신 orderId={} deliveryId={} reason={}",
+                    event.getOrderId(), event.getDeliveryId(), event.getReason());
+            orderService.cancelOrderByCompensation(event.getOrderId(), event.getReason());
+        });
     }
 }

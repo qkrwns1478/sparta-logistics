@@ -1,9 +1,8 @@
 package com.sparta.logistics.order.kafka.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockReservationFailedEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,24 +23,17 @@ import org.springframework.stereotype.Component;
 public class StockReservationFailedConsumer {
 
     private final OrderService orderService;
-    private final ObjectMapper objectMapper;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESERVATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(String message) {
-        StockReservationFailedEvent event;
-        try {
-            event = objectMapper.readValue(message, StockReservationFailedEvent.class);
-        } catch (JsonProcessingException e) {
-            log.error("[stock.reservation.failed] 역직렬화 실패: {}", message, e);
-            return;
-        }
-
-        log.info("[stock.reservation.failed] 수신 orderId={} productId={} reason={}",
-                event.getOrderId(), event.getProductId(), event.getReason());
-
-        orderService.cancelOrderByCompensation(event.getOrderId(), event.getReason());
+        parser.parse(message, StockReservationFailedEvent.class).ifPresent(event -> {
+            log.info("[stock.reservation.failed] 수신 orderId={} productId={} reason={}",
+                    event.getOrderId(), event.getProductId(), event.getReason());
+            orderService.cancelOrderByCompensation(event.getOrderId(), event.getReason());
+        });
     }
 }

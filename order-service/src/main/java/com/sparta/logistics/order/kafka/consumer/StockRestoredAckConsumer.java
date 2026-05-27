@@ -1,9 +1,8 @@
 package com.sparta.logistics.order.kafka.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockRestoredAckEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,23 +23,16 @@ import org.springframework.stereotype.Component;
 public class StockRestoredAckConsumer {
 
     private final OrderService orderService;
-    private final ObjectMapper objectMapper;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESTORED_ACK,
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(String message) {
-        StockRestoredAckEvent event;
-        try {
-            event = objectMapper.readValue(message, StockRestoredAckEvent.class);
-        } catch (JsonProcessingException e) {
-            log.error("[stock.restored.ack] 역직렬화 실패: {}", message, e);
-            return;
-        }
-
-        log.info("[stock.restored.ack] 수신 orderId={}", event.getOrderId());
-
-        orderService.confirmOrderCancelled(event.getOrderId());
+        parser.parse(message, StockRestoredAckEvent.class).ifPresent(event -> {
+            log.info("[stock.restored.ack] 수신 orderId={}", event.getOrderId());
+            orderService.confirmOrderCancelled(event.getOrderId());
+        });
     }
 }

@@ -1,9 +1,8 @@
 package com.sparta.logistics.order.kafka.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCancelledAckEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,24 +23,17 @@ import org.springframework.stereotype.Component;
 public class DeliveryCancelledAckConsumer {
 
     private final OrderService orderService;
-    private final ObjectMapper objectMapper;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CANCELLED_ACK,
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(String message) {
-        DeliveryCancelledAckEvent event;
-        try {
-            event = objectMapper.readValue(message, DeliveryCancelledAckEvent.class);
-        } catch (JsonProcessingException e) {
-            log.error("[delivery.cancelled.ack] 역직렬화 실패: {}", message, e);
-            return;
-        }
-
-        log.info("[delivery.cancelled.ack] 수신 orderId={} deliveryId={}",
-                event.getOrderId(), event.getDeliveryId());
-
-        orderService.handleDeliveryCancelled(event.getOrderId());
+        parser.parse(message, DeliveryCancelledAckEvent.class).ifPresent(event -> {
+            log.info("[delivery.cancelled.ack] 수신 orderId={} deliveryId={}",
+                    event.getOrderId(), event.getDeliveryId());
+            orderService.handleDeliveryCancelled(event.getOrderId());
+        });
     }
 }
