@@ -1,4 +1,4 @@
-package com.sparta.logistics.hub;
+package com.sparta.logistics.hub.arch;
 
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.core.importer.ImportOption;
