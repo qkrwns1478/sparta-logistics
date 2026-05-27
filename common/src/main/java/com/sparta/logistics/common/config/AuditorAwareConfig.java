@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import static com.sparta.logistics.common.constants.SystemConstants.SYSTEM_UUID;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public class AuditorAwareConfig {
 
     @Bean
     public AuditorAware<UUID> auditorProvider() {
+
         return () -> {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
@@ -33,12 +35,12 @@ public class AuditorAwareConfig {
                         return Optional.of(UUID.fromString(userId));
                     } catch (IllegalArgumentException e) {
 
-                        return Optional.empty();
+                        return Optional.of(SYSTEM_UUID);
                     }
                 }
             }
 
-            return Optional.empty();
+            return Optional.of(SYSTEM_UUID);
         };
     }
 }

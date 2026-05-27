@@ -17,6 +17,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     boolean existsByUsername(String username);
 
+    boolean existsByEmail(String email);
+
     @Query("SELECT COUNT(u) > 0 FROM UserEntity u WHERE u.deletedAt IS NULL")
     boolean existsAny();
 

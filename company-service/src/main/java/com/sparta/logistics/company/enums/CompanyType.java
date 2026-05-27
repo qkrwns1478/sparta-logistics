@@ -1,4 +1,4 @@
-package com.sparta.logistics.company.entity;
+package com.sparta.logistics.company.enums;
 
 public enum CompanyType {
     /** 상품을 생산하여 허브로 공급하는 업체 */

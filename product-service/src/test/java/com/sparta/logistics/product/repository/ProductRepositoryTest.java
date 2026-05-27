@@ -2,7 +2,7 @@ package com.sparta.logistics.product.repository;
 
 import com.sparta.logistics.product.config.JpaAuditingConfig;
 import com.sparta.logistics.product.entity.Product;
-import com.sparta.logistics.product.entity.ProductStatus;
+import com.sparta.logistics.product.enums.ProductStatus;
 import com.sparta.logistics.product.fixture.ProductFixture;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;

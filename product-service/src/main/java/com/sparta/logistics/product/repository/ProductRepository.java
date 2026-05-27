@@ -1,7 +1,7 @@
 package com.sparta.logistics.product.repository;
 
 import com.sparta.logistics.product.entity.Product;
-import com.sparta.logistics.product.entity.ProductStatus;
+import com.sparta.logistics.product.enums.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,7 +10,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 /**
