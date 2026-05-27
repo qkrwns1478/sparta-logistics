@@ -1,5 +1,7 @@
 package com.sparta.logistics.order.kafka.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockRestoredAckEvent;
 import com.sparta.logistics.order.order.service.OrderService;
@@ -15,19 +17,28 @@ import org.springframework.stereotype.Component;
  * 수신 시 주문 상태를 CANCELLED로 확정함 (Orchestration Saga 완료)
  * <p>
  * OrderService.confirmOrderCancelled()에서 CANCELLING 상태 여부를 확인해서 중복 처리 방지
- * */
+ **/
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class StockRestoredAckConsumer {
 
     private final OrderService orderService;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESTORED_ACK,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(StockRestoredAckEvent event) {
+    public void consume(String message) {
+        StockRestoredAckEvent event;
+        try {
+            event = objectMapper.readValue(message, StockRestoredAckEvent.class);
+        } catch (JsonProcessingException e) {
+            log.error("[stock.restored.ack] 역직렬화 실패: {}", message, e);
+            return;
+        }
+
         log.info("[stock.restored.ack] 수신 orderId={}", event.getOrderId());
 
         orderService.confirmOrderCancelled(event.getOrderId());

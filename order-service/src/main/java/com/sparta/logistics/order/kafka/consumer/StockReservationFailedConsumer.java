@@ -1,5 +1,7 @@
 package com.sparta.logistics.order.kafka.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockReservationFailedEvent;
 import com.sparta.logistics.order.order.service.OrderService;
@@ -15,19 +17,28 @@ import org.springframework.stereotype.Component;
  * 수신 시 해당 주문을 즉시 CANCELLED 처리함
  * <p>
  * OrderService.cancelOrderByCompensation()에서 이미 CANCELLED인 경우 무시됨
- * */
+ **/
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class StockReservationFailedConsumer {
 
     private final OrderService orderService;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESERVATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(StockReservationFailedEvent event) {
+    public void consume(String message) {
+        StockReservationFailedEvent event;
+        try {
+            event = objectMapper.readValue(message, StockReservationFailedEvent.class);
+        } catch (JsonProcessingException e) {
+            log.error("[stock.reservation.failed] 역직렬화 실패: {}", message, e);
+            return;
+        }
+
         log.info("[stock.reservation.failed] 수신 orderId={} productId={} reason={}",
                 event.getOrderId(), event.getProductId(), event.getReason());
 

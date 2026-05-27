@@ -1,5 +1,7 @@
 package com.sparta.logistics.order.kafka.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCancellationFailedEvent;
 import com.sparta.logistics.order.order.service.OrderService;
@@ -22,12 +24,21 @@ import org.springframework.stereotype.Component;
 public class DeliveryCancellationFailedConsumer {
 
     private final OrderService orderService;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CANCELLATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(DeliveryCancellationFailedEvent event) {
+    public void consume(String message) {
+        DeliveryCancellationFailedEvent event;
+        try {
+            event = objectMapper.readValue(message, DeliveryCancellationFailedEvent.class);
+        } catch (JsonProcessingException e) {
+            log.error("[delivery.cancellation.failed] 역직렬화 실패: {}", message, e);
+            return;
+        }
+
         log.info("[delivery.cancellation.failed] 수신 orderId={} deliveryId={} reason={}",
                 event.getOrderId(), event.getDeliveryId(), event.getReason());
 

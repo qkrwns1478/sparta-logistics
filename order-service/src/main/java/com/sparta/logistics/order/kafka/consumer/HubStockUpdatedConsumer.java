@@ -1,5 +1,7 @@
 package com.sparta.logistics.order.kafka.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
 import com.sparta.logistics.order.order.service.OrderService;
@@ -16,19 +18,28 @@ import org.springframework.stereotype.Component;
  * <p>
  * hubStockVersion 비교 → OrderService.syncSnapshot()에서 구버전 이벤트를 무시함
  * 파티션 키: productId (동일 상품의 재고 이벤트가 순서 보장됨)
- * */
+ **/
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class HubStockUpdatedConsumer {
 
     private final OrderService orderService;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(
             topics = KafkaTopics.HUB_STOCK_UPDATED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(HubStockUpdatedEvent event) {
+    public void consume(String message) {
+        HubStockUpdatedEvent event;
+        try {
+            event = objectMapper.readValue(message, HubStockUpdatedEvent.class);
+        } catch (JsonProcessingException e) {
+            log.error("[hub.stock.updated] 역직렬화 실패: {}", message, e);
+            return;
+        }
+
         log.info("[hub.stock.updated] 수신 productId={} hubId={} available={} version={}",
                 event.getProductId(), event.getHubId(), event.getAvailable(), event.getHubStockVersion());
 

@@ -1,5 +1,7 @@
 package com.sparta.logistics.order.kafka.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockRestorationFailedEvent;
 import com.sparta.logistics.order.order.service.OrderService;
@@ -22,12 +24,21 @@ import org.springframework.stereotype.Component;
 public class StockRestorationFailedConsumer {
 
     private final OrderService orderService;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESTORATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(StockRestorationFailedEvent event) {
+    public void consume(String message) {
+        StockRestorationFailedEvent event;
+        try {
+            event = objectMapper.readValue(message, StockRestorationFailedEvent.class);
+        } catch (JsonProcessingException e) {
+            log.error("[stock.restoration.failed] 역직렬화 실패: {}", message, e);
+            return;
+        }
+
         log.info("[stock.restoration.failed] 수신 orderId={} reason={}",
                 event.getOrderId(), event.getReason());
 

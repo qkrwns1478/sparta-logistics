@@ -1,5 +1,7 @@
 package com.sparta.logistics.order.kafka.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCancelledAckEvent;
 import com.sparta.logistics.order.order.service.OrderService;
@@ -15,19 +17,28 @@ import org.springframework.stereotype.Component;
  * 수신 시 restore.stock.command를 발행하여 HubService에 재고 복구를 명령함
  * <p>
  * 멱등성: OrderService.handleDeliveryCancelled()에서 CANCELLING 상태 여부를 확인하여 중복 처리를 방지함
- * */
+ **/
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class DeliveryCancelledAckConsumer {
 
     private final OrderService orderService;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CANCELLED_ACK,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(DeliveryCancelledAckEvent event) {
+    public void consume(String message) {
+        DeliveryCancelledAckEvent event;
+        try {
+            event = objectMapper.readValue(message, DeliveryCancelledAckEvent.class);
+        } catch (JsonProcessingException e) {
+            log.error("[delivery.cancelled.ack] 역직렬화 실패: {}", message, e);
+            return;
+        }
+
         log.info("[delivery.cancelled.ack] 수신 orderId={} deliveryId={}",
                 event.getOrderId(), event.getDeliveryId());
 
