@@ -16,6 +16,7 @@ public enum UserErrorCode implements ErrorCode {
 
     USER_NOT_FOUND("존재하지 않는 사용자입니다.", HttpStatus.NOT_FOUND, "USER-001"),
     USER_ALREADY_EXISTS("이미 사용 중인 사용자명입니다.", HttpStatus.CONFLICT, "USER-002"),
+    EMAIL_ALREADY_EXISTS("이미 사용 중인 이메일입니다.", HttpStatus.CONFLICT, "USER-015"),
     USER_NOT_APPROVED("승인되지 않은 사용자입니다.", HttpStatus.FORBIDDEN, "USER-003"),
     ALREADY_PROCESSED("이미 처리된 사용자 상태입니다.", HttpStatus.BAD_REQUEST, "USER-004"),
     INVALID_ROLE_CONSTRAINT("역할에 맞지 않는 정보가 포함되어 있습니다.", HttpStatus.BAD_REQUEST, "USER-005"),
@@ -29,8 +30,8 @@ public enum UserErrorCode implements ErrorCode {
     INVALID_PAGE_SIZE("페이지 크기는 10, 30, 50만 허용됩니다.", HttpStatus.BAD_REQUEST, "USER-011"),
     HUB_ID_REQUIRED("HUB_MANAGER 또는 DELIVERY_MANAGER는 hubId가 필수입니다.", HttpStatus.BAD_REQUEST, "USER-012"),
     COMPANY_ID_REQUIRED("COMPANY_MANAGER는 companyId가 필수입니다.", HttpStatus.BAD_REQUEST, "USER-013"),
-    MASTER_CANNOT_HAVE_HUB_OR_COMPANY("MASTER는 hubId와 companyId를 입력할 수 없습니다.", HttpStatus.BAD_REQUEST, "REQ-014");
-
+    MASTER_CANNOT_HAVE_HUB_OR_COMPANY("MASTER는 hubId와 companyId를 입력할 수 없습니다.", HttpStatus.BAD_REQUEST, "USER-014"),
+    COMPANY_ID_NOT_ALLOWED("허브 담당자 또는 배송 담당자는 업체 ID를 가질 수 없습니다.",HttpStatus.BAD_REQUEST, "USER-015");
 
 
     private final String message;
