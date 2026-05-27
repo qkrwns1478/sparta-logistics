@@ -2,6 +2,7 @@ package com.sparta.logistics.product.entity;
 
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.product.enums.ProductStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
