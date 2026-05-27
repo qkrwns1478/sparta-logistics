@@ -26,4 +26,5 @@ public final class KafkaTopics {
 
     // Orchestration Saga 보상 : 주문 취소
     public static final String DELIVERY_CANCELLATION_FAILED = "delivery.cancellation.failed";
+    public static final String STOCK_RESTORATION_FAILED     = "stock.restoration.failed";
 }
