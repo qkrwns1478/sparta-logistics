@@ -104,7 +104,7 @@ sequenceDiagram
 | 구독 토픽 | `stock.reserved` |
 | 처리 내용 | Hub Route 조회, `Delivery` + `DeliveryRoute` 생성, 배송 담당자 배정(미배정 시 null 허용) |
 | 성공 시 발행 | `delivery.created` (`deliveryId`, `orderId`, `sourceHubId`, `destinationHubId`, `companyDeliveryManagerId`) |
-| 실패 시 발행 | `delivery.creation.failed` (`orderId`, `deliveryId`, `reason`) |
+| 실패 시 발행 | `delivery.creation.failed` (`orderId`, `deliveryId`, `reason`, `itemsToRestore[]{productId, hubId, quantity}`) |
 | 파티션 키 | `deliveryId` (성공) / `orderId` (실패) |
 | 다음 단계 (성공) | Step 1-4: OrderService ACCEPTED 전이, Step 1-5: SlackService AI 시한 계산 |
 | 다음 단계 (실패) | Step 2-2: OrderService 보상 취소, Step 2-3: HubService 재고 복구 |
@@ -153,7 +153,7 @@ sequenceDiagram
 | 서비스 | **DeliveryService** |
 | 구독 토픽 | `ai.deadline.calculated` |
 | 처리 내용 | 해당 Delivery에 `finalDeadlineAt` 저장 후 `delivery.started` 발행 |
-| 발행 토픽 | `delivery.started` (`deliveryId`, `orderId`, `orderItems[]{productId, quantity}`) |
+| 발행 토픽 | `delivery.started` (`deliveryId`, `orderId`, `orderItems[]{productId, hubId, quantity}`) |
 | 파티션 키 | `deliveryId` |
 | 다음 단계 | Step 1-7: HubService 실제 재고 차감 |
 
@@ -307,7 +307,7 @@ sequenceDiagram
 | 발행 토픽 | `restore.stock.command` |
 | 파티션 키 | `orderId` |
 | 처리 내용 | `OrderItem` 목록으로 복구 대상 상품·수량 구성 후 재고 복구 커맨드 발행 |
-| 이벤트 주요 필드 | `orderId`, `orderItems[]{productId, quantity}` |
+| 이벤트 주요 필드 | `orderId`, `orderItems[]{productId, hubId, quantity}` |
 | 멱등성 | CANCELLING이 아닌 경우 no-op |
 | 다음 단계 | Step 3-4: HubService 재고 복구 |
 
