@@ -15,6 +15,7 @@ import com.sparta.logistics.hub.hubstock.dto.response.HubStockCreateResponse;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockListResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
 import com.sparta.logistics.hub.hubstock.enums.HubStockChangeType;
+import com.sparta.logistics.hub.kafka.exception.KafkaSkipException;
 import com.sparta.logistics.hub.kafka.publisher.HubStockEventPublisher;
 import com.sparta.logistics.hub.hubstock.service.helper.HubStockLockHelper;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
@@ -195,17 +196,24 @@ public class HubStockService {
 
             HubStock hubStock = hubStockRepository
                     .findByHubIdAndProductId(item.getHubId(), item.getProductId())
-                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+                    .orElseGet(() -> {
+                        registerStockReservationFailedEvent(
+                                event.getEventId(),
+                                event.getOrderId(),
+                                item.getProductId(),
+                                "허브 재고 없음"
+                        );
+                        throw new KafkaSkipException("허브 재고 없음 - orderId: " + event.getOrderId());
+                    });
 
             // 재고 부족 시 실패 이벤트 발행하고 종료
             if (hubStock.getAvailable() < item.getQuantity()) {
-                hubStockEventPublisher.publishStockReservationFailed(
+                registerStockReservationFailedEvent(
                         event.getEventId(),
                         event.getOrderId(),
                         item.getProductId(),
-                        "재고 부족"
-                );
-                throw new BusinessException(HubStockErrorCode.HUB_STOCK_INSUFFICIENT);
+                        "재고 부족");
+                throw new KafkaSkipException("재고 부족 - orderId: " + event.getOrderId());
             }
 
             int beforeQuantity = hubStock.getAvailable();
@@ -304,6 +312,19 @@ public class HubStockService {
                     @Override
                     public void afterCommit() {
                         hubStockEventPublisher.publishStockReserved(event);
+                    }
+                }
+        );
+    }
+
+    private void registerStockReservationFailedEvent(UUID eventId, UUID orderId, UUID productId, String reason) {
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        hubStockEventPublisher.publishStockReservationFailed(
+                                eventId, orderId, productId, reason
+                        );
                     }
                 }
         );
