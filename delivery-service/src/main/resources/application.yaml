@@ -36,6 +36,22 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+spring:
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      hub-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
+      user-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
+
 eureka:
   instance:
     instance-id: ${spring.application.name}:${server.port}
