@@ -33,8 +33,6 @@ public interface HubStockRepository extends JpaRepository<HubStock, UUID> {
 
     boolean existsByIdAndDeletedAtIsNull(UUID stockId);
 
-    Optional<HubStock> findByProductIdAndDeletedAtIsNull(UUID productId);
-
     @Query("SELECT h FROM HubStock h WHERE h.hub.id = :hubId AND h.productId = :productId AND h.deletedAt IS NULL")
     Optional<HubStock> findByHubIdAndProductId(
             @Param("hubId") UUID hubId,

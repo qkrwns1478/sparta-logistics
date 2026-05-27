@@ -126,7 +126,7 @@ public class HubStockService {
         for (RestoreStockItemPayload item : command.getOrderItems()) {
 
             HubStock hubStock = hubStockRepository
-                    .findByProductIdAndDeletedAtIsNull(item.getProductId())
+                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
                     .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
 
             int beforeQuantity = hubStock.getAvailable();
