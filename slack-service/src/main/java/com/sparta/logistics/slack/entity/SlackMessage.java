@@ -79,16 +79,18 @@ public class SlackMessage extends BaseEntity {
     }
 
     public void markAsFailed() {
+
         this.status = SlackMessageStatus.FAILED;
     }
 
     public void increaseRetryCount() {
+
         this.retryCount++;
     }
 
     public void updateMessage(String newMessage) {
-        if (this.status == SlackMessageStatus.FAILED) {
-            throw new IllegalStateException("발송 실패한 메시지는 수정할 수 없습니다.");
+        if (this.status == SlackMessageStatus.FAILED || this.status == SlackMessageStatus.SENT) {
+            throw new IllegalStateException("발송 실패했거나 이미 발송된 메시지는 수정할 수 없습니다.");
         }
         this.message = newMessage;
     }

@@ -38,16 +38,19 @@ public class SlackService {
                 .build();
 
         SlackMessage savedMessage = slackMessageRepository.save(slackMessage);
-        FakeSlackSendResult sendResult = fakeSlackSender.send(
+        try{
+            FakeSlackSendResult sendResult = fakeSlackSender.send(
                 savedMessage.getId(),
                 savedMessage.getReceiverSlackId(),
                 savedMessage.getMessage(),
                 savedMessage.getMessageType(),
                 savedMessage.getRelatedType(),
                 savedMessage.getRelatedId()
-        );
-        savedMessage.markAsSent(sendResult.slackTs(), sendResult.slackChannelId());
-
+            );
+            savedMessage.markAsSent(sendResult.slackTs(), sendResult.slackChannelId());
+        } catch (Exception e){
+            savedMessage.markAsFailed();
+        }
         return toResponse(savedMessage);
     }
 
