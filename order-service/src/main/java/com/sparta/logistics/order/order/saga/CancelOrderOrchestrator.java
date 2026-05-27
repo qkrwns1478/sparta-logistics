@@ -16,18 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+// TODO: Orchestration Saga 보상 트랜잭션 구현
+
 /**
- * Orchestration Saga: 주문 취소 흐름을 조율하는 오케스트레이터
- * <p>
- * 취소 Saga는 3단계로 구성됨
- * - Step 3-1  start(): CANCELLING 전이 + cancel.delivery.command 발행
- * - Step 3-3  onDeliveryCancelled(): delivery.cancelled.ack 수신 → restore.stock.command 발행
- * - Step 3-5  onStockRestored(): stock.restored.ack 수신 → CANCELLED 확정
- * <p>
- * OrderService.cancelOrder()에서 권한 검사 + 주문 조회 완료 후 start()를 호출함
- * Step 3-3, 3-5는 각 Consumer → OrderService → 이 클래스 순으로 위임됨
- * <p>
- * 각 단계에서 CANCELLING 상태 여부를 확인하여 중복 처리를 방지함
+ * Orchestration Saga Orchestrator
  * */
 @Slf4j
 @Component
@@ -35,7 +27,6 @@ import java.util.UUID;
 public class CancelOrderOrchestrator {
 
     private final OrderRepository orderRepository;
-    @SuppressWarnings("rawtypes")
     private final KafkaTemplate kafkaTemplate;
 
     /**
@@ -45,7 +36,6 @@ public class CancelOrderOrchestrator {
      * 파티션 키 = orderId → 동일 주문의 모든 명령이 동일 파티션에서 순서 보장됨
      * */
     @Transactional
-    @SuppressWarnings("unchecked")
     public void start(Order order, UUID userId, String cancelReason) {
         order.startCancelling(userId, cancelReason);
         orderRepository.save(order);
@@ -68,7 +58,6 @@ public class CancelOrderOrchestrator {
      * CANCELLING 상태가 아니면 예외 없이 무시 (Kafka 불필요 재시도 방지)
      * */
     @Transactional
-    @SuppressWarnings("unchecked")
     public void onDeliveryCancelled(UUID orderId) {
         Order order = orderRepository.findById(orderId).orElse(null);
 
