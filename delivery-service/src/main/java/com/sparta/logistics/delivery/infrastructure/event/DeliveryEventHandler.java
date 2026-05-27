@@ -140,6 +140,6 @@ public class DeliveryEventHandler {
                         .hubId(i.sourceHubId())
                         .quantity(i.reservedQuantity())
                         .build())
-                .collect(Collectors.toList());
+                .toList();
     }
 }

@@ -75,7 +75,7 @@ public class DeliveryEventPublisher {
                         .hubId(i.getHubId())
                         .quantity(i.getQuantity())
                         .build())
-                .collect(Collectors.toList());
+                .toList();
         try {
             String message = objectMapper.writeValueAsString(
                     DeliveryStartedEvent.builder()
