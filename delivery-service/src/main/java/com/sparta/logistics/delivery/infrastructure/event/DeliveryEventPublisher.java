@@ -46,6 +46,7 @@ public class DeliveryEventPublisher {
             log.info("[Kafka] delivery.created 발행 — deliveryId={}, orderId={}", deliveryId, orderId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] delivery.created 직렬화 실패 — deliveryId={}", deliveryId, e);
+            throw new RuntimeException(e);  // 삼키면 order-service 미인지 — 트랜잭션 롤백 후 재처리
         }
     }
 
@@ -89,6 +90,7 @@ public class DeliveryEventPublisher {
             log.info("[Kafka] delivery.started 발행 — deliveryId={}", deliveryId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] delivery.started 직렬화 실패 — deliveryId={}", deliveryId, e);
+            throw new RuntimeException(e);  // 삼키면 order-service 미인지 — 핸들러 레벨 catch로 전파
         }
     }
 
