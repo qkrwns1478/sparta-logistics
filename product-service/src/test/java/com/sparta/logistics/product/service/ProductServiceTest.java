@@ -9,7 +9,7 @@ import com.sparta.logistics.product.dto.request.CreateRequest;
 import com.sparta.logistics.product.dto.request.UpdateRequest;
 import com.sparta.logistics.product.dto.response.ProductResponse;
 import com.sparta.logistics.product.entity.Product;
-import com.sparta.logistics.product.entity.ProductStatus;
+import com.sparta.logistics.product.enums.ProductStatus;
 import com.sparta.logistics.product.exception.ProductErrorCode;
 import com.sparta.logistics.product.fixture.ProductFixture;
 import com.sparta.logistics.product.repository.ProductRepository;

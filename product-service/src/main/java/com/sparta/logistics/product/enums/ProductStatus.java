@@ -1,4 +1,4 @@
-package com.sparta.logistics.product.entity;
+package com.sparta.logistics.product.enums;
 
 public enum ProductStatus {
     AVAILABLE,      // 판매 중
