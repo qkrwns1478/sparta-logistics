@@ -20,6 +20,10 @@ public final class KafkaTopics {
     // 재고 스냅샷 동기화
     public static final String HUB_STOCK_UPDATED           = "hub.stock.updated";
 
-    // AI 발송 시한
+    // AI 발송 시한 + 배송 시작
     public static final String AI_DEADLINE_CALCULATED      = "ai.deadline.calculated";
+    public static final String DELIVERY_STARTED            = "delivery.started";
+
+    // Orchestration Saga 보상 : 주문 취소
+    public static final String DELIVERY_CANCELLATION_FAILED = "delivery.cancellation.failed";
 }

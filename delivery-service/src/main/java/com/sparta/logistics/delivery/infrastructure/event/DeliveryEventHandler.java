@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.AiDeadlineCalculatedEvent;
+import com.sparta.logistics.common.kafka.event.CancelDeliveryCommand;
 import com.sparta.logistics.common.kafka.event.RestoreStockItemPayload;
 import com.sparta.logistics.delivery.client.HubServiceClient;
 import com.sparta.logistics.delivery.client.UserServiceClient;
@@ -95,6 +96,29 @@ public class DeliveryEventHandler {
         }
     }
 
+    @KafkaListener(topics = KafkaTopics.CANCEL_DELIVERY_COMMAND, groupId = "delivery-service")
+    public void handleCancelDeliveryCommand(String message) {
+        CancelDeliveryCommand command;
+        try {
+            command = objectMapper.readValue(message, CancelDeliveryCommand.class);
+        } catch (JsonProcessingException e) {
+            log.error("[Kafka] cancel.delivery.command 역직렬화 실패: {}", message, e);
+            return;
+        }
+
+        try {
+            boolean cancelled = deliveryService.cancelDeliveryByCommand(command.getDeliveryId());
+            if (cancelled) {
+                eventPublisher.publishCancelledAck(command.getDeliveryId(), command.getOrderId());
+            } else {
+                eventPublisher.publishCancellationFailed(command.getOrderId(), command.getDeliveryId(), "DELIVERY_IN_TRANSIT");
+            }
+        } catch (Exception e) {
+            log.error("[Kafka] 배송 취소 처리 실패 — orderId={}", command.getOrderId(), e);
+            eventPublisher.publishCancellationFailed(command.getOrderId(), command.getDeliveryId(), "CANCEL_FAILED");
+        }
+    }
+
     @KafkaListener(topics = KafkaTopics.AI_DEADLINE_CALCULATED, groupId = "delivery-service")
     public void handleAiDeadlineCalculated(String message) {
         AiDeadlineCalculatedEvent event;
@@ -113,6 +137,7 @@ public class DeliveryEventHandler {
         return items.stream()
                 .map(i -> RestoreStockItemPayload.builder()
                         .productId(i.productId())
+                        .hubId(i.sourceHubId())
                         .quantity(i.reservedQuantity())
                         .build())
                 .collect(Collectors.toList());
