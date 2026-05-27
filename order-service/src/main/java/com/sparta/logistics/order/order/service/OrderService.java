@@ -231,8 +231,9 @@ public class OrderService {
     }
 
     /**
-     * Choreography Saga 보상 트랜잭션: 재고 예약 실패 또는 배송 생성 실패 시 주문을 즉시 CANCELLED 처리함
-     * StockReservationFailedConsumer / DeliveryCreationFailedConsumer에서 호출됨
+     * Choreography Saga 보상 Step 2-1 / 2-2: 재고 예약 실패 또는 배송 생성 실패 시 주문을 즉시 CANCELLED 처리함
+     * - Step 2-1: StockReservationFailedConsumer (stock.reservation.failed)
+     * - Step 2-2: DeliveryCreationFailedConsumer (delivery.creation.failed)
      * <p>
      * 멱등성 보장: 이미 CANCELLED인 경우 재처리 시 no-op
      **/
