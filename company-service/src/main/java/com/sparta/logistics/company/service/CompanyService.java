@@ -189,9 +189,9 @@ public class CompanyService {
             // Hub Service FeignClient 호출
             hubFeignClient.checkHubExists(hubId);
         } catch (FeignException.NotFound e) {
-            throw new BusinessException(CompanyErrorCode.HUB_NOT_FOUND);
+            throw new BusinessException(CompanyErrorCode.EXTERNAL_HUB_NOT_FOUND);
         } catch (FeignException e) {
-            throw new BusinessException(CompanyErrorCode.HUB_SERVICE_UNAVAILABLE);
+            throw new BusinessException(CompanyErrorCode.EXTERNAL_HUB_SERVICE_UNAVAILABLE);
         }
     }
 
