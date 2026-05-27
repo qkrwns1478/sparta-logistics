@@ -5,6 +5,7 @@ import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.company.client.feign.HubCacheService;
 import com.sparta.logistics.company.client.feign.HubFeignClient;
 import com.sparta.logistics.company.client.feign.ProductFeignClient;
+import com.sparta.logistics.company.client.model.HubResponse;
 import com.sparta.logistics.company.exception.CompanyErrorCode;
 import com.sparta.logistics.company.dto.request.CreateRequest;
 import com.sparta.logistics.company.dto.request.SearchCondition;
@@ -96,7 +97,8 @@ public class CompanyService {
     // -------------------------------------------------------
     public CompanyResponse getCompany(UUID companyId) {
         Company company = findActiveCompanyOrThrow(companyId);
-        return toResponse(company);
+        HubResponse hub = hubCacheService.getHub(company.getHubId());
+        return toResponse(company, hub.name());
     }
 
     // -------------------------------------------------------

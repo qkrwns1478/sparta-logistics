@@ -13,6 +13,14 @@ spring:
       server:
         webflux:
           routes:
+            # internal 경로 차단
+            - id: product-internal-block
+              uri: no://op
+              predicates:
+                - Path=/api/v1/products/internal/**
+              filters:
+                - SetStatus=404
+
             # user - service
             - id: user-service
               uri: lb://user-service

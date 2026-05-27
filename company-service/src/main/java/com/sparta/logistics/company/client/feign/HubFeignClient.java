@@ -14,14 +14,17 @@ import java.util.UUID;
  * Company 생성/수정 시 hubId 검증에 사용
  * 주의: Gateway를 통하지 않고 Eureka 서비스명으로 직접 호출 (내부 서비스 간 통신 — 권한 불필요)
  */
-@FeignClient(name = "hub-service", fallback = HubFeignClientFallback.class)
+@FeignClient(
+        name = "hub-service",
+        path = "/api/v1/hubs",
+        fallback = HubFeignClientFallback.class)
 public interface HubFeignClient {
 
     /**
      * 200 OK → 허브 존재
      * 404 Not Found → 허브 없음
      */
-    @GetMapping("/api/v1/hubs/{hubId}/exists")
+    @GetMapping("/{hubId}/exists")
     void checkHubExists(@PathVariable("hubId") UUID hubId);
 
     /**
@@ -33,7 +36,7 @@ public interface HubFeignClient {
     /**
      * 배치 조회 (목록 조회용 N+1 방지)
      */
-    @GetMapping("/api/v1/hubs")
+    @GetMapping("/batch")
     List<HubResponse> getHubsByIds(@RequestParam("ids") List<UUID> hubIds);
 
 }

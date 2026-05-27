@@ -2,6 +2,8 @@ package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.common.kafka.KafkaTopics;
+import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
@@ -11,8 +13,13 @@ import com.sparta.logistics.order.exception.OrderErrorCode;
 import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.lock.OrderLockManager;
+import com.sparta.logistics.order.order.lock.OrderProcessStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
+import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
+import com.sparta.logistics.order.stock.entity.ProductStockSnapshot;
+import com.sparta.logistics.order.stock.repository.ProductStockSnapshotRepository;
 import feign.FeignException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +28,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
+
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,12 +38,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,6 +65,19 @@ class OrderServiceTest {
     @Mock
     private ProductServiceClient productServiceClient;
 
+    @SuppressWarnings("rawtypes")
+    @Mock
+    private KafkaTemplate kafkaTemplate;
+
+    @Mock
+    private CancelOrderOrchestrator cancelOrderOrchestrator;
+
+    @Mock
+    private ProductStockSnapshotRepository snapshotRepository;
+
+    @Mock
+    private OrderLockManager orderLockManager;
+
     private final UUID REQUESTER_COMPANY_ID = UUID.randomUUID();
     private final UUID RECEIVER_COMPANY_ID = UUID.randomUUID();
     private final UUID PRODUCT_ID = UUID.randomUUID();
@@ -62,8 +88,9 @@ class OrderServiceTest {
 
     // ===== createOrder =====
 
-    // 정상 요청 시 업체/상품 검증 후 주문이 저장되고 응답이 반환되는지 검증
+    // 정상 요청 시 업체/상품 검증 후 주문이 저장되고, order.created 이벤트가 발행되며, 응답이 반환되는지 검증
     @Test
+    @SuppressWarnings("unchecked")
     void createOrder_success() {
         ProductResponse product = new ProductResponse(
                 PRODUCT_ID, "테스트 상품", REQUESTER_COMPANY_ID, "업체명",
@@ -72,7 +99,15 @@ class OrderServiceTest {
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
         when(itemRequest.getQuantity()).thenReturn(2);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenReturn(ApiResponse.ok(product));
+        when(productServiceClient.getProducts(anyList())).thenReturn(ApiResponse.ok(List.of(product)));
+
+        // Mock save()가 JPA UUID 생성을 대신 수행하도록 설정
+        // 실제 JPA는 save() 시 @GeneratedValue(UUID)로 ID를 할당하지만, Mock은 그렇지 않음
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            ReflectionTestUtils.setField(savedOrder, "id", ORDER_ID);
+            return savedOrder;
+        });
 
         OrderDetailResponse result = orderService.createOrder(
                 REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, "메모", List.of(itemRequest), USER_ID
@@ -81,6 +116,8 @@ class OrderServiceTest {
         verify(companyServiceClient).checkCompanyExists(REQUESTER_COMPANY_ID);
         verify(companyServiceClient).checkCompanyExists(RECEIVER_COMPANY_ID);
         verify(orderRepository).save(any(Order.class));
+        // order.created 이벤트가 orderId 파티션 키와 함께 Kafka로 발행되는지 검증
+        verify(kafkaTemplate).send(eq(KafkaTopics.ORDER_CREATED), eq(ORDER_ID.toString()), any());
         assertThat(result).isNotNull();
     }
 
@@ -110,12 +147,13 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.COMPANY_SERVICE_UNAVAILABLE));
     }
 
-    // Product Service가 404를 반환하면 PRODUCT_NOT_FOUND 예외가 발생하는지 검증
+    // 배치 응답에 요청한 상품 ID가 없으면 PRODUCT_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void createOrder_productNotFound_throwsException() {
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenThrow(mock(FeignException.NotFound.class));
+        when(itemRequest.getQuantity()).thenReturn(1);
+        when(productServiceClient.getProducts(anyList())).thenReturn(ApiResponse.ok(List.of()));
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
@@ -133,7 +171,8 @@ class OrderServiceTest {
         );
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenReturn(ApiResponse.ok(unavailable));
+        when(itemRequest.getQuantity()).thenReturn(1);
+        when(productServiceClient.getProducts(anyList())).thenReturn(ApiResponse.ok(List.of(unavailable)));
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
@@ -147,13 +186,61 @@ class OrderServiceTest {
     void createOrder_productServiceUnavailable_throwsException() {
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
-        when(productServiceClient.getProduct(PRODUCT_ID)).thenThrow(mock(FeignException.class));
+        when(itemRequest.getQuantity()).thenReturn(1);
+        when(productServiceClient.getProducts(anyList())).thenThrow(mock(FeignException.class));
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
         ).isInstanceOf(BusinessException.class)
          .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                  .isEqualTo(OrderErrorCode.PRODUCT_SERVICE_UNAVAILABLE));
+    }
+
+    // 스냅샷 재고가 주문 수량보다 적으면 PRODUCT_STOCK_INSUFFICIENT 예외가 발생하는지 검증
+    // Hub 서비스 호출 없이 즉시 반환되어야 함
+    @Test
+    void createOrder_snapshotStockInsufficient_throwsException() {
+        OrderItemRequest itemRequest = mock(OrderItemRequest.class);
+        when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
+        when(itemRequest.getQuantity()).thenReturn(10);
+
+        ProductStockSnapshot snapshot = ProductStockSnapshot.create(PRODUCT_ID, HUB_ID, 5, 1L); // available=5 < requested=10
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(snapshot));
+
+        assertThatThrownBy(() ->
+                orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.PRODUCT_STOCK_INSUFFICIENT));
+
+        // 재고 부족이 확정되면 Product Service 호출 없이 즉시 실패해야 함
+        verify(productServiceClient, never()).getProduct(any());
+    }
+
+    // 해당 상품의 스냅샷이 없으면 사전 검증을 건너뛰고 주문 생성을 계속 진행하는지 검증
+    @Test
+    void createOrder_noSnapshot_skipsPreValidationAndProceeds() {
+        ProductResponse product = new ProductResponse(
+                PRODUCT_ID, "테스트 상품", REQUESTER_COMPANY_ID, "업체명",
+                HUB_ID, "허브명", 10_000L, "설명", "AVAILABLE"
+        );
+        OrderItemRequest itemRequest = mock(OrderItemRequest.class);
+        when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
+        when(itemRequest.getQuantity()).thenReturn(5);
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty()); // 스냅샷 없음
+        when(productServiceClient.getProducts(anyList())).thenReturn(ApiResponse.ok(List.of(product)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            ReflectionTestUtils.setField(savedOrder, "id", ORDER_ID);
+            return savedOrder;
+        });
+
+        OrderDetailResponse result = orderService.createOrder(
+                REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(itemRequest), USER_ID
+        );
+
+        assertThat(result).isNotNull();
+        verify(orderRepository).save(any(Order.class));
     }
 
     // ===== getOrders =====
@@ -196,7 +283,7 @@ class OrderServiceTest {
     // 존재하지 않는 주문 ID로 조회 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void getOrder_orderNotFound_throwsException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
                 orderService.getOrder(ORDER_ID, USER_ID, Role.MASTER)
@@ -210,7 +297,7 @@ class OrderServiceTest {
     void getOrder_otherUsersOrder_throwsAccessDenied() {
         UUID otherUserId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() ->
                 orderService.getOrder(ORDER_ID, otherUserId, Role.COMPANY_MANAGER)
@@ -225,7 +312,7 @@ class OrderServiceTest {
         UUID otherUserId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체명", "PRODUCER", HUB_ID, "허브명", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(any())).thenReturn(ApiResponse.ok(company));
 
         assertThat(orderService.getOrder(ORDER_ID, otherUserId, Role.MASTER)).isNotNull();
@@ -236,7 +323,7 @@ class OrderServiceTest {
     void getOrder_ownOrder_allowsCompanyManagerAccess() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체명", "PRODUCER", HUB_ID, "허브명", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(any())).thenReturn(ApiResponse.ok(company));
 
         assertThat(orderService.getOrder(ORDER_ID, USER_ID, Role.COMPANY_MANAGER)).isNotNull();
@@ -257,7 +344,7 @@ class OrderServiceTest {
     // 존재하지 않는 주문 수정 시도 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void updateOrder_orderNotFound_throwsException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
                 orderService.updateOrder(ORDER_ID, DUE_DATE, null, USER_ID, Role.MASTER, null)
@@ -271,7 +358,7 @@ class OrderServiceTest {
     void updateOrder_nonModifiableStatus_throwsException() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.cancel(USER_ID, "취소됨");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() ->
                 orderService.updateOrder(ORDER_ID, DUE_DATE, null, USER_ID, Role.MASTER, null)
@@ -286,7 +373,7 @@ class OrderServiceTest {
         UUID otherHubId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", otherHubId, "다른허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         assertThatThrownBy(() ->
@@ -301,7 +388,7 @@ class OrderServiceTest {
     void updateOrder_masterRole_success() {
         LocalDateTime newDueDate = DUE_DATE.plusDays(1);
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         OrderDetailResponse result = orderService.updateOrder(ORDER_ID, newDueDate, "새 메모", USER_ID, Role.MASTER, null);
 
@@ -315,13 +402,25 @@ class OrderServiceTest {
     void updateOrder_hubManagerSameHub_success() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", HUB_ID, "허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         OrderDetailResponse result = orderService.updateOrder(ORDER_ID, null, "메모 수정", USER_ID, Role.HUB_MANAGER, HUB_ID);
 
         assertThat(result).isNotNull();
         assertThat(order.getRequestMemo()).isEqualTo("메모 수정");
+    }
+
+    // CANCELLING 상태인 주문 수정 시도 시 ORDER_ALREADY_CANCELLING 예외가 발생하는지 검증
+    @Test
+    void updateOrder_whenCancelling_throwsAlreadyCancelling() {
+        when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.CANCELLING));
+
+        assertThatThrownBy(() ->
+                orderService.updateOrder(ORDER_ID, DUE_DATE, null, USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_ALREADY_CANCELLING));
     }
 
     // ===== cancelOrder =====
@@ -339,7 +438,7 @@ class OrderServiceTest {
     // 존재하지 않는 주문 취소 시도 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void cancelOrder_orderNotFound_throwsException() {
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
                 orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
@@ -348,12 +447,14 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
-    // 이미 취소된 주문을 다시 취소 시도 시 ORDER_NOT_CANCELLABLE 예외가 발생하는지 검증
+    // 이미 취소된 주문은 isModifiable() 검사에서 ORDER_NOT_CANCELLABLE 예외가 발생하는지 검증
     @Test
     void cancelOrder_alreadyCancelled_throwsException() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         order.cancel(USER_ID, "이미 취소됨");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        // 오케스트레이터 호출 이전에 서비스 자체에서 예외를 던지므로 stub 불필요
+        // 실제 상태 전이 검사(Order.startCancelling -> canTransitionTo)는 CancelOrderOrchestratorTest에서 검증
 
         assertThatThrownBy(() ->
                 orderService.cancelOrder(ORDER_ID, "재취소 시도", USER_ID, Role.MASTER, null)
@@ -368,7 +469,7 @@ class OrderServiceTest {
         UUID otherHubId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", otherHubId, "다른허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         assertThatThrownBy(() ->
@@ -378,31 +479,309 @@ class OrderServiceTest {
                  .isEqualTo(OrderErrorCode.ORDER_HUB_ACCESS_DENIED));
     }
 
-    // MASTER 역할로 주문 취소 시 상태가 CANCELLED로 변경되고 취소 정보가 기록되는지 검증
+    // MASTER 역할로 주문 취소 요청 시 CancelOrderOrchestrator.start()가 호출되는지 검증
     @Test
-    void cancelOrder_masterRole_success() {
+    void cancelOrder_masterRole_delegatesToOrchestrator() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         OrderDetailResponse result = orderService.cancelOrder(ORDER_ID, "단순 변심", USER_ID, Role.MASTER, null);
 
         assertThat(result).isNotNull();
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        assertThat(order.getCancelReason()).isEqualTo("단순 변심");
-        assertThat(order.getCancelledBy()).isEqualTo(USER_ID);
+        // CANCELLING 전이 + Kafka 발행은 CancelOrderOrchestrator가 담당 (CancelOrderOrchestratorTest에서 검증)
+        verify(cancelOrderOrchestrator).start(eq(order), eq(USER_ID), eq("단순 변심"));
     }
 
-    // HUB_MANAGER가 담당 허브의 주문을 취소하면 정상 처리되는지 검증
+    // HUB_MANAGER가 담당 허브의 주문 취소 요청 시 오케스트레이터에 올바른 인자가 전달되는지 검증
     @Test
-    void cancelOrder_hubManagerSameHub_success() {
+    void cancelOrder_hubManagerSameHub_delegatesToOrchestrator() {
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         CompanyResponse company = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", HUB_ID, "허브", "서울", "ACTIVE");
-        when(orderRepository.findByIdAndDeletedAtIsNull(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(company));
 
         OrderDetailResponse result = orderService.cancelOrder(ORDER_ID, "재고 소진", USER_ID, Role.HUB_MANAGER, HUB_ID);
 
         assertThat(result).isNotNull();
+        verify(cancelOrderOrchestrator).start(eq(order), eq(USER_ID), eq("재고 소진"));
+    }
+
+    // 상태키가 PROCESSING이면 취소 시 ORDER_PROCESSING_IN_PROGRESS 예외가 발생하는지 검증
+    @Test
+    void cancelOrder_whenProcessing_throwsProcessingInProgress() {
+        when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.PROCESSING));
+
+        assertThatThrownBy(() ->
+                orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_PROCESSING_IN_PROGRESS));
+    }
+
+    // 상태키가 CANCELLING이면 취소 시 ORDER_ALREADY_CANCELLING 예외가 발생하는지 검증
+    @Test
+    void cancelOrder_whenAlreadyCancelling_throwsAlreadyCancelling() {
+        when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.CANCELLING));
+
+        assertThatThrownBy(() ->
+                orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_ALREADY_CANCELLING));
+    }
+
+    // 분산 락 획득 실패 시 ORDER_LOCK_CONFLICT 예외가 발생하는지 검증
+    @Test
+    void cancelOrder_lockAcquireFail_throwsLockConflict() {
+        doThrow(new BusinessException(OrderErrorCode.ORDER_LOCK_CONFLICT))
+                .when(orderLockManager).acquireLock(ORDER_ID);
+
+        assertThatThrownBy(() ->
+                orderService.cancelOrder(ORDER_ID, "사유", USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_LOCK_CONFLICT));
+    }
+
+    // ===== acceptOrder (Choreography Saga Step 1-4) =====
+
+    // delivery.created 이벤트 수신 시 PENDING 주문이 ACCEPTED로 전이되고 deliveryId가 저장되는지 검증
+    @Test
+    void acceptOrder_pendingOrder_transitionsToAccepted() {
+        UUID deliveryId = UUID.randomUUID();
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.acceptOrder(ORDER_ID, deliveryId);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
+        assertThat(order.getDeliveryId()).isEqualTo(deliveryId);
+    }
+
+    // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
+    @Test
+    void acceptOrder_orderNotFound_noException() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
+
+        // 예외가 발생하지 않아야 함 — Kafka 불필요한 재시도 방지
+        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, UUID.randomUUID()))
+                .doesNotThrowAnyException();
+    }
+
+    // 이미 ACCEPTED 상태인 주문에 대해 멱등성이 보장되는지 검증 (중복 이벤트 처리)
+    @Test
+    void acceptOrder_alreadyAccepted_idempotent() {
+        UUID deliveryId = UUID.randomUUID();
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.accept();                      // 이미 ACCEPTED
+        order.linkDelivery(deliveryId);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        // 중복 이벤트여도 예외 없이 무시되어야 함
+        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, deliveryId))
+                .doesNotThrowAnyException();
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
+    }
+
+    // ===== cancelOrderByCompensation (Choreography Saga 보상) =====
+
+    // PENDING 주문이 보상 취소 수신 시 즉시 CANCELLED 처리되는지 검증 (stock.reservation.failed)
+    @Test
+    void cancelOrderByCompensation_pendingOrder_cancelled() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.cancelOrderByCompensation(ORDER_ID, "재고 부족");
+
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.getCancelReason()).isEqualTo("재고 부족");
+        assertThat(order.getCancelledBy()).isNull(); // 보상 취소는 사람이 아닌 시스템 발생이므로 null
+    }
+
+    // ACCEPTED 주문도 보상 취소 가능한지 검증 (delivery.creation.failed)
+    @Test
+    void cancelOrderByCompensation_acceptedOrder_cancelled() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.accept();
+        order.linkDelivery(UUID.randomUUID());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.cancelOrderByCompensation(ORDER_ID, "배송 생성 실패");
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.getCancelReason()).isEqualTo("배송 생성 실패");
+    }
+
+    // 이미 CANCELLED인 주문에 대해 멱등성이 보장되는지 검증 (중복 이벤트)
+    @Test
+    void cancelOrderByCompensation_alreadyCancelled_idempotent() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.cancel(null, "이미 취소됨");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatCode(() -> orderService.cancelOrderByCompensation(ORDER_ID, "중복 이벤트"))
+                .doesNotThrowAnyException();
+        assertThat(order.getCancelReason()).isEqualTo("이미 취소됨"); // 기존 사유 유지
+    }
+
+    // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
+    @Test
+    void cancelOrderByCompensation_orderNotFound_noException() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
+
+        assertThatCode(() -> orderService.cancelOrderByCompensation(ORDER_ID, "재고 부족"))
+                .doesNotThrowAnyException();
+    }
+
+    // ===== handleDeliveryCancelled (Orchestration Saga Step 3-3) =====
+
+    // delivery.cancelled.ack 수신 시 CancelOrderOrchestrator.onDeliveryCancelled()에 위임하는지 검증
+    // CANCELLING 상태 검사, restore.stock.command 발행 등 상세 동작은 CancelOrderOrchestratorTest에서 검증
+    @Test
+    void handleDeliveryCancelled_delegatesToOrchestrator() {
+        orderService.handleDeliveryCancelled(ORDER_ID);
+
+        verify(cancelOrderOrchestrator).onDeliveryCancelled(ORDER_ID);
+    }
+
+    // ===== confirmOrderCancelled (Orchestration Saga Step 3-5) =====
+
+    // stock.restored.ack 수신 시 CancelOrderOrchestrator.onStockRestored()에 위임하는지 검증
+    // CANCELLED 확정, 멱등성 등 상세 동작은 CancelOrderOrchestratorTest에서 검증
+    @Test
+    void confirmOrderCancelled_delegatesToOrchestrator() {
+        orderService.confirmOrderCancelled(ORDER_ID);
+
+        verify(cancelOrderOrchestrator).onStockRestored(ORDER_ID);
+    }
+
+    // ===== syncSnapshot =====
+
+    // 해당 productId의 스냅샷이 없을 때 신규 스냅샷이 생성되는지 검증
+    @Test
+    void syncSnapshot_newProduct_createsSnapshot() {
+        HubStockUpdatedEvent event = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(200)
+                .hubStockVersion(1L)
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+
+        orderService.syncSnapshot(event);
+
+        verify(snapshotRepository).save(any(ProductStockSnapshot.class));
+    }
+
+    // 기존 스냅샷이 있고 이벤트 버전이 더 최신이면 스냅샷이 갱신되는지 검증
+    @Test
+    void syncSnapshot_existingProduct_newerVersion_updatesSnapshot() {
+        ProductStockSnapshot existing = ProductStockSnapshot.create(PRODUCT_ID, HUB_ID, 100, 2L);
+        HubStockUpdatedEvent event = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(150)
+                .hubStockVersion(3L)  // 기존 버전(2) 보다 최신
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(existing));
+
+        orderService.syncSnapshot(event);
+
+        assertThat(existing.getAvailable()).isEqualTo(150);
+        assertThat(existing.getHubStockVersion()).isEqualTo(3L);
+        // 신규 저장은 불필요 — JPA dirty checking으로 처리됨
+        verify(snapshotRepository, never()).save(any());
+    }
+
+    // 이벤트 버전이 저장된 버전보다 낮거나 같으면 구버전으로 간주하고 스냅샷을 갱신하지 않는지 검증
+    @Test
+    void syncSnapshot_existingProduct_olderOrSameVersion_ignored() {
+        ProductStockSnapshot existing = ProductStockSnapshot.create(PRODUCT_ID, HUB_ID, 100, 5L);
+        int originalAvailable = existing.getAvailable();
+
+        HubStockUpdatedEvent sameVersionEvent = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(999)
+                .hubStockVersion(5L)  // 같은 버전 → 무시
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(existing));
+
+        orderService.syncSnapshot(sameVersionEvent);
+
+        // 갱신 없이 기존 available 유지
+        assertThat(existing.getAvailable()).isEqualTo(originalAvailable);
+        verify(snapshotRepository, never()).save(any());
+    }
+
+    // 이벤트 수신 시 예외 없이 처리되는지 검증 (Kafka 재시도 방지)
+    @Test
+    void syncSnapshot_noException_onAnyInput() {
+        HubStockUpdatedEvent event = HubStockUpdatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .productId(PRODUCT_ID)
+                .hubId(HUB_ID)
+                .available(50)
+                .hubStockVersion(1L)
+                .build();
+
+        when(snapshotRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+
+        assertThatCode(() -> orderService.syncSnapshot(event)).doesNotThrowAnyException();
+    }
+
+    // ===== deleteOrder =====
+
+    // MASTER 이외의 역할로 삭제 시도 시 ORDER_DELETE_PERMISSION_DENIED 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_nonMasterRole_throwsPermissionDenied() {
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.HUB_MANAGER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED));
+    }
+
+    // 존재하지 않는 주문 삭제 시도 시 ORDER_NOT_FOUND 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_orderNotFound_throwsException() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    // PENDING 상태의 주문 삭제 시도 시 ORDER_NOT_DELETABLE 예외가 발생하는지 검증
+    @Test
+    void deleteOrder_pendingOrder_throwsNotDeletable() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() ->
+                orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER)
+        ).isInstanceOf(BusinessException.class)
+         .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                 .isEqualTo(OrderErrorCode.ORDER_NOT_DELETABLE));
+    }
+
+    // CANCELLED 상태의 주문을 MASTER가 삭제하면 soft delete가 적용되는지 검증
+    @Test
+    void deleteOrder_cancelledOrder_success() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.cancel(USER_ID, "단순 변심");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.deleteOrder(ORDER_ID, USER_ID, Role.MASTER);
+
+        assertThat(order.isDeleted()).isTrue();
     }
 }

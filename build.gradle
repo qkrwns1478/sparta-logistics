@@ -82,5 +82,3 @@ configure(subprojects.findAll{!excludedModules.contains(it.name)}) {
         runtimeOnly 'org.postgresql:postgresql'
     }
 }
-
-

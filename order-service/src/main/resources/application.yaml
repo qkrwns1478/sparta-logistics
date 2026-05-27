@@ -7,6 +7,11 @@ spring:
   config:
     import: optional:configserver:http://localhost:8888
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
   datasource:
     url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}?currentSchema=schema_order
     username: ${POSTGRES_USER:postgres}
@@ -17,6 +22,11 @@ spring:
     properties:
       hibernate:
         default_schema: schema_order
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: order-service-group
 
 feign:
   circuitbreaker:

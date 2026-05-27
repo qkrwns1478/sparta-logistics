@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,7 +40,6 @@ public class ProductService {
     @Transactional
     public ProductResponse createProduct(
             CreateRequest request,
-            UUID requestUserId,
             Role requestUserRole,
             UUID requestUserHubId,
             UUID requestUserCompanyId) {
@@ -48,12 +48,8 @@ public class ProductService {
                 requestUserCompanyId, request.hubId(), request.companyId());
 
         // 업체 조회 후 해당 업체가 실제로 해당 허브 소속인지 정합성 검증
-        CompanyClientResponse company = companyFeignClient.getCompany(request.companyId()).data();
-
-        // FeignClient 호출 실패나 Fallback 발생 시 null 반환할 수 있으므로 null 체크
-        if (company == null) {
-            throw new BusinessException(ProductErrorCode.COMPANY_NOT_FOUND);
-        }
+        // FeignClient 호출 실패나 Fallback 발생 시 null 반환할 수 있으므로 null 체크 + 예외 처리
+        CompanyClientResponse company = fetchCompany(request.companyId());
 
         if (!company.hubId().equals(request.hubId())) {
             throw new BusinessException(ProductErrorCode.COMPANY_HUB_MISMATCH);
@@ -91,6 +87,15 @@ public class ProductService {
         Product product = findActiveProductOrThrow(productId);
 
         return toResponse(product);
+    }
+
+    // -------------------------------------------------------
+    // 배치 조회: 내부 서비스 전용
+    // -------------------------------------------------------
+    public List<ProductResponse> getProducts(List<UUID> productIds) {
+        return productRepository.findAllById(productIds).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     // -------------------------------------------------------
@@ -138,14 +143,14 @@ public class ProductService {
     // -------------------------------------------------------
     @Transactional
     public void deleteAllByCompanyId(UUID companyId) {
-        List<Product> products = productRepository.findAllByCompanyId(companyId);
-
-        // 시스템 삭제 — deletedBy null 허용
-        products.forEach(product -> product.delete(null));
-
-        log.info("[ProductService] 업체 삭제로 인한 상품 일괄 삭제. companyId={}, count={}",
-                companyId, products.size());
+        productRepository.bulkDeleteByCompanyId(
+                companyId,
+                LocalDateTime.now(),
+                null    // 시스템 삭제 — deletedBy null
+        );
+        log.info("[ProductService] 업체 삭제로 인한 상품 일괄 삭제. companyId={}", companyId);
     }
+
 
     // -------------------------------------------------------
     // 검증
@@ -171,7 +176,8 @@ public class ProductService {
         if (role == Role.MASTER) return;
         if (role == Role.HUB_MANAGER && userHubId != null
                 && userHubId.equals(targetHubId)) return;
-        if (role == Role.COMPANY_MANAGER && userCompanyId != null) return;
+        if (role == Role.COMPANY_MANAGER && userCompanyId != null
+                && userCompanyId.equals(targetCompanyId)) return;
 
         throw new BusinessException(ProductErrorCode.PRODUCT_ACCESS_DENIED);
     }
@@ -228,5 +234,22 @@ public class ProductService {
                 product.getCreatedAt(),
                 product.getUpdatedAt()
         );
+    }
+
+    // -------------------------------------------------------
+    // 업체 정보 조회 및 Feign 호출 예외 처리
+    // -------------------------------------------------------
+    private CompanyClientResponse fetchCompany(UUID companyId) {
+        try {
+            CompanyClientResponse company = companyFeignClient.getCompany(companyId).data();
+            if (company == null) {
+                throw new BusinessException(ProductErrorCode.COMPANY_NOT_FOUND);
+            }
+            return company;
+        } catch (FeignException.NotFound e) {
+            throw new BusinessException(ProductErrorCode.COMPANY_NOT_FOUND);
+        } catch (FeignException e) {
+            throw new BusinessException(ProductErrorCode.COMPANY_SERVICE_UNAVAILABLE);
+        }
     }
 }
