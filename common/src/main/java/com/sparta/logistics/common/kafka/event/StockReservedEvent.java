@@ -28,4 +28,5 @@ public class StockReservedEvent {
     private UUID destinationHubId;
     // 예약 완료된 항목 목록 (각 항목이 sourceHubId를 개별로 보유)
     private List<StockReservedItemPayload> orderItems;
+    private Integer totalDeliveryCount;
 }
