@@ -172,6 +172,7 @@ public class DeliveryService {
                 entity.getSourceHubId(),
                 entity.getDestinationHubId(),
                 entity.getCompanyDeliveryManagerId()
+                entity.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0
         );
     }
 
