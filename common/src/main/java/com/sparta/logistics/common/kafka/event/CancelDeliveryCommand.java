@@ -11,7 +11,7 @@ import java.util.UUID;
  * 토픽: cancel.delivery.command
  * 발행: OrderService (Orchestrator) / 구독: DeliveryService
  * <p>
- * 주문 취소 Orchestration Saga Step 1
+ * 주문 취소 Orchestration Saga Step 3-1
  * OrderService가 배송 취소를 명령함
  * <p>
  * 파티션 키: orderId
