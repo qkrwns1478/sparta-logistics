@@ -1,6 +1,6 @@
 package com.sparta.logistics.order.order.saga;
 
-import com.sparta.logistics.common.kafka.KafkaTopics;
+import com.sparta.logistics.order.kafka.producer.OrderEventPublisher;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
@@ -9,7 +9,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -37,7 +36,7 @@ class CancelOrderOrchestratorTest {
     private OrderRepository orderRepository;
 
     @Mock
-    private KafkaTemplate kafkaTemplate;
+    private OrderEventPublisher orderEventPublisher;
 
     private final UUID ORDER_ID = UUID.randomUUID();
     private final UUID USER_ID = UUID.randomUUID();
@@ -59,7 +58,7 @@ class CancelOrderOrchestratorTest {
         assertThat(order.getCancelledBy()).isEqualTo(USER_ID);
         assertThat(order.getCancelReason()).isEqualTo("단순 변심");
         verify(orderRepository).save(order);
-        verify(kafkaTemplate).send(eq(KafkaTopics.CANCEL_DELIVERY_COMMAND), eq(ORDER_ID.toString()), any());
+        verify(orderEventPublisher).publishCancelDeliveryCommand(eq(ORDER_ID), any());
     }
 
     // 이미 CANCELLED 상태의 주문에 start() 호출 시 ORDER_NOT_CANCELLABLE 예외가 발생하는지 검증
@@ -87,7 +86,7 @@ class CancelOrderOrchestratorTest {
 
         orchestrator.onDeliveryCancelled(ORDER_ID);
 
-        verify(kafkaTemplate).send(eq(KafkaTopics.RESTORE_STOCK_COMMAND), eq(ORDER_ID.toString()), any());
+        verify(orderEventPublisher).publishRestoreStockCommand(eq(ORDER_ID), any());
     }
 
     // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)

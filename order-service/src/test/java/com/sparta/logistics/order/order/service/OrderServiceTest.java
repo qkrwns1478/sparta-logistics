@@ -2,8 +2,8 @@ package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
+import com.sparta.logistics.order.kafka.producer.OrderEventPublisher;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
@@ -28,8 +28,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.kafka.core.KafkaTemplate;
-
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -65,9 +63,8 @@ class OrderServiceTest {
     @Mock
     private ProductServiceClient productServiceClient;
 
-    @SuppressWarnings("rawtypes")
     @Mock
-    private KafkaTemplate kafkaTemplate;
+    private OrderEventPublisher orderEventPublisher;
 
     @Mock
     private CancelOrderOrchestrator cancelOrderOrchestrator;
@@ -116,8 +113,8 @@ class OrderServiceTest {
         verify(companyServiceClient).checkCompanyExists(REQUESTER_COMPANY_ID);
         verify(companyServiceClient).checkCompanyExists(RECEIVER_COMPANY_ID);
         verify(orderRepository).save(any(Order.class));
-        // order.created 이벤트가 orderId 파티션 키와 함께 Kafka로 발행되는지 검증
-        verify(kafkaTemplate).send(eq(KafkaTopics.ORDER_CREATED), eq(ORDER_ID.toString()), any());
+        // order.created 이벤트가 Kafka로 발행되는지 검증
+        verify(orderEventPublisher).publishOrderCreated(any(Order.class));
         assertThat(result).isNotNull();
     }
 
