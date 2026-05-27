@@ -42,8 +42,10 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 
-        ServerHttpRequest sanitized = exchange.getRequest().mutate().build();
 
+        ServerHttpRequest sanitized = exchange.getRequest().mutate()
+                .headers(headers -> headers.remove("X-Internal-Call"))
+                .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitized).build();
 
         // 토큰만 반환
