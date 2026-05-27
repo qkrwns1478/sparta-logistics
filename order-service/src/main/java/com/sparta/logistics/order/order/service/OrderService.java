@@ -52,116 +52,6 @@ public class OrderService {
     private final ProductStockSnapshotRepository snapshotRepository;
     private final OrderLockManager orderLockManager;
 
-    /**
-     * 주문 생성
-     * 1. requesterCompanyId / receiverCompanyId 존재 여부 검증 (Company Service) ✅
-     * 2. 스냅샷 기반 재고 사전 검증 (스냅샷이 있는 상품만, 없으면 통과) ✅
-     * 3. 각 상품 정보(이름·단가) 조회 (Product Service) ✅
-     * 4. Order 및 OrderItem 생성 (PENDING) ✅
-     * 5. Hub Service에 재고 예약 요청 // TODO: Kafka Choreography Saga
-     * 6. Delivery Service에서 배송 및 경로 자동 생성 // TODO: Kafka Choreography Saga
-     * 7. Notification Service에서 AI 발송 시간 계산 후 슬랙 알림 발송 // TODO: Kafka Choreography Saga
-     * */
-    @Transactional
-    public OrderDetailResponse createOrder(
-            UUID requesterCompanyId,
-            UUID receiverCompanyId,
-            LocalDateTime dueDate,
-            String requestMemo,
-            List<OrderItemRequest> items,
-            UUID userId
-    ) {
-        // 업체가 존재하는지 검증
-        validateCompanyExists(requesterCompanyId);
-        validateCompanyExists(receiverCompanyId);
-
-        // 동일 productId의 quantity 합산 (중복 OrderItem row 생성 방지)
-        Map<UUID, Integer> mergedItems = items.stream()
-                .collect(Collectors.groupingBy(
-                        OrderItemRequest::getProductId,
-                        Collectors.summingInt(OrderItemRequest::getQuantity)
-                ));
-
-        // 스냅샷 기반 재고 사전 검증 (스냅샷이 없는 상품은 건너뜀)
-        validateStockBySnapshot(mergedItems);
-
-        Map<UUID, ProductResponse> productMap = fetchProducts(new ArrayList<>(mergedItems.keySet()));
-
-        Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
-
-        mergedItems.forEach((productId, quantity) -> {
-            ProductResponse product = productMap.get(productId);
-            OrderItem orderItem = OrderItem.create(
-                    order,
-                    productId,
-                    product.name(),
-                    product.price(),
-                    quantity,
-                    product.hubId()
-            );
-            order.addOrderItem(orderItem);
-        });
-
-        order.calculateTotalAmount();
-        orderRepository.save(order);
-
-        // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
-        publishOrderCreatedEvent(order);
-
-        return OrderDetailResponse.from(order);
-    }
-
-    /**
-     * Choreography Saga Step 1-4: delivery.created 이벤트 수신 후 주문 상태를 ACCEPTED로 전이하고 deliveryId를 저장함
-     * DeliveryCreatedConsumer에서 호출됨
-     * 멱등성 보장: PENDING 상태가 아닌 경우 이미 처리된 이벤트로 간주하고 무시함
-     * */
-    @Transactional
-    public void acceptOrder(UUID orderId, UUID deliveryId) {
-        Order order = orderRepository.findById(orderId)
-                .orElse(null);
-
-        if (order == null) {
-            log.warn("[delivery.created] 주문을 찾을 수 없음 orderId={}", orderId);
-            return;
-        }
-
-        if (order.getStatus() != OrderStatus.PENDING) {
-            log.warn("[delivery.created] 이미 처리된 주문 orderId={} status={}",
-                    orderId, order.getStatus());
-            return;
-        }
-
-        order.accept();
-        order.linkDelivery(deliveryId);
-        log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryId={}", orderId, deliveryId);
-    }
-
-    /**
-     * Choreography Saga 보상 트랜잭션: 재고 예약 실패 또는 배송 생성 실패 시 주문을 즉시 CANCELLED 처리함
-     * StockReservationFailedConsumer / DeliveryCreationFailedConsumer에서 호출됨
-     * <p>
-     * 멱등성 보장: 이미 CANCELLED인 경우 재처리 시 no-op
-     */
-    @Transactional
-    public void cancelOrderByCompensation(UUID orderId, String reason) {
-        Order order = orderRepository.findById(orderId)
-                .orElse(null);
-
-        if (order == null) {
-            log.warn("[보상 취소] 주문을 찾을 수 없음 orderId={}", orderId);
-            return;
-        }
-
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            log.warn("[보상 취소] 멱등성 처리: 이미 취소된 주문 orderId={}", orderId);
-            return;
-        }
-
-        order.cancel(null, reason);
-        log.info("[보상 취소] 주문 CANCELLED orderId={} reason={}", orderId, reason);
-    }
-
     /** 주문 목록 조회 **/
     @Transactional(readOnly = true)
     public Page<OrderSummaryResponse> getOrders(
@@ -235,12 +125,144 @@ public class OrderService {
         }
     }
 
+    /** 주문 삭제 (Soft Delete) **/
+    @Transactional
+    public void deleteOrder(UUID orderId, UUID userId, Role role) {
+        // MASTER만 삭제 가능
+        if (role != Role.MASTER) {
+            throw new BusinessException(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED);
+        }
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+
+        // CANCELLED 또는 COMPLETED 상태의 주문만 삭제 가능
+        if (!order.isDeletable()) {
+            throw new BusinessException(OrderErrorCode.ORDER_NOT_DELETABLE);
+        }
+
+        order.delete(userId);
+    }
+
+    // ===== 주문 생성 Choreography Saga =====
+
+    /**
+     * 주문 생성 (Choreography Saga Step 1-1 진입점)
+     * 1. requesterCompanyId / receiverCompanyId 존재 여부 검증 (Company Service) ✅
+     * 2. 스냅샷 기반 재고 사전 검증 (스냅샷이 있는 상품만, 없으면 통과) ✅
+     * 3. 각 상품 정보(이름·단가) 조회 (Product Service) ✅
+     * 4. Order 및 OrderItem 생성 (PENDING) ✅
+     * 5. order.created 발행 → HubService 재고 예약 트리거 ✅
+     * 이후 단계(배송 생성, AI 발송 시한 계산, Slack 알림)는 Kafka 체이닝으로 각 서비스에서 처리됨
+     **/
+    @Transactional
+    public OrderDetailResponse createOrder(
+            UUID requesterCompanyId,
+            UUID receiverCompanyId,
+            LocalDateTime dueDate,
+            String requestMemo,
+            List<OrderItemRequest> items,
+            UUID userId
+    ) {
+        // 업체가 존재하는지 검증
+        validateCompanyExists(requesterCompanyId);
+        validateCompanyExists(receiverCompanyId);
+
+        // 동일 productId의 quantity 합산 (중복 OrderItem row 생성 방지)
+        Map<UUID, Integer> mergedItems = items.stream()
+                .collect(Collectors.groupingBy(
+                        OrderItemRequest::getProductId,
+                        Collectors.summingInt(OrderItemRequest::getQuantity)
+                ));
+
+        // 스냅샷 기반 재고 사전 검증 (스냅샷이 없는 상품은 건너뜀)
+        validateStockBySnapshot(mergedItems);
+
+        Map<UUID, ProductResponse> productMap = fetchProducts(new ArrayList<>(mergedItems.keySet()));
+
+        Order order = Order.create(requesterCompanyId, receiverCompanyId, userId, dueDate, requestMemo);
+
+        mergedItems.forEach((productId, quantity) -> {
+            ProductResponse product = productMap.get(productId);
+            OrderItem orderItem = OrderItem.create(
+                    order,
+                    productId,
+                    product.name(),
+                    product.price(),
+                    quantity,
+                    product.hubId()
+            );
+            order.addOrderItem(orderItem);
+        });
+
+        order.calculateTotalAmount();
+        orderRepository.save(order);
+
+        // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
+        publishOrderCreatedEvent(order);
+
+        return OrderDetailResponse.from(order);
+    }
+
+    /**
+     * Choreography Saga Step 1-4: delivery.created 이벤트 수신 후 주문 상태를 ACCEPTED로 전이하고 deliveryId를 저장함
+     * DeliveryCreatedConsumer에서 호출됨
+     * 멱등성 보장: PENDING 상태가 아닌 경우 이미 처리된 이벤트로 간주하고 무시함
+     **/
+    @Transactional
+    public void acceptOrder(UUID orderId, UUID deliveryId) {
+        Order order = orderRepository.findById(orderId)
+                .orElse(null);
+
+        if (order == null) {
+            log.warn("[delivery.created] 주문을 찾을 수 없음 orderId={}", orderId);
+            return;
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            log.warn("[delivery.created] 이미 처리된 주문 orderId={} status={}",
+                    orderId, order.getStatus());
+            return;
+        }
+
+        order.accept();
+        order.linkDelivery(deliveryId);
+        log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryId={}", orderId, deliveryId);
+    }
+
+    /**
+     * Choreography Saga 보상 트랜잭션: 재고 예약 실패 또는 배송 생성 실패 시 주문을 즉시 CANCELLED 처리함
+     * StockReservationFailedConsumer / DeliveryCreationFailedConsumer에서 호출됨
+     * <p>
+     * 멱등성 보장: 이미 CANCELLED인 경우 재처리 시 no-op
+     **/
+    @Transactional
+    public void cancelOrderByCompensation(UUID orderId, String reason) {
+        Order order = orderRepository.findById(orderId)
+                .orElse(null);
+
+        if (order == null) {
+            log.warn("[보상 취소] 주문을 찾을 수 없음 orderId={}", orderId);
+            return;
+        }
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.warn("[보상 취소] 멱등성 처리: 이미 취소된 주문 orderId={}", orderId);
+            return;
+        }
+
+        order.cancel(null, reason);
+        log.info("[보상 취소] 주문 CANCELLED orderId={} reason={}", orderId, reason);
+    }
+
+    // ===== 주문 취소 Orchestration Saga =====
+
     /**
      * 주문 취소 요청 (Orchestration Saga Step 3-1 진입점)
      * <p>
      * 권한 검사 + 주문 조회 완료 후 CancelOrderOrchestrator.start()에 위임
      * CANCELLING 전이 및 cancel.delivery.command 발행은 오케스트레이터가 담당
-     * */
+     **/
     @Transactional
     public OrderDetailResponse cancelOrder(UUID orderId, String cancelReason, UUID userId, Role role, UUID userHubId) {
         // 취소는 HUB_MANAGER 또는 MASTER만 가능
@@ -294,29 +316,10 @@ public class OrderService {
         }
     }
 
-    /** 주문 삭제 (Soft Delete) **/
-    @Transactional
-    public void deleteOrder(UUID orderId, UUID userId, Role role) {
-        // MASTER만 삭제 가능
-        if (role != Role.MASTER) {
-            throw new BusinessException(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED);
-        }
-
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-
-        // CANCELLED 또는 COMPLETED 상태의 주문만 삭제 가능
-        if (!order.isDeletable()) {
-            throw new BusinessException(OrderErrorCode.ORDER_NOT_DELETABLE);
-        }
-
-        order.delete(userId);
-    }
-
     /**
      * Orchestration Saga Step 3-3: delivery.cancelled.ack 수신 후 처리
      * DeliveryCancelledAckConsumer에서 호출됨 → CancelOrderOrchestrator.onDeliveryCancelled()에 위임
-     * */
+     **/
     public void handleDeliveryCancelled(UUID orderId) {
         cancelOrderOrchestrator.onDeliveryCancelled(orderId);
     }
@@ -324,10 +327,28 @@ public class OrderService {
     /**
      * Orchestration Saga Step 3-5: stock.restored.ack 수신 후 처리
      * StockRestoredAckConsumer에서 호출됨 → CancelOrderOrchestrator.onStockRestored()에 위임
-     * */
+     **/
     public void confirmOrderCancelled(UUID orderId) {
         cancelOrderOrchestrator.onStockRestored(orderId);
     }
+
+    /**
+     * Orchestration Saga 보상 Step 4-1: delivery.cancellation.failed 수신 후 처리
+     * DeliveryCancellationFailedConsumer에서 호출됨 → CancelOrderOrchestrator.onDeliveryCancellationFailed()에 위임
+     **/
+    public void handleDeliveryCancellationFailed(UUID orderId) {
+        cancelOrderOrchestrator.onDeliveryCancellationFailed(orderId);
+    }
+
+    /**
+     * Orchestration Saga 보상 Step 4-2: stock.restoration.failed 수신 후 처리
+     * StockRestorationFailedConsumer에서 호출됨 → CancelOrderOrchestrator.onStockRestorationFailed()에 위임
+     **/
+    public void handleStockRestorationFailed(UUID orderId) {
+        cancelOrderOrchestrator.onStockRestorationFailed(orderId);
+    }
+
+    // ===== 재고 스냅샷 동기화 =====
 
     /**
      * 재고 스냅샷 동기화: hub.stock.updated 이벤트 수신 후 ProductStockSnapshot 갱신
@@ -335,7 +356,7 @@ public class OrderService {
      * <p>
      * hubStockVersion 비교 → 저장된 버전보다 낮거나 같은 이벤트는 구버전으로 간주하고 무시함
      * 신규 상품: 스냅샷이 없는 경우 새로 생성함
-     * */
+     **/
     @Transactional
     public void syncSnapshot(HubStockUpdatedEvent event) {
         snapshotRepository.findByProductId(event.getProductId())
@@ -366,10 +387,11 @@ public class OrderService {
     /**
      * order.created 이벤트를 Kafka로 발행함
      * 파티션 키: orderId (동일 주문의 이벤트 순서를 보장함)
-     * */
+     **/
     private void publishOrderCreatedEvent(Order order) {
         List<OrderItemPayload> payloads = order.getOrderItems().stream()
                 .map(item -> OrderItemPayload.builder()
+                        .orderItemId(item.getId())
                         .productId(item.getProductId())
                         .quantity(item.getQuantity())
                         .hubId(item.getHubId())
@@ -388,11 +410,13 @@ public class OrderService {
         log.info("[order.created] 이벤트 발행 orderId={} itemCount={}", order.getId(), payloads.size());
     }
 
+    // ===== 기타 Helper 메서드 =====
+
     /**
      * 스냅샷 기반 재고 사전 검증
      * 스냅샷이 있는 상품만 검사하며, 스냅샷이 없는 상품은 건너뜀
      * 재고 부족 시 Hub 서비스 호출 없이 즉시 예외를 던짐
-     * */
+     **/
     private void validateStockBySnapshot(Map<UUID, Integer> mergedItems) {
         mergedItems.forEach((productId, quantity) ->
                 snapshotRepository.findByProductId(productId).ifPresent(snapshot -> {
