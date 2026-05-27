@@ -134,6 +134,7 @@ public class HubStockService {
                     .findByHubIdAndProductId(item.getHubId(), item.getProductId())
                     .orElseGet(() -> {
                         registerStockRestorationFailedEvent(
+                                command.getEventId(),
                                 command.getOrderId(),
                                 "허브 재고 없음"
                         );
@@ -294,12 +295,12 @@ public class HubStockService {
     }
 
     // 재고 복구 실패 시 발행
-    private void registerStockRestorationFailedEvent(UUID orderId, String reason) {
+    private void registerStockRestorationFailedEvent(UUID eventId, UUID orderId, String reason) {
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
                     public void afterCompletion(int status) {
-                        hubStockEventPublisher.publishStockRestorationFailed(orderId, reason);
+                        hubStockEventPublisher.publishStockRestorationFailed(eventId, orderId, reason);
                     }
                 }
         );

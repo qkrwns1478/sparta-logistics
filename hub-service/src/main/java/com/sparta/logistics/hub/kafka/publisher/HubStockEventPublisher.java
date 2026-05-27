@@ -123,11 +123,11 @@ public class HubStockEventPublisher {
         }
     }
 
-    public void publishStockRestorationFailed(UUID orderId, String reason) {
+    public void publishStockRestorationFailed(UUID eventId, UUID orderId, String reason) {
 
         try {
             StockRestorationFailedEvent event = StockRestorationFailedEvent.builder()
-                    .eventId(UUID.randomUUID())
+                    .eventId(eventId)
                     .orderId(orderId)
                     .reason(reason)
                     .build();
