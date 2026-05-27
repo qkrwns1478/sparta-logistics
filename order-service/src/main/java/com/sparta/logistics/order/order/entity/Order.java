@@ -1,6 +1,8 @@
 package com.sparta.logistics.order.order.entity;
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.order.exception.OrderErrorCode;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import jakarta.persistence.*;
@@ -56,6 +58,14 @@ public class Order extends BaseEntity {
     @Column(name = "cancel_reason")
     private String cancelReason;
 
+    /**
+     * 배송 ID
+     * delivery.created 이벤트 수신 후 저장
+     * Orchestration Saga 취소 시 cancel.delivery.command 페이로드로 사용됨
+     * */
+    @Column(name = "delivery_id")
+    private UUID deliveryId;
+
     @Version
     @Column(nullable = false)
     private Long version = 0L;
@@ -97,8 +107,48 @@ public class Order extends BaseEntity {
         this.cancelReason = cancelReason;
     }
 
+    /**
+     * Orchestration Saga Step 1: 취소 진행 중 상태로 전이
+     * cancel.delivery.command 발행 직전에 호출함
+     * 실제 CANCELLED 확정은 stock.restored.ack 수신 후 confirmCancelled()가 담당함
+     * */
+    public void startCancelling(UUID cancelledBy, String cancelReason) {
+        if (!canTransitionTo(OrderStatus.CANCELLING)) {
+            throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
+        }
+        this.status = OrderStatus.CANCELLING;
+        this.cancelledBy = cancelledBy;
+        this.cancelReason = cancelReason;
+    }
+
+    /** Orchestration Saga Step 5: stock.restored.ack 수신 후 CANCELLED 확정 **/
+    public void confirmCancelled() {
+        if (this.status != OrderStatus.CANCELLING) {
+            throw new BusinessException(OrderErrorCode.ORDER_INVALID_STATE_TRANSITION);
+        }
+        this.status = OrderStatus.CANCELLED;
+        this.cancelledAt = LocalDateTime.now();
+    }
+
+    /** delivery.created 이벤트 수신 시 ACCEPTED로 전이 **/
+    public void accept() {
+        if (!canTransitionTo(OrderStatus.ACCEPTED)) {
+            throw new BusinessException(OrderErrorCode.ORDER_INVALID_STATE_TRANSITION);
+        }
+        this.status = OrderStatus.ACCEPTED;
+    }
+
+    /**
+     * delivery.created 수신 시 배송 ID를 저장함
+     * Orchestration Saga 취소 명령 시 deliveryId가 필요함
+     * */
+    public void linkDelivery(UUID deliveryId) {
+        this.deliveryId = deliveryId;
+    }
+
     public boolean isModifiable() {
         return this.status != OrderStatus.CANCELLED
+                && this.status != OrderStatus.CANCELLING // 취소 진행 중도 수정 불가
                 && this.status != OrderStatus.COMPLETED
                 && this.status != OrderStatus.IN_DELIVERY;
     }
@@ -109,5 +159,15 @@ public class Order extends BaseEntity {
 
     public void delete(UUID deletedBy) {
         softDelete(deletedBy);
+    }
+
+    // 상태 전이 유효성 테이블
+    private boolean canTransitionTo(OrderStatus next) {
+        return switch (this.status) {
+            case PENDING -> next == OrderStatus.ACCEPTED || next == OrderStatus.CANCELLING;
+            case ACCEPTED -> next == OrderStatus.IN_DELIVERY || next == OrderStatus.CANCELLING;
+            // IN_DELIVERY 이상은 취소 불가 (cancel.delivery.command 발행 시 예외)
+            default -> false;
+        };
     }
 }

@@ -38,7 +38,19 @@ public class OrderItem extends BaseEntity {
     @Column(nullable = false, name = "sub_total")
     private Long subTotal;
 
+    /**
+     * 상품이 속한 허브 ID
+     * order.created 이벤트 페이로드(OrderItemPayload.hubId)로 전달되어 HubService가 재고 예약 대상 허브를 식별함
+     * Product Service 응답(ProductResponse.hubId)에서 채워짐
+     */
+    @Column(name = "hub_id")
+    private UUID hubId;
+
     public static OrderItem create(Order order, UUID productId, String productName, Long unitPrice, Integer quantity) {
+        return create(order, productId, productName, unitPrice, quantity, null);
+    }
+
+    public static OrderItem create(Order order, UUID productId, String productName, Long unitPrice, Integer quantity, UUID hubId) {
         OrderItem item = new OrderItem();
         item.order = order;
         item.productId = productId;
@@ -46,6 +58,7 @@ public class OrderItem extends BaseEntity {
         item.unitPrice = unitPrice;
         item.quantity = quantity;
         item.subTotal = unitPrice * quantity;
+        item.hubId = hubId;
         return item;
     }
 }
