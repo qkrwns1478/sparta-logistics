@@ -3,8 +3,8 @@ package com.sparta.logistics.delivery.infrastructure.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
-import com.sparta.logistics.common.kafka.event.DeliveryCancelledAckEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryCancellationFailedEvent;
+import com.sparta.logistics.common.kafka.event.DeliveryCancelledAckEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryCreatedEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryCreationFailedEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryOrderItemPayload;
@@ -18,7 +18,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component

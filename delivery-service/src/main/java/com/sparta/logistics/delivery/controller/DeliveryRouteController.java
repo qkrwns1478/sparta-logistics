@@ -1,9 +1,9 @@
 package com.sparta.logistics.delivery.controller;
 
+import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.delivery.dto.log.DeliveryLogResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteUpdateRequest;
-import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.delivery.service.DeliveryLogService;
 import com.sparta.logistics.delivery.service.DeliveryRouteService;
 import lombok.RequiredArgsConstructor;

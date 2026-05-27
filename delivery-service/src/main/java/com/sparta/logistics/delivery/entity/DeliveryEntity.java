@@ -1,6 +1,7 @@
 package com.sparta.logistics.delivery.entity;
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -14,7 +15,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
