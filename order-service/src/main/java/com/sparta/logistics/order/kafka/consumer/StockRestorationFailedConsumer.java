@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockRestorationFailedEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,15 +23,17 @@ import org.springframework.stereotype.Component;
 public class StockRestorationFailedConsumer {
 
     private final OrderService orderService;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESTORATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(StockRestorationFailedEvent event) {
-        log.info("[stock.restoration.failed] 수신 orderId={} reason={}",
-                event.getOrderId(), event.getReason());
-
-        orderService.handleStockRestorationFailed(event.getOrderId());
+    public void consume(String message) {
+        parser.parse(message, StockRestorationFailedEvent.class).ifPresent(event -> {
+            log.info("[stock.restoration.failed] 수신 orderId={} reason={}",
+                    event.getOrderId(), event.getReason());
+            orderService.handleStockRestorationFailed(event.getOrderId());
+        });
     }
 }
