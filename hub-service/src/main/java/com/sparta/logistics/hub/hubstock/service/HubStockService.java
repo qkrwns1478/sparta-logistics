@@ -130,7 +130,13 @@ public class HubStockService {
 
             HubStock hubStock = hubStockRepository
                     .findByHubIdAndProductId(item.getHubId(), item.getProductId())
-                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+                    .orElseGet(() -> {
+                        registerStockRestorationFailedEvent(
+                                command.getOrderId(),
+                                "허브 재고 없음"
+                        );
+                        throw new KafkaSkipException("허브 재고 없음 - orderId: " + command.getOrderId());
+                    });
 
             int beforeQuantity = hubStock.getAvailable();
             hubStock.restore(item.getQuantity());
@@ -275,6 +281,18 @@ public class HubStockService {
                     HubStockChangeType.ORDER_DECREASE
             ));
         }
+    }
+
+    // 재고 복구 실패 시 발행
+    private void registerStockRestorationFailedEvent(UUID orderId, String reason) {
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        hubStockEventPublisher.publishStockRestorationFailed(orderId, reason);
+                    }
+                }
+        );
     }
 
     // 재고 변경 후 Order Service 스냅샷 갱신을 위한 이벤트 등록 (커밋 후 발행)
