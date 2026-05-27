@@ -29,7 +29,7 @@ public class HubStockLogService {
             UUID hubId, UUID stockId, HubStockChangeType changeType, Pageable pageable) {
 
         // 허브 존재 여부 검증
-        if (hubRepository.existsByIdAndDeletedAtIsNull(hubId)) {
+        if (!hubRepository.existsByIdAndDeletedAtIsNull(hubId)) {
             throw new BusinessException(HubErrorCode.HUB_NOT_FOUND);
         }
 
