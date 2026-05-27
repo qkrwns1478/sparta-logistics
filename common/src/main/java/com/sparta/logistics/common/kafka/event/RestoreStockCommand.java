@@ -24,7 +24,6 @@ import java.util.UUID;
 public class RestoreStockCommand {
     private UUID eventId;
     private UUID orderId;
-    // private UUID hubId; // RestoreStockItemPayload에 hubId가 추가되었으니 중복됩니다.
     // 복구할 항목 목록 (productId, quantity)
     private List<RestoreStockItemPayload> orderItems;
 }
