@@ -74,4 +74,13 @@ public class HubStock extends BaseEntity {
         this.available += quantity;
         this.reserved -= quantity;
     }
+
+    public void decreaseReserved(int quantity) {
+
+        if (this.reserved < quantity) {
+            throw new BusinessException(HubStockErrorCode.HUB_STOCK_INVALID_DECREASE_QUANTITY);
+        }
+
+        this.reserved -= quantity;
+    }
 }

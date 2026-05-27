@@ -11,11 +11,12 @@ import java.util.UUID;
  * 토픽: stock.reservation.failed
  * 발행: HubService / 구독: OrderService
  * <p>
+ * 주문 생성 Choreography Saga 보상 Step 2-1
  * 재고 부족 등으로 예약에 실패했을 때 발행함
- * OrderService는 이 이벤트를 받아 주문을 CANCELLED 처리함 (Choreography 보상)
+ * OrderService는 이 이벤트를 받아 주문을 CANCELLED 처리함
  * <p>
  * 파티션 키: orderId
- * */
+ **/
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor

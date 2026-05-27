@@ -224,7 +224,7 @@ public class ProductServiceTest {
                             null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ProductErrorCode.COMPANY_NOT_FOUND);
+                    .isEqualTo(ProductErrorCode.EXTERNAL_COMPANY_NOT_FOUND);
         }
     }
 

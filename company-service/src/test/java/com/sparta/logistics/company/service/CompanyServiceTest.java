@@ -161,7 +161,7 @@ public class CompanyServiceTest {
                     companyService.createCompany(request, Role.MASTER, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(CompanyErrorCode.HUB_NOT_FOUND);
+                    .isEqualTo(CompanyErrorCode.EXTERNAL_HUB_NOT_FOUND);
         }
 
         @Test
@@ -187,7 +187,7 @@ public class CompanyServiceTest {
                     companyService.createCompany(request, Role.MASTER, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(CompanyErrorCode.HUB_SERVICE_UNAVAILABLE);
+                    .isEqualTo(CompanyErrorCode.EXTERNAL_HUB_SERVICE_UNAVAILABLE);
         }
     }
 

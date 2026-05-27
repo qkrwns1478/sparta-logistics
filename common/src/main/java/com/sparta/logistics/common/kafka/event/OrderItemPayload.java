@@ -16,6 +16,8 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class OrderItemPayload {
+    // 주문 항목 ID (HubService 재고 변경 이력 기록용)
+    private UUID orderItemId;
     // 상품 ID
     private UUID productId;
     // 주문 수량

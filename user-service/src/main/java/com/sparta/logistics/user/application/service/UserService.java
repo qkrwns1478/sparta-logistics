@@ -49,6 +49,13 @@ public class UserService {
     public UpdateResponse updateUser(UUID userId, UpdateRequest request) {
         UserEntity user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        if (request.email() != null
+                && !request.email().equals(user.getEmail())
+                && userRepository.existsByEmail(request.email())) {
+            throw new BusinessException(UserErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
         user.update(request.name(), request.email(), request.slackId(), request.role(), request.hubId(), request.companyId());
         return UpdateResponse.from(user);
     }

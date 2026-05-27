@@ -34,4 +34,26 @@ class OrderItemTest {
 
         assertThat(item.getSubTotal()).isEqualTo(10_000L);
     }
+
+    // hubId를 전달하면 저장되는지 검증
+    @Test
+    void create_withHubId_storesHubId() {
+        Order order = mock(Order.class);
+        UUID hubId = UUID.randomUUID();
+
+        OrderItem item = OrderItem.create(order, UUID.randomUUID(), "상품", 3_000L, 2, hubId);
+
+        assertThat(item.getHubId()).isEqualTo(hubId);
+        assertThat(item.getSubTotal()).isEqualTo(6_000L);
+    }
+
+    // hubId 없는 오버로드로 생성하면 hubId가 null인지 검증
+    @Test
+    void create_withoutHubId_hubIdIsNull() {
+        Order order = mock(Order.class);
+
+        OrderItem item = OrderItem.create(order, UUID.randomUUID(), "상품", 3_000L, 2);
+
+        assertThat(item.getHubId()).isNull();
+    }
 }

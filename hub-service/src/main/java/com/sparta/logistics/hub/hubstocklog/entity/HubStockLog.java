@@ -44,12 +44,16 @@ public class HubStockLog extends BaseEntity {
     private HubStockChangeType changeType;
 
     public static HubStockLog create(HubStock hubStock,
+                                     UUID orderItemId,
+                                     UUID deliveryId,
                                      Integer changeQuantity,
                                      Integer beforeQuantity,
                                      Integer afterQuantity,
                                      HubStockChangeType changeType) {
         return HubStockLog.builder()
                 .hubStock(hubStock)
+                .orderItemId(orderItemId)
+                .deliveryId(deliveryId)
                 .changeQuantity(changeQuantity)
                 .beforeQuantity(beforeQuantity)
                 .afterQuantity(afterQuantity)

@@ -64,6 +64,8 @@ configure(subprojects.findAll{!excludedModules.contains(it.name)}) {
         testImplementation project(':arch-rules')
 
         // Validation (DTO 검증)
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
         implementation 'org.springframework.boot:spring-boot-starter-validation'
 
         // Spring Cloud (MSA 필수 통신 및 설정)
@@ -80,5 +82,6 @@ configure(subprojects.findAll{!excludedModules.contains(it.name)}) {
 
         // DB (전 서비스가 PostgreSQL을 사용한다면 공통으로 처리)
         runtimeOnly 'org.postgresql:postgresql'
+        testRuntimeOnly 'com.h2database:h2'
     }
 }

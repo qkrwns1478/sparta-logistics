@@ -10,10 +10,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Hub Service 장애 시 Circuit Breaker 대신 기본 Fallback 구현
- * - 허브 존재 확인 실패 시 허브 없음으로 처리 (안전 우선)
- * - Hub 조회 실패 시 시스템 안정성을 위해 "알 수 없음"으로 대체 응답 반환
- * - 단건/다건 조회 모두 안전한 기본값으로 degrade(성능/기능 축소 운영) 처리
+ * Hub Service 장애 시 Fallback 처리
+ *
+ * - checkHubExists:
+ *   서비스 호출 실패(타임아웃/연결 오류 등) 시 fallback 발생
+ *   → HUB_SERVICE_UNAVAILABLE 처리
+ *   → 참고: 404(HUB_NOT_FOUND)는 fallback이 아니라 정상 응답 처리
+ *
+ * - getHub / getHubsByIds:
+ *   장애 시 "알 수 없음"으로 degrade(성능/기능 축소 운영) 처리
  */
 @Slf4j
 @Component
@@ -21,8 +26,8 @@ public class HubFeignClientFallback implements HubFeignClient {
 
     @Override
     public void checkHubExists(UUID hubId) {
-        log.warn("[HubFeignClient Fallback] Hub Service 응답 없음. hubId={}", hubId);
-        throw new BusinessException(CompanyErrorCode.HUB_NOT_FOUND);
+        log.warn("[HubFeignClient Fallback] Hub Service 장애. hubId={}", hubId);
+        throw new BusinessException(CompanyErrorCode.EXTERNAL_HUB_SERVICE_UNAVAILABLE);
     }
 
     @Override

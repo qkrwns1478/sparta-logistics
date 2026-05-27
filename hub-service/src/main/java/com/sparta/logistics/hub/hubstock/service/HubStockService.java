@@ -68,9 +68,11 @@ public class HubStockService {
             HubStock savedStock = hubStockRepository.save(hubStock);
             hubStockRepository.flush();
 
-            // 재고 변경 이력 생성
+            // 재고 변경 이력 생성(입고 시에는 주문과 배송이 존재하지 않음)
             hubStockLogRepository.save(HubStockLog.create(
                     savedStock,
+                    null,
+                    null,
                     request.getInitialQuantity(),
                     0,
                     request.getInitialQuantity(),
@@ -133,9 +135,11 @@ public class HubStockService {
             hubStock.restore(item.getQuantity());
             int afterQuantity = hubStock.getAvailable();
 
-            // 재고 변경 이력 기록
+            // 재고 변경 이력 기록(주문 취소 시에는 주문만 존재하고 배송은 존재하지 않음)
             hubStockLogRepository.save(HubStockLog.create(
                     hubStock,
+                    item.getOrderItemId(),
+                    null,
                     item.getQuantity(),
                     beforeQuantity,
                     afterQuantity,
@@ -147,6 +151,34 @@ public class HubStockService {
 
         // DB 커밋 성공 후 ack 발행 (커밋 전 발행 시 정합성 문제 방지)
         registerStockRestoredAckEvent(command.getEventId(), command.getOrderId());
+    }
+
+    @Transactional
+    public void restoreOnDeliveryFailed(DeliveryCreationFailedEvent event) {
+
+        for (RestoreStockItemPayload item : event.getItemsToRestore()) {
+
+            HubStock hubStock = hubStockRepository
+                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
+                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+            int beforeQuantity = hubStock.getAvailable();
+            hubStock.restore(item.getQuantity());
+            int afterQuantity = hubStock.getAvailable();
+
+            // 재고 변경 이력 추가
+            hubStockLogRepository.save(HubStockLog.create(
+                    hubStock,
+                    item.getOrderItemId(),
+                    event.getDeliveryId(),   // 생성 실패 시 null 가능
+                    item.getQuantity(),
+                    beforeQuantity,
+                    afterQuantity,
+                    HubStockChangeType.CANCEL_RESTORE
+            ));
+
+            registerHubStockUpdatedEvent(hubStock);
+        }
     }
 
     @Transactional
@@ -183,10 +215,12 @@ public class HubStockService {
             // 재고 변경 이력 기록
             hubStockLogRepository.save(HubStockLog.create(
                     hubStock,
+                    item.getOrderItemId(),
+                    null,
                     item.getQuantity(),
                     beforeQuantity,
                     afterQuantity,
-                    HubStockChangeType.ORDER_DECREASE
+                    HubStockChangeType.ORDER_RESERVE
             ));
 
             // 아이템마다 sourceHubId 포함해서 리스트에 추가
@@ -208,6 +242,31 @@ public class HubStockService {
                 .orderItems(reservedItems)
                 .build();
         registerStockReservedEvent(reservedEvent);
+    }
+
+    @Transactional
+    public void deductReservedStock(DeliveryStartedEvent event) {
+
+        for (DeliveryOrderItemPayload item : event.getOrderItems()) {
+
+            HubStock hubStock = hubStockRepository
+                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
+                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+            int beforeReserved = hubStock.getReserved();
+            hubStock.decreaseReserved(item.getQuantity());
+            int afterReserved = hubStock.getReserved();
+
+            hubStockLogRepository.save(HubStockLog.create(
+                    hubStock,
+                    item.getOrderItemId(),
+                    event.getDeliveryId(),
+                    -item.getQuantity(),
+                    beforeReserved,
+                    afterReserved,
+                    HubStockChangeType.ORDER_DECREASE
+            ));
+        }
     }
 
     // 재고 변경 후 Order Service 스냅샷 갱신을 위한 이벤트 등록 (커밋 후 발행)

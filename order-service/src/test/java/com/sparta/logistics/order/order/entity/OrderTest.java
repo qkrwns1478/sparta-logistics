@@ -1,5 +1,7 @@
 package com.sparta.logistics.order.order.entity;
 
+import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.order.exception.OrderErrorCode;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import org.junit.jupiter.api.Test;
@@ -8,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -121,5 +124,82 @@ class OrderTest {
         order.cancel(USER_ID, "취소");
 
         assertThat(order.isModifiable()).isFalse();
+    }
+
+    // ===== startCancelling =====
+
+    // PENDING 주문에 startCancelling() 호출 시 CANCELLING으로 전이되고 취소자/취소 사유가 저장되는지 검증
+    @Test
+    void startCancelling_pendingOrder_transitionsToCancellingAndSetsCancelInfo() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+
+        order.startCancelling(USER_ID, "단순 변심");
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLING);
+        assertThat(order.getCancelledBy()).isEqualTo(USER_ID);
+        assertThat(order.getCancelReason()).isEqualTo("단순 변심");
+    }
+
+    // CANCELLED 주문에 startCancelling() 호출 시 ORDER_NOT_CANCELLABLE 예외가 발생하는지 검증
+    @Test
+    void startCancelling_cancelledOrder_throwsOrderNotCancellable() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.cancel(USER_ID, "이미 취소됨");
+
+        assertThatThrownBy(() -> order.startCancelling(USER_ID, "재취소 시도"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(OrderErrorCode.ORDER_NOT_CANCELLABLE));
+    }
+
+    // ===== revertCancelling =====
+
+    // CANCELLING 주문에 revertCancelling(PENDING) 호출 시 상태가 복구되고 취소 정보가 초기화되는지 검증
+    @Test
+    void revertCancelling_cancellingOrder_restoresPreviousStatusAndClearsCancelInfo() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.startCancelling(USER_ID, "단순 변심");
+
+        order.revertCancelling(OrderStatus.PENDING);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(order.getCancelledBy()).isNull();
+        assertThat(order.getCancelReason()).isNull();
+    }
+
+    // CANCELLING이 아닌 주문에 revertCancelling() 호출 시 ORDER_INVALID_STATE_TRANSITION 예외가 발생하는지 검증
+    @Test
+    void revertCancelling_notCancellingOrder_throwsInvalidStateTransition() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+
+        assertThatThrownBy(() -> order.revertCancelling(OrderStatus.PENDING))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(OrderErrorCode.ORDER_INVALID_STATE_TRANSITION));
+    }
+
+    // ===== confirmCancelled =====
+
+    // CANCELLING 주문에 confirmCancelled() 호출 시 CANCELLED로 확정되고 취소 시각이 기록되는지 검증
+    @Test
+    void confirmCancelled_cancellingOrder_transitionsToCancelledWithTimestamp() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.startCancelling(USER_ID, "단순 변심");
+
+        order.confirmCancelled();
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.getCancelledAt()).isNotNull();
+    }
+
+    // CANCELLING이 아닌 주문에 confirmCancelled() 호출 시 ORDER_INVALID_STATE_TRANSITION 예외가 발생하는지 검증
+    @Test
+    void confirmCancelled_notCancellingOrder_throwsInvalidStateTransition() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+
+        assertThatThrownBy(order::confirmCancelled)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(OrderErrorCode.ORDER_INVALID_STATE_TRANSITION));
     }
 }

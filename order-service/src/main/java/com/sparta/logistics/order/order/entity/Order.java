@@ -121,7 +121,24 @@ public class Order extends BaseEntity {
         this.cancelReason = cancelReason;
     }
 
-    /** Orchestration Saga Step 5: stock.restored.ack 수신 후 CANCELLED 확정 **/
+    /**
+     * Orchestration Saga 보상 Step 4-1: delivery.cancellation.failed 수신 후 CANCELLING 이전 상태로 복구
+     * <p>
+     * 이전 상태는 deliveryId 유무로 추론함
+     *   - deliveryId == null → PENDING (delivery.created 수신 전에 취소 요청)
+     *   - deliveryId != null → ACCEPTED (delivery.created 수신 후에 취소 요청)
+     * CANCELLING 상태가 아니면 ORDER_INVALID_STATE_TRANSITION 예외를 던짐
+     */
+    public void revertCancelling(OrderStatus previous) {
+        if (this.status != OrderStatus.CANCELLING) {
+            throw new BusinessException(OrderErrorCode.ORDER_INVALID_STATE_TRANSITION);
+        }
+        this.status = previous;
+        this.cancelledBy = null;
+        this.cancelReason = null;
+    }
+
+    /** Orchestration Saga Step 3-5: stock.restored.ack 수신 후 CANCELLED 확정 **/
     public void confirmCancelled() {
         if (this.status != OrderStatus.CANCELLING) {
             throw new BusinessException(OrderErrorCode.ORDER_INVALID_STATE_TRANSITION);

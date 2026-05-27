@@ -2,8 +2,8 @@ package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
+import com.sparta.logistics.order.kafka.producer.OrderEventPublisher;
 import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
@@ -13,8 +13,10 @@ import com.sparta.logistics.order.exception.OrderErrorCode;
 import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.entity.OrderDelivery;
 import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.lock.OrderProcessStatus;
+import com.sparta.logistics.order.order.repository.OrderDeliveryRepository;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
@@ -28,8 +30,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.kafka.core.KafkaTemplate;
-
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -60,14 +60,16 @@ class OrderServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
+    private OrderDeliveryRepository orderDeliveryRepository;
+
+    @Mock
     private CompanyServiceClient companyServiceClient;
 
     @Mock
     private ProductServiceClient productServiceClient;
 
-    @SuppressWarnings("rawtypes")
     @Mock
-    private KafkaTemplate kafkaTemplate;
+    private OrderEventPublisher orderEventPublisher;
 
     @Mock
     private CancelOrderOrchestrator cancelOrderOrchestrator;
@@ -116,8 +118,8 @@ class OrderServiceTest {
         verify(companyServiceClient).checkCompanyExists(REQUESTER_COMPANY_ID);
         verify(companyServiceClient).checkCompanyExists(RECEIVER_COMPANY_ID);
         verify(orderRepository).save(any(Order.class));
-        // order.created 이벤트가 orderId 파티션 키와 함께 Kafka로 발행되는지 검증
-        verify(kafkaTemplate).send(eq(KafkaTopics.ORDER_CREATED), eq(ORDER_ID.toString()), any());
+        // order.created 이벤트가 Kafka로 발행되는지 검증
+        verify(orderEventPublisher).publishOrderCreated(any(Order.class));
         assertThat(result).isNotNull();
     }
 
@@ -545,17 +547,33 @@ class OrderServiceTest {
 
     // ===== acceptOrder (Choreography Saga Step 1-4) =====
 
-    // delivery.created 이벤트 수신 시 PENDING 주문이 ACCEPTED로 전이되고 deliveryId가 저장되는지 검증
+    // delivery.created 수신 건수가 totalDeliveryCount에 도달하면 ACCEPTED로 전이되고 deliveryId가 저장되는지 검증
     @Test
-    void acceptOrder_pendingOrder_transitionsToAccepted() {
+    void acceptOrder_allDeliveriesReceived_transitionsToAccepted() {
         UUID deliveryId = UUID.randomUUID();
         Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderDeliveryRepository.countByOrderId(ORDER_ID)).thenReturn(1L); // 1/1 수신 완료
 
-        orderService.acceptOrder(ORDER_ID, deliveryId);
+        orderService.acceptOrder(ORDER_ID, deliveryId, 1);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
         assertThat(order.getDeliveryId()).isEqualTo(deliveryId);
+        verify(orderDeliveryRepository).save(any(OrderDelivery.class));
+    }
+
+    // delivery.created 수신 건수가 totalDeliveryCount 미만이면 PENDING을 유지하는지 검증 (다중 배송)
+    @Test
+    void acceptOrder_partialDeliveries_remainsPending() {
+        UUID deliveryId = UUID.randomUUID();
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderDeliveryRepository.countByOrderId(ORDER_ID)).thenReturn(1L); // 1/2 수신 중
+
+        orderService.acceptOrder(ORDER_ID, deliveryId, 2);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+        verify(orderDeliveryRepository).save(any(OrderDelivery.class));
     }
 
     // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
@@ -564,7 +582,7 @@ class OrderServiceTest {
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
 
         // 예외가 발생하지 않아야 함 — Kafka 불필요한 재시도 방지
-        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, UUID.randomUUID()))
+        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, UUID.randomUUID(), 1))
                 .doesNotThrowAnyException();
     }
 
@@ -578,9 +596,11 @@ class OrderServiceTest {
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         // 중복 이벤트여도 예외 없이 무시되어야 함
-        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, deliveryId))
+        // status != PENDING이므로 early return
+        assertThatCode(() -> orderService.acceptOrder(ORDER_ID, deliveryId, 1))
                 .doesNotThrowAnyException();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
+        verify(orderDeliveryRepository, never()).save(any());
     }
 
     // ===== cancelOrderByCompensation (Choreography Saga 보상) =====

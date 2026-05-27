@@ -38,6 +38,10 @@ public class AuthService {
             throw new BusinessException(UserErrorCode.USER_ALREADY_EXISTS);
         }
 
+        if (command.email() != null && userRepository.existsByEmail(command.email())) {
+            throw new BusinessException(UserErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
         String encodedPassword = passwordEncoder.encode(command.password());
 
         UserEntity user = command.toEntity(encodedPassword);
