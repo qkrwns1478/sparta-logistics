@@ -150,6 +150,31 @@ public class HubStockService {
     }
 
     @Transactional
+    public void restoreOnDeliveryFailed(DeliveryCreationFailedEvent event) {
+
+        for (RestoreStockItemPayload item : event.getItemsToRestore()) {
+
+            HubStock hubStock = hubStockRepository
+                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
+                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+            int beforeQuantity = hubStock.getAvailable();
+            hubStock.restore(item.getQuantity());
+            int afterQuantity = hubStock.getAvailable();
+
+            hubStockLogRepository.save(HubStockLog.create(
+                    hubStock,
+                    item.getQuantity(),
+                    beforeQuantity,
+                    afterQuantity,
+                    HubStockChangeType.CANCEL_RESTORE
+            ));
+
+            registerHubStockUpdatedEvent(hubStock);
+        }
+    }
+
+    @Transactional
     public void reserveStock(OrderCreatedEvent event) {
 
         // stock.reserved 발행 시 필요
@@ -208,6 +233,29 @@ public class HubStockService {
                 .orderItems(reservedItems)
                 .build();
         registerStockReservedEvent(reservedEvent);
+    }
+
+    @Transactional
+    public void deductReservedStock(DeliveryStartedEvent event) {
+
+        for (DeliveryOrderItemPayload item : event.getOrderItems()) {
+
+            HubStock hubStock = hubStockRepository
+                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
+                    .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+            int beforeReserved = hubStock.getReserved();
+            hubStock.decreaseReserved(item.getQuantity());
+            int afterReserved = hubStock.getReserved();
+
+            hubStockLogRepository.save(HubStockLog.create(
+                    hubStock,
+                    -item.getQuantity(),
+                    beforeReserved,
+                    afterReserved,
+                    HubStockChangeType.ORDER_DECREASE
+            ));
+        }
     }
 
     // 재고 변경 후 Order Service 스냅샷 갱신을 위한 이벤트 등록 (커밋 후 발행)
