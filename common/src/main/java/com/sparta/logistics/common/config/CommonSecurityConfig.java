@@ -1,5 +1,7 @@
 package com.sparta.logistics.common.config;
 
+import com.sparta.logistics.common.security.GatewayAuthEntryPoint;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -11,7 +13,10 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity // 나중에 각 서비스에서 @PreAuthorize를 쓰기 위해 공통으로 켜둡니다!
+@RequiredArgsConstructor
 public class CommonSecurityConfig {
+
+    private final GatewayAuthEntryPoint gatewayAuthEntryPoint;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -31,6 +36,10 @@ public class CommonSecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
                         // TODO: 개발 편의용 설정 (배포 전에는 인증 필요하도록 변경 필요)
                         .anyRequest().permitAll()
+                )
+                // 5. 인증 실패 시 GatewayAuthEntryPoint로 처리
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(gatewayAuthEntryPoint)
                 );
         return http.build();
     }

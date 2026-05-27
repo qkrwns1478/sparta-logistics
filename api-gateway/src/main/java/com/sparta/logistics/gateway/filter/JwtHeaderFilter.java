@@ -23,10 +23,6 @@ import reactor.core.publisher.Mono;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * 게이트웨이 진입 요청에 대해 {@code Authorization: Bearer} 액세스 JWT를 검증하고,
- * 하류 서비스용으로 {@code X-User-Id}, {@code X-User-Role} 헤더를 설정한다.
- */
 @Component
 @Slf4j
 public class JwtHeaderFilter implements GlobalFilter, Ordered {
