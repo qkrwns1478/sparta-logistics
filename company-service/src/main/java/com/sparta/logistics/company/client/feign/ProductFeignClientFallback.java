@@ -6,9 +6,9 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 /**
- * Product Service 장애 시 Circuit Breaker 대신 기본 Fallback 구현
- * 업체 삭제는 이미 완료된 상태 — 상품 삭제 실패는 로그만 남기고 예외 미발생
- * CompanyService.deleteCompany()의 try-catch에서 처리됨
+ * Product Service 장애 시 Fallback 처리
+ * - 업체 삭제는 이미 완료된 상태
+ * - 상품 삭제 실패는 무시하고 로그만 기록
  */
 @Slf4j
 @Component

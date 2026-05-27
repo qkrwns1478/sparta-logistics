@@ -16,13 +16,13 @@ public class CompanyFeignClientFallback implements CompanyFeignClient {
     @Override
     public void checkCompanyExists(UUID companyId) {
         log.warn("[CompanyFeignClient Fallback] Company Service 응답 없음. companyId={}", companyId);
-        throw new BusinessException(ProductErrorCode.COMPANY_SERVICE_UNAVAILABLE);
+        throw new BusinessException(ProductErrorCode.EXTERNAL_COMPANY_SERVICE_UNAVAILABLE);
 
     }
 
     @Override
     public ApiResponse<CompanyClientResponse> getCompany(UUID companyId) {
         log.warn("[CompanyFeignClient Fallback] Company Service 응답 없음. companyId={}", companyId);
-        throw new BusinessException(ProductErrorCode.COMPANY_SERVICE_UNAVAILABLE);
+        throw new BusinessException(ProductErrorCode.EXTERNAL_COMPANY_SERVICE_UNAVAILABLE);
     }
 }
