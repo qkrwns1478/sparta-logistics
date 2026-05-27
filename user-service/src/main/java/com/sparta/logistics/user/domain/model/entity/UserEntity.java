@@ -7,7 +7,9 @@ import com.sparta.logistics.user.domain.model.enums.UserStatus;
 import com.sparta.logistics.user.exception.UserErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
 
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -42,10 +44,12 @@ public class UserEntity extends BaseEntity {
     private String slackId;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(Types.VARCHAR)
     @Column(nullable = false, length = 30)
     private Role role;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(Types.VARCHAR)
     @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20) DEFAULT 'PENDING'")
     @Builder.Default
     private UserStatus status = UserStatus.PENDING;
