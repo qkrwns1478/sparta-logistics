@@ -41,6 +41,11 @@ public class CommonArchRules {
         boolean hasKafkaConsumer = classes.stream()
                 .anyMatch(c -> c.getPackageName().contains(basePackage + ".kafka.consumer"));
 
+        // saga 패키지 존재 여부 확인
+        // Orchestration Saga 오케스트레이터는 Service에서만 호출되며, Repository/Entity 접근이 허용됩니다.
+        boolean hasSaga = classes.stream()
+                .anyMatch(c -> c.getPackageName().contains(basePackage + ".saga"));
+
         LayeredArchitecture rule = layeredArchitecture()
                 .consideringAllDependencies()
                 .layer("Controller").definedBy(basePackage + "..controller..")
@@ -48,6 +53,13 @@ public class CommonArchRules {
                 .layer("DTO").definedBy(basePackage + "..dto..")
                 .whereLayer("Controller").mayNotBeAccessedByAnyLayer()
                 .whereLayer("DTO").mayOnlyBeAccessedByLayers("Controller", "Service");
+
+        // Saga 레이어가 있으면 Service에서만 접근 가능하도록 등록
+        if (hasSaga) {
+            rule = rule
+                    .layer("Saga").definedBy(basePackage + "..saga..")
+                    .whereLayer("Saga").mayOnlyBeAccessedByLayers("Service");
+        }
 
         // KafkaConsumer가 있으면 Service 접근 허용 레이어에 포함
         if (hasKafkaConsumer) {
@@ -68,17 +80,31 @@ public class CommonArchRules {
         }
 
         // repository 패키지가 있을 때만 레이어 추가
+        // Saga 레이어가 있으면 Saga → Repository 접근도 허용
         if (hasRepository) {
-            rule = rule
-                    .layer("Repository").definedBy(basePackage + "..repository..")
-                    .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service");
+            if (hasSaga) {
+                rule = rule
+                        .layer("Repository").definedBy(basePackage + "..repository..")
+                        .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service", "Saga");
+            } else {
+                rule = rule
+                        .layer("Repository").definedBy(basePackage + "..repository..")
+                        .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service");
+            }
         }
 
         // entity 패키지가 있을 때만 레이어 추가
+        // Saga 레이어가 있으면 Saga → Entity 접근도 허용
         if (hasEntity) {
-            rule = rule
-                    .layer("Entity").definedBy(basePackage + "..entity..")
-                    .whereLayer("Entity").mayOnlyBeAccessedByLayers("Service", "Repository");
+            if (hasSaga) {
+                rule = rule
+                        .layer("Entity").definedBy(basePackage + "..entity..")
+                        .whereLayer("Entity").mayOnlyBeAccessedByLayers("Service", "Repository", "Saga");
+            } else {
+                rule = rule
+                        .layer("Entity").definedBy(basePackage + "..entity..")
+                        .whereLayer("Entity").mayOnlyBeAccessedByLayers("Service", "Repository");
+            }
         }
 
         // RequestDto 패키지가 있을 때만 레이어 추가

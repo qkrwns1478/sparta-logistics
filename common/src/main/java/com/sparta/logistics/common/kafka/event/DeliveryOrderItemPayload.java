@@ -7,14 +7,13 @@ import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
-/** RestoreStockCommand 내 복구 대상 개별 항목 페이로드 **/
+/** DeliveryStartedEvent 내 배송 출고 대상 상품 항목 페이로드 */
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class RestoreStockItemPayload {
+public class DeliveryOrderItemPayload {
     private UUID productId;
     private UUID hubId;
-    // 복구할 수량
     private Integer quantity;
 }
