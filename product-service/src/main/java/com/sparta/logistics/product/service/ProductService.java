@@ -165,7 +165,7 @@ public class ProductService {
         try {
             companyFeignClient.checkCompanyExists(companyId);
         } catch (FeignException.NotFound e) {
-            throw new BusinessException(ProductErrorCode.COMPANY_NOT_FOUND);
+            throw new BusinessException(ProductErrorCode.EXTERNAL_COMPANY_NOT_FOUND);
         }
     }
 
@@ -243,13 +243,13 @@ public class ProductService {
         try {
             CompanyClientResponse company = companyFeignClient.getCompany(companyId).data();
             if (company == null) {
-                throw new BusinessException(ProductErrorCode.COMPANY_NOT_FOUND);
+                throw new BusinessException(ProductErrorCode.EXTERNAL_COMPANY_NOT_FOUND);
             }
             return company;
         } catch (FeignException.NotFound e) {
-            throw new BusinessException(ProductErrorCode.COMPANY_NOT_FOUND);
+            throw new BusinessException(ProductErrorCode.EXTERNAL_COMPANY_NOT_FOUND);
         } catch (FeignException e) {
-            throw new BusinessException(ProductErrorCode.COMPANY_SERVICE_UNAVAILABLE);
+            throw new BusinessException(ProductErrorCode.EXTERNAL_COMPANY_SERVICE_UNAVAILABLE);
         }
     }
 }
