@@ -1,5 +1,7 @@
 package com.sparta.logistics.common.config;
 
+import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.common.exception.CommonErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,8 +43,7 @@ public class AuditorAwareConfig {
                     try {
                         return Optional.of(UUID.fromString(userId));
                     } catch (IllegalArgumentException e) {
-                        // 헤더 값이 UUID 형식이 아닌 경우 SYSTEM_AUDITOR로 대체
-                        return Optional.of(SYSTEM_AUDITOR);
+                        throw new BusinessException(CommonErrorCode.INVALID_HEADER_FORMAT);
                     }
                 }
             }
