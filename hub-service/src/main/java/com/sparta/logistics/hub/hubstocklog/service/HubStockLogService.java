@@ -33,7 +33,7 @@ public class HubStockLogService {
         checkHubStockPermission(role, userHubId, hubId);
 
         // 허브 존재 여부 검증
-        if (hubRepository.existsByIdAndDeletedAtIsNull(hubId)) {
+        if (!hubRepository.existsByIdAndDeletedAtIsNull(hubId)) {
             throw new BusinessException(HubErrorCode.HUB_NOT_FOUND);
         }
 
