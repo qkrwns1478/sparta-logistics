@@ -2,6 +2,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update # (운영 환경에선 validate 등으로 변경 필요)
+
+    defer-datasource-initialization: true
+
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
