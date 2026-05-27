@@ -162,7 +162,7 @@ public class HubStockService {
         for (OrderItemPayload item : event.getOrderItems()) {
 
             HubStock hubStock = hubStockRepository
-                    .findByProductIdAndDeletedAtIsNull(item.getProductId())
+                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
                     .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
 
             // 재고 부족 시 실패 이벤트 발행하고 종료
