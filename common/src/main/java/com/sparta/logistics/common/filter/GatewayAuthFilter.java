@@ -1,5 +1,7 @@
 package com.sparta.logistics.common.filter;
 
+import com.sparta.logistics.common.config.AuditorAwareConfig;
+import com.sparta.logistics.common.feign.FeignClientInterceptor;
 import com.sparta.logistics.common.security.GatewayAuthEntryPoint;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -34,6 +36,24 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain)
             throws ServletException, IOException {
+
+        log.info("GatewayAuthFilter 실행 시점의 SecurityContext: {}",
+                SecurityContextHolder.getContext().getAuthentication());
+
+        // 내부 서비스 호출인 경우 SYSTEM 권한으로 SecurityContext 세팅 후 통과
+        String internalCall = request.getHeader(FeignClientInterceptor.INTERNAL_CALL_HEADER);
+        if (FeignClientInterceptor.INTERNAL_CALL_VALUE.equals(internalCall)) {
+            log.info("GatewayAuthFilter: 내부 서비스 호출 감지 - SYSTEM 권한으로 처리");
+            UsernamePasswordAuthenticationToken systemAuth =
+                    new UsernamePasswordAuthenticationToken(
+                            AuditorAwareConfig.SYSTEM_AUDITOR.toString(),
+                            null,
+                            List.of(new SimpleGrantedAuthority("ROLE_SYSTEM"))
+                    );
+            SecurityContextHolder.getContext().setAuthentication(systemAuth);
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String userId = request.getHeader("X-User-Id");
         String role = request.getHeader("X-User-Role");

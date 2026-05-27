@@ -14,9 +14,14 @@ public class FeignClientInterceptor implements RequestInterceptor{
     private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final String USER_HUB_ID_HEADER = "X-User-HubId";
     private static final String USER_COMPANY_ID_HEADER = "X-User-CompanyId";
+    public static final String INTERNAL_CALL_HEADER = "X-Internal-Call";
+    public static final String INTERNAL_CALL_VALUE = "true";
 
     @Override
     public void apply(RequestTemplate template){
+        // 모든 내부 Feign 호출에 내부 서비스 식별 헤더를 추가
+        template.header(INTERNAL_CALL_HEADER, INTERNAL_CALL_VALUE);
+
         ServletRequestAttributes attributes =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
