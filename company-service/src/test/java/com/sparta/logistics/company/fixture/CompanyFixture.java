@@ -1,7 +1,7 @@
 package com.sparta.logistics.company.fixture;
 
 import com.sparta.logistics.company.entity.Company;
-import com.sparta.logistics.company.entity.CompanyType;
+import com.sparta.logistics.company.enums.CompanyType;
 
 import java.math.BigDecimal;
 import java.util.UUID;

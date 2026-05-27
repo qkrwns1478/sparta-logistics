@@ -171,7 +171,8 @@ public class DeliveryService {
                 event.orderId(),
                 entity.getSourceHubId(),
                 entity.getDestinationHubId(),
-                entity.getCompanyDeliveryManagerId()
+                entity.getCompanyDeliveryManagerId(),
+                event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0
         );
     }
 

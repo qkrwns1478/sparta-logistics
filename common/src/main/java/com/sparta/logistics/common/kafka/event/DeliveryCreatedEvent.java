@@ -29,4 +29,5 @@ public class DeliveryCreatedEvent {
     private UUID destinationHubId;
     // 담당 배송자 ID (배정 전이면 null)
     private UUID companyDeliveryManagerId;
+    private Integer totalDeliveryCount;
 }

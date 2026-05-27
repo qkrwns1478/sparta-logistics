@@ -13,8 +13,8 @@ import com.sparta.logistics.company.dto.request.UpdateRequest;
 import com.sparta.logistics.company.dto.response.CompanyResponse;
 import com.sparta.logistics.company.dto.response.DeleteResponse;
 import com.sparta.logistics.company.entity.Company;
-import com.sparta.logistics.company.entity.CompanyStatus;
-import com.sparta.logistics.company.entity.CompanyType;
+import com.sparta.logistics.company.enums.CompanyStatus;
+import com.sparta.logistics.company.enums.CompanyType;
 import com.sparta.logistics.company.repository.CompanyRepository;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
@@ -189,9 +189,9 @@ public class CompanyService {
             // Hub Service FeignClient 호출
             hubFeignClient.checkHubExists(hubId);
         } catch (FeignException.NotFound e) {
-            throw new BusinessException(CompanyErrorCode.HUB_NOT_FOUND);
+            throw new BusinessException(CompanyErrorCode.EXTERNAL_HUB_NOT_FOUND);
         } catch (FeignException e) {
-            throw new BusinessException(CompanyErrorCode.HUB_SERVICE_UNAVAILABLE);
+            throw new BusinessException(CompanyErrorCode.EXTERNAL_HUB_SERVICE_UNAVAILABLE);
         }
     }
 

@@ -6,7 +6,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
-@FeignClient(name = "company-service", fallback = CompanyServiceClientFallback.class)
+@FeignClient(
+        name = "company-service",
+        fallbackFactory = CompanyServiceClientFallbackFactory.class
+)
 public interface CompanyServiceClient {
 
     @GetMapping("/api/v1/companies/{companyId}/exists")

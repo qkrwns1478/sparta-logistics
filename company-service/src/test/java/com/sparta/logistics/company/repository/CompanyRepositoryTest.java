@@ -2,8 +2,8 @@ package com.sparta.logistics.company.repository;
 
 import com.sparta.logistics.company.config.JpaAuditingConfig;
 import com.sparta.logistics.company.entity.Company;
-import com.sparta.logistics.company.entity.CompanyStatus;
-import com.sparta.logistics.company.entity.CompanyType;
+import com.sparta.logistics.company.enums.CompanyStatus;
+import com.sparta.logistics.company.enums.CompanyType;
 import com.sparta.logistics.company.fixture.CompanyFixture;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;

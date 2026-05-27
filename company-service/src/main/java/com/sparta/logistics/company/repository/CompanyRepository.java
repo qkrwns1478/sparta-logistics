@@ -1,8 +1,8 @@
 package com.sparta.logistics.company.repository;
 
 import com.sparta.logistics.company.entity.Company;
-import com.sparta.logistics.company.entity.CompanyStatus;
-import com.sparta.logistics.company.entity.CompanyType;
+import com.sparta.logistics.company.enums.CompanyStatus;
+import com.sparta.logistics.company.enums.CompanyType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

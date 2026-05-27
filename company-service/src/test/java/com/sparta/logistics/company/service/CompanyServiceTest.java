@@ -10,8 +10,8 @@ import com.sparta.logistics.company.dto.request.CreateRequest;
 import com.sparta.logistics.company.dto.request.UpdateRequest;
 import com.sparta.logistics.company.dto.response.CompanyResponse;
 import com.sparta.logistics.company.entity.Company;
-import com.sparta.logistics.company.entity.CompanyStatus;
-import com.sparta.logistics.company.entity.CompanyType;
+import com.sparta.logistics.company.enums.CompanyStatus;
+import com.sparta.logistics.company.enums.CompanyType;
 import com.sparta.logistics.company.exception.CompanyErrorCode;
 import com.sparta.logistics.company.fixture.CompanyFixture;
 import com.sparta.logistics.company.repository.CompanyRepository;
@@ -161,7 +161,7 @@ public class CompanyServiceTest {
                     companyService.createCompany(request, Role.MASTER, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(CompanyErrorCode.HUB_NOT_FOUND);
+                    .isEqualTo(CompanyErrorCode.EXTERNAL_HUB_NOT_FOUND);
         }
 
         @Test
@@ -187,7 +187,7 @@ public class CompanyServiceTest {
                     companyService.createCompany(request, Role.MASTER, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(CompanyErrorCode.HUB_SERVICE_UNAVAILABLE);
+                    .isEqualTo(CompanyErrorCode.EXTERNAL_HUB_SERVICE_UNAVAILABLE);
         }
     }
 
