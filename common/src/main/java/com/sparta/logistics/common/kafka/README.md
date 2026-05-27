@@ -34,7 +34,7 @@ common/src/main/java/com/sparta/logistics/common/kafka/
 | `OrderCreatedEvent` | `eventId`, `orderId`, `orderItems[]{orderItemId, productId, quantity, hubId}`, `requesterCompanyId`, `receiverCompanyId` |
 | `StockReservedEvent` | `eventId`, `orderId`, `destinationHubId`, `orderItems[]{productId, reservedQuantity, sourceHubId}` |
 | `StockReservationFailedEvent` | `eventId`, `orderId`, `productId`, `reason` |
-| `DeliveryCreatedEvent` | `eventId`, `deliveryId`, `orderId`, `sourceHubId`, `destinationHubId`, `companyDeliveryManagerId` |
+| `DeliveryCreatedEvent` | `eventId`, `deliveryId`, `orderId`, `sourceHubId`, `destinationHubId`, `companyDeliveryManagerId`, `totalDeliveryCount` |
 | `DeliveryCreationFailedEvent` | `eventId`, `orderId`, `deliveryId`, `reason`, `itemsToRestore[]{orderItemId, productId, hubId, quantity}` |
 | `DeliveryStartedEvent` | `eventId`, `deliveryId`, `orderId`, `orderItems[]{orderItemId, productId, hubId, quantity}` |
 | `CancelDeliveryCommand` | `eventId`, `orderId`, `deliveryId` |
