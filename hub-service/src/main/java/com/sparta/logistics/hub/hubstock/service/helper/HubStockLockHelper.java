@@ -61,6 +61,8 @@ public class HubStockLockHelper {
         int afterQuantity = hubStock.getAvailable() + changeQuantity;
         hubStockLogRepository.save(HubStockLog.create(
                 hubStock,
+                null,
+                null,
                 changeQuantity,
                 beforeQuantity,
                 afterQuantity,

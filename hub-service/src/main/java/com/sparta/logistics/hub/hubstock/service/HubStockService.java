@@ -68,9 +68,11 @@ public class HubStockService {
             HubStock savedStock = hubStockRepository.save(hubStock);
             hubStockRepository.flush();
 
-            // 재고 변경 이력 생성
+            // 재고 변경 이력 생성(입고 시에는 주문과 배송이 존재하지 않음)
             hubStockLogRepository.save(HubStockLog.create(
                     savedStock,
+                    null,
+                    null,
                     request.getInitialQuantity(),
                     0,
                     request.getInitialQuantity(),
@@ -133,9 +135,11 @@ public class HubStockService {
             hubStock.restore(item.getQuantity());
             int afterQuantity = hubStock.getAvailable();
 
-            // 재고 변경 이력 기록
+            // 재고 변경 이력 기록(주문 취소 시에는 주문만 존재하고 배송은 존재하지 않음)
             hubStockLogRepository.save(HubStockLog.create(
                     hubStock,
+                    item.getOrderItemId(),
+                    null,
                     item.getQuantity(),
                     beforeQuantity,
                     afterQuantity,
@@ -162,8 +166,11 @@ public class HubStockService {
             hubStock.restore(item.getQuantity());
             int afterQuantity = hubStock.getAvailable();
 
+            // 재고 변경 이력 추가
             hubStockLogRepository.save(HubStockLog.create(
                     hubStock,
+                    item.getOrderItemId(),
+                    event.getDeliveryId(),   // 생성 실패 시 null 가능
                     item.getQuantity(),
                     beforeQuantity,
                     afterQuantity,
@@ -208,6 +215,8 @@ public class HubStockService {
             // 재고 변경 이력 기록
             hubStockLogRepository.save(HubStockLog.create(
                     hubStock,
+                    item.getOrderItemId(),
+                    null,
                     item.getQuantity(),
                     beforeQuantity,
                     afterQuantity,
@@ -250,6 +259,8 @@ public class HubStockService {
 
             hubStockLogRepository.save(HubStockLog.create(
                     hubStock,
+                    item.getOrderItemId(),
+                    event.getDeliveryId(),
                     -item.getQuantity(),
                     beforeReserved,
                     afterReserved,
