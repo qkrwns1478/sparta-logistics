@@ -42,7 +42,6 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 
-
         ServerHttpRequest sanitized = exchange.getRequest().mutate()
                 .headers(headers -> headers.remove("X-Internal-Call"))
                 .build();
@@ -127,7 +126,6 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
                 });
     }
 
-
     // 토큰 추출
     private String extractToken(ServerHttpRequest request){
         String bearerToken = request.getHeaders().getFirst("Authorization");
@@ -153,7 +151,7 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
 
                 return response.writeWith(Mono.just(buffer));
             } catch (Exception e) {
-                log.warn("JSON 변환 중 예외 발생", e);
+                log.error("JSON 변환 중 예외 발생", e);
                 return response.setComplete();
             }
         });
