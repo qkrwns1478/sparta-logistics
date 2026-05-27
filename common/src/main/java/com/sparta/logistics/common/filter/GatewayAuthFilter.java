@@ -43,8 +43,8 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
                     new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
             Map<String, String> customDetails = new HashMap<>();
-            customDetails.put("hubId", hubId);
-            customDetails.put("companyId", companyId);
+            if (StringUtils.hasText(hubId)) customDetails.put("hubId", hubId);
+            if (StringUtils.hasText(companyId)) customDetails.put("companyId", companyId);
 
             authentication.setDetails(customDetails);
 
