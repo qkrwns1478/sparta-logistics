@@ -15,6 +15,8 @@ import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.lock.OrderProcessStatus;
+import com.sparta.logistics.order.order.entity.OrderDelivery;
+import com.sparta.logistics.order.order.repository.OrderDeliveryRepository;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import com.sparta.logistics.order.order.saga.CancelOrderOrchestrator;
 import com.sparta.logistics.order.orderitem.dto.request.OrderItemRequest;
@@ -42,6 +44,7 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderDeliveryRepository orderDeliveryRepository;
     private final CompanyServiceClient companyServiceClient;
     private final ProductServiceClient productServiceClient;
     private final OrderEventPublisher orderEventPublisher;
@@ -202,14 +205,17 @@ public class OrderService {
     }
 
     /**
-     * Choreography Saga Step 1-4: delivery.created 이벤트 수신 후 주문 상태를 ACCEPTED로 전이하고 deliveryId를 저장함
+     * Choreography Saga Step 1-4: delivery.created 이벤트 수신 후 p_order_delivery에 deliveryId 누적 저장
+     * 수신 건수가 totalDeliveryCount에 도달하면 주문 상태를 ACCEPTED로 전이함 (주문 1건 : 배송 N건 대응)
      * DeliveryCreatedConsumer에서 호출됨
-     * 멱등성 보장: PENDING 상태가 아닌 경우 이미 처리된 이벤트로 간주하고 무시함
+     * <p>
+     * 멱등성 보장:
+     *   - PENDING 이외 상태는 이미 처리된 이벤트로 간주하고 무시함
+     *   - 동일 (orderId, deliveryId) 쌍이 이미 저장되어 있으면 재저장하지 않음
      **/
     @Transactional
-    public void acceptOrder(UUID orderId, UUID deliveryId) {
-        Order order = orderRepository.findById(orderId)
-                .orElse(null);
+    public void acceptOrder(UUID orderId, UUID deliveryId, int totalDeliveryCount) {
+        Order order = orderRepository.findById(orderId).orElse(null);
 
         if (order == null) {
             log.warn("[delivery.created] 주문을 찾을 수 없음 orderId={}", orderId);
@@ -217,14 +223,25 @@ public class OrderService {
         }
 
         if (order.getStatus() != OrderStatus.PENDING) {
-            log.warn("[delivery.created] 이미 처리된 주문 orderId={} status={}",
-                    orderId, order.getStatus());
+            log.warn("[delivery.created] 이미 처리된 주문 orderId={} status={}", orderId, order.getStatus());
             return;
         }
 
-        order.accept();
+        // 동일 deliveryId가 이미 저장되어 있으면 재저장하지 않음
+        if (!orderDeliveryRepository.existsByOrderIdAndDeliveryId(orderId, deliveryId)) {
+            orderDeliveryRepository.save(OrderDelivery.of(orderId, deliveryId));
+        }
         order.linkDelivery(deliveryId);
-        log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryId={}", orderId, deliveryId);
+
+        long receivedCount = orderDeliveryRepository.countByOrderId(orderId);
+        if (receivedCount >= totalDeliveryCount) {
+            order.accept();
+            log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryCount={}/{}",
+                    orderId, receivedCount, totalDeliveryCount);
+        } else {
+            log.info("[delivery.created] 배송 부분 등록 orderId={} received={}/{}",
+                    orderId, receivedCount, totalDeliveryCount);
+        }
     }
 
     /**
