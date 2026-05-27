@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCreationFailedEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,22 +18,24 @@ import org.springframework.stereotype.Component;
  * - OrderService(여기): 주문을 즉시 CANCELLED 처리
  * <p>
  * OrderService.cancelOrderByCompensation()에서 이미 CANCELLED인 경우 무시함
- * */
+ **/
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class DeliveryCreationFailedConsumer {
 
     private final OrderService orderService;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CREATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(DeliveryCreationFailedEvent event) {
-        log.info("[delivery.creation.failed] 수신 orderId={} deliveryId={} reason={}",
-                event.getOrderId(), event.getDeliveryId(), event.getReason());
-
-        orderService.cancelOrderByCompensation(event.getOrderId(), event.getReason());
+    public void consume(String message) {
+        parser.parse(message, DeliveryCreationFailedEvent.class).ifPresent(event -> {
+            log.info("[delivery.creation.failed] 수신 orderId={} deliveryId={} reason={}",
+                    event.getOrderId(), event.getDeliveryId(), event.getReason());
+            orderService.cancelOrderByCompensation(event.getOrderId(), event.getReason());
+        });
     }
 }

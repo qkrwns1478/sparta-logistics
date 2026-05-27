@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCancellationFailedEvent;
+import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,15 +23,17 @@ import org.springframework.stereotype.Component;
 public class DeliveryCancellationFailedConsumer {
 
     private final OrderService orderService;
+    private final KafkaMessageParser parser;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CANCELLATION_FAILED,
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void consume(DeliveryCancellationFailedEvent event) {
-        log.info("[delivery.cancellation.failed] 수신 orderId={} deliveryId={} reason={}",
-                event.getOrderId(), event.getDeliveryId(), event.getReason());
-
-        orderService.handleDeliveryCancellationFailed(event.getOrderId());
+    public void consume(String message) {
+        parser.parse(message, DeliveryCancellationFailedEvent.class).ifPresent(event -> {
+            log.info("[delivery.cancellation.failed] 수신 orderId={} deliveryId={} reason={}",
+                    event.getOrderId(), event.getDeliveryId(), event.getReason());
+            orderService.handleDeliveryCancellationFailed(event.getOrderId());
+        });
     }
 }
