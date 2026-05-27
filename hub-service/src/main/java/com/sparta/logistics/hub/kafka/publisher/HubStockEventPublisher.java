@@ -32,7 +32,7 @@ public class HubStockEventPublisher {
 
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send(KafkaTopics.STOCK_RESTORED_ACK, message)
+            kafkaTemplate.send(KafkaTopics.STOCK_RESTORED_ACK, orderId.toString(), message)
                     .whenComplete((result, ex) -> {
                         if (ex != null) {
                             log.error("[Kafka] stock.restored.ack 발행 실패 - orderId: {}",
@@ -60,7 +60,7 @@ public class HubStockEventPublisher {
 
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send(KafkaTopics.STOCK_RESERVATION_FAILED, message)
+            kafkaTemplate.send(KafkaTopics.STOCK_RESERVATION_FAILED, orderId.toString(), message)
                     .whenComplete((result, ex) -> {
                         if (ex != null) {
                             log.error("[Kafka] stock.reservation.failed 발행 실패 - orderId: {}, productId: {}",
@@ -81,7 +81,7 @@ public class HubStockEventPublisher {
         try {
             String message = objectMapper.writeValueAsString(event);
 
-            kafkaTemplate.send(KafkaTopics.STOCK_RESERVED, message)
+            kafkaTemplate.send(KafkaTopics.STOCK_RESERVED, event.getOrderId().toString(), message)
                     .whenComplete((result, ex) -> {
                         if (ex != null) {
                             log.error("[Kafka] stock.reserved 발행 실패 - orderId: {}",
