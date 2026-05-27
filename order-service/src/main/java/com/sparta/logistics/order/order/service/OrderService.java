@@ -2,10 +2,8 @@ package com.sparta.logistics.order.order.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.HubStockUpdatedEvent;
-import com.sparta.logistics.common.kafka.event.OrderCreatedEvent;
-import com.sparta.logistics.common.kafka.event.OrderItemPayload;
+import com.sparta.logistics.order.kafka.producer.OrderEventPublisher;
 import com.sparta.logistics.order.client.CompanyServiceClient;
 import com.sparta.logistics.order.client.ProductServiceClient;
 import com.sparta.logistics.order.client.response.CompanyResponse;
@@ -28,7 +26,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,7 +44,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CompanyServiceClient companyServiceClient;
     private final ProductServiceClient productServiceClient;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final OrderEventPublisher orderEventPublisher;
     private final CancelOrderOrchestrator cancelOrderOrchestrator;
     private final ProductStockSnapshotRepository snapshotRepository;
     private final OrderLockManager orderLockManager;
@@ -199,7 +196,7 @@ public class OrderService {
         orderRepository.save(order);
 
         // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
-        publishOrderCreatedEvent(order);
+        orderEventPublisher.publishOrderCreated(order);
 
         return OrderDetailResponse.from(order);
     }
@@ -383,35 +380,7 @@ public class OrderService {
                 );
     }
 
-    // ===== Kafka 이벤트 발행 =====
-
-    /**
-     * order.created 이벤트를 Kafka로 발행함
-     * 파티션 키: orderId (동일 주문의 이벤트 순서를 보장함)
-     **/
-    private void publishOrderCreatedEvent(Order order) {
-        List<OrderItemPayload> payloads = order.getOrderItems().stream()
-                .map(item -> OrderItemPayload.builder()
-                        .orderItemId(item.getId())
-                        .productId(item.getProductId())
-                        .quantity(item.getQuantity())
-                        .hubId(item.getHubId())
-                        .build())
-                .toList();
-
-        OrderCreatedEvent event = OrderCreatedEvent.builder()
-                .eventId(UUID.randomUUID()) // 중복 소비 방지를 위한 이벤트 고유 ID
-                .orderId(order.getId())
-                .orderItems(payloads)
-                .requesterCompanyId(order.getRequesterCompanyId())
-                .receiverCompanyId(order.getReceiverCompanyId())
-                .build();
-
-        kafkaTemplate.send(KafkaTopics.ORDER_CREATED, order.getId().toString(), event);
-        log.info("[order.created] 이벤트 발행 orderId={} itemCount={}", order.getId(), payloads.size());
-    }
-
-    // ===== 기타 Helper 메서드 =====
+    // ===== Helper 메서드 =====
 
     /**
      * 스냅샷 기반 재고 사전 검증

@@ -1,15 +1,12 @@
 package com.sparta.logistics.order.order.saga;
 
-import com.sparta.logistics.common.kafka.KafkaTopics;
-import com.sparta.logistics.common.kafka.event.CancelDeliveryCommand;
-import com.sparta.logistics.common.kafka.event.RestoreStockCommand;
 import com.sparta.logistics.common.kafka.event.RestoreStockItemPayload;
+import com.sparta.logistics.order.kafka.producer.OrderEventPublisher;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +22,7 @@ import java.util.UUID;
 public class CancelOrderOrchestrator {
 
     private final OrderRepository orderRepository;
-    private final KafkaTemplate kafkaTemplate;
+    private final OrderEventPublisher orderEventPublisher;
 
     /**
      * Saga Step 3-1: CANCELLING 전이 + cancel.delivery.command 발행
@@ -38,15 +35,7 @@ public class CancelOrderOrchestrator {
         order.startCancelling(userId, cancelReason);
         orderRepository.save(order);
 
-        kafkaTemplate.send(
-                KafkaTopics.CANCEL_DELIVERY_COMMAND,
-                order.getId().toString(),
-                CancelDeliveryCommand.builder()
-                        .eventId(UUID.randomUUID())
-                        .orderId(order.getId())
-                        .deliveryId(order.getDeliveryId())
-                        .build()
-        );
+        orderEventPublisher.publishCancelDeliveryCommand(order.getId(), order.getDeliveryId());
         log.info("[CancelSaga] CANCELLING 전이 + cancel.delivery.command 발행 orderId={}", order.getId());
     }
 
@@ -79,16 +68,7 @@ public class CancelOrderOrchestrator {
                         .build())
                 .toList();
 
-        kafkaTemplate.send(
-                KafkaTopics.RESTORE_STOCK_COMMAND,
-                orderId.toString(),
-                RestoreStockCommand.builder()
-                        .eventId(UUID.randomUUID())
-                        .orderId(orderId)
-                        .orderItems(items)
-                        .build()
-        );
-        log.info("[CancelSaga] restore.stock.command 발행 orderId={} itemCount={}", orderId, items.size());
+        orderEventPublisher.publishRestoreStockCommand(orderId, items);
     }
 
     /**
@@ -148,15 +128,7 @@ public class CancelOrderOrchestrator {
                         .build())
                 .toList();
 
-        kafkaTemplate.send(
-                KafkaTopics.RESTORE_STOCK_COMMAND,
-                orderId.toString(),
-                RestoreStockCommand.builder()
-                        .eventId(UUID.randomUUID())
-                        .orderId(orderId)
-                        .orderItems(items)
-                        .build()
-        );
+        orderEventPublisher.publishRestoreStockCommand(orderId, items);
         log.info("[CancelSaga] restore.stock.command 재발행 orderId={} itemCount={}", orderId, items.size());
     }
 
