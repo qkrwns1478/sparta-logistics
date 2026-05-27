@@ -75,6 +75,7 @@ public class CancelOrderOrchestrator {
         List<RestoreStockItemPayload> items = order.getOrderItems().stream()
                 .map(item -> RestoreStockItemPayload.builder()
                         .productId(item.getProductId())
+                        .hubId(item.getHubId())
                         .quantity(item.getQuantity())
                         .build())
                 .toList();
