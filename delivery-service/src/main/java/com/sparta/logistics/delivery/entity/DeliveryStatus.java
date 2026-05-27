@@ -15,9 +15,9 @@ public enum DeliveryStatus {
     private static final Map<DeliveryStatus, Set<DeliveryStatus>> ALLOWED = Map.of(
             CREATED,                  Set.of(HUB_WAITING, CANCELLED),
             HUB_WAITING,              Set.of(HUB_MOVING, CANCELLED),
-            HUB_MOVING,               Set.of(DESTINATION_HUB_ARRIVED, CANCELLED),
-            DESTINATION_HUB_ARRIVED,  Set.of(OUT_FOR_DELIVERY, CANCELLED),
-            OUT_FOR_DELIVERY,         Set.of(COMPLETED, CANCELLED),
+            HUB_MOVING,               Set.of(DESTINATION_HUB_ARRIVED),
+            DESTINATION_HUB_ARRIVED,  Set.of(OUT_FOR_DELIVERY),
+            OUT_FOR_DELIVERY,         Set.of(COMPLETED),
             COMPLETED,                Set.of(),
             CANCELLED,                Set.of()
     );
