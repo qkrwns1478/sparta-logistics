@@ -2,6 +2,7 @@ package com.sparta.logistics.delivery.controller;
 
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerCreateRequest;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerResponse;
+import com.sparta.logistics.delivery.dto.manager.DeliveryManagerSearchCond;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerStatusChangeRequest;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerUpdateRequest;
 import com.sparta.logistics.common.domain.Role;
@@ -15,6 +16,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,9 +53,10 @@ public class DeliveryManagerController {
             @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @ModelAttribute DeliveryManagerSearchCond cond
     ) {
-        return ResponseEntity.ok(managerService.getManagerList(userId, role, hubId, pageable));
+        return ResponseEntity.ok(managerService.getManagerList(userId, role, hubId, pageable, cond));
     }
 
     @GetMapping("/{managerId}")
