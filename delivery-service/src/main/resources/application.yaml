@@ -43,6 +43,14 @@ spring:
         enabled: true
 
 resilience4j:
+  retry:
+    instances:
+      assignment:
+        max-attempts: 3
+        wait-duration: 100ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.orm.ObjectOptimisticLockingFailureException
   circuitbreaker:
     instances:
       hub-service:

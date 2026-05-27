@@ -15,8 +15,10 @@ import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
 import com.sparta.logistics.delivery.repository.DeliveryManagerRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +56,7 @@ public class DeliveryAssignmentService {
      * @param role       요청 주체 역할
      * @param hubId      요청 주체 허브 ID (HUB_MANAGER 권한 검사용)
      */
+    @Retry(name = "assignment", fallbackMethod = "recoverAssignManagers")
     @Transactional
     public void assignManagers(UUID deliveryId, UUID actorId, Role role, UUID hubId) {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
@@ -107,7 +110,14 @@ public class DeliveryAssignmentService {
         }
     }
 
+    public void recoverAssignManagers(UUID deliveryId, UUID actorId, Role role, UUID hubId,
+                                       ObjectOptimisticLockingFailureException e) {
+        log.error("[배차] 낙관적 락 재시도 초과 — deliveryId={}", deliveryId);
+        throw new BusinessException(DeliveryErrorCode.ASSIGNMENT_CONFLICT);
+    }
+
     // Kafka 트리거용 — 권한 체크 없이 라운드 로빈 배차, 담당자 없으면 null 허용
+    @Retry(name = "assignment", fallbackMethod = "recoverAssignManagersForSystem")
     @Transactional
     public void assignManagersForSystem(UUID deliveryId) {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
@@ -154,5 +164,11 @@ public class DeliveryAssignmentService {
             log.info("[배차] 담당자 배정 완료 — deliveryId={}, managerId={}, type={}",
                     deliveryId, manager.getId(), managerType);
         }
+    }
+
+    public void recoverAssignManagersForSystem(UUID deliveryId,
+                                               ObjectOptimisticLockingFailureException e) {
+        log.error("[배차][시스템] 낙관적 락 재시도 초과 — deliveryId={}", deliveryId);
+        // 미배차 상태 유지, 스케줄러가 재시도
     }
 }
