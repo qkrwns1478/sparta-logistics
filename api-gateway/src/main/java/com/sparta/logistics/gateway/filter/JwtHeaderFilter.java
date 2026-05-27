@@ -1,7 +1,7 @@
 package com.sparta.logistics.gateway.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sparta.logistics.common.response.ApiResponse;
+import com.sparta.logistics.gateway.response.ApiResponse;
 import com.sparta.logistics.gateway.exception.JwtErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -20,7 +20,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -40,38 +39,21 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE;
     }
 
-    private static final Set<String> WHITE_LIST = Set.of(
-            "/api/v1/auth/login",
-            "/api/v1/auth/signup",
-            "/api/v1/auth/refresh"
-    );
-
-    private boolean isWhiteList(String path){
-        return WHITE_LIST.contains(path) ||
-                path.startsWith("/swagger-ui") ||
-                path.startsWith("/v3/api-docs");
-    }
-
-
-
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        ServerHttpRequest request = exchange.getRequest();
-        String path = request.getPath().toString();
 
+        ServerHttpRequest sanitized = exchange.getRequest().mutate().build();
 
-        //whitelist 경로는 필터를 통과시키지 않음
-        if(isWhiteList(path)) return chain.filter(exchange);
+        ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitized).build();
 
         // 토큰만 반환
-        String token = extractToken(request);
+        String token = extractToken(sanitized);
 
         // 토큰이 null인 경우 에러
         if(token == null) {
             log.warn("Authorization 헤더가 없거나 Bearer 토큰이 아님");
-            return onError(exchange, JwtErrorCode.TOKEN_NOT_FOUND);
+            return onError(sanitizedExchange, JwtErrorCode.TOKEN_NOT_FOUND);
         }
-
 
         return jwtDecoder.decode(token)
                 .flatMap(jwt -> {
@@ -80,14 +62,14 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
 
                     if (!StringUtils.hasText(userId)) {
                         log.warn("JWT subject(userId) 가 비어 있음");
-                        return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
+                        return onError(sanitizedExchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
                     String normalUserId = userId.trim(); // 공백 제거
                     try {
                         UUID.fromString(normalUserId); // string -> UUID 변환 후 검증
                     } catch (IllegalArgumentException ex) {
                         log.warn("JWT subject 가 UUID 형식이 아님");
-                        return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
+                        return onError(sanitizedExchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
 
                     // 권한 추출
@@ -96,13 +78,13 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
                     // 권한이 null, 빈값, 공백 문자열이면 에러
                     if (!StringUtils.hasText(finalRole)) {
                         log.warn("auth 클레임이 없거나 비어 있음");
-                        return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
+                        return onError(sanitizedExchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
 
                     String hubId = jwt.getClaimAsString("hubId");
                     String companyId = jwt.getClaimAsString("companyId");
 
-                    ServerHttpRequest.Builder builder = exchange.getRequest().mutate();
+                    ServerHttpRequest.Builder builder = sanitizedExchange.getRequest().mutate();
                     builder.headers(headers -> {
                         headers.remove("X-User-Id");
                         headers.remove("X-User-Role");
@@ -118,11 +100,10 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
                             headers.set("X-User-CompanyId",companyId.trim());
 
                     });
-                    return chain.filter(exchange.mutate().request(builder.build()).build());
+                    return chain.filter(sanitizedExchange.mutate().request(builder.build()).build());
                 })
                 .onErrorResume(e -> {
                     if (e instanceof JwtValidationException jwtEx) {
-                        // 만료 여부는 에러 코드로 판별
                         boolean isExpired = jwtEx.getErrors().stream()
                                 .anyMatch(err -> err.getErrorCode()
                                         .equals(OAuth2ErrorCodes.INVALID_TOKEN)
@@ -130,17 +111,17 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
 
                         if (isExpired) {
                             log.warn("Gateway Auth Warning: 토큰 만료됨");
-                            return onError(exchange, JwtErrorCode.TOKEN_EXPIRED);
+                            return onError(sanitizedExchange, JwtErrorCode.TOKEN_EXPIRED);
                         }
                         log.warn("Gateway Auth Error: 토큰 검증 실패 - {}", e.getMessage());
-                        return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
+                        return onError(sanitizedExchange, JwtErrorCode.INCORRECT_TOKEN);
                     }
-                    if (e instanceof BadJwtException) { // 토큰 형식 망가짐
+                    if (e instanceof BadJwtException) {
                         log.warn("Gateway Auth Error: 유효하지 않은 토큰 - {}", e.getMessage());
-                        return onError(exchange, JwtErrorCode.INCORRECT_TOKEN);
-                    } // 그 외
+                        return onError(sanitizedExchange, JwtErrorCode.INCORRECT_TOKEN);
+                    }
                     log.error("Gateway 내부 인증 시스템 심각한 예외 발생", e);
-                    return onError(exchange, JwtErrorCode.INTERNAL_SERVER_ERROR);
+                    return onError(sanitizedExchange, JwtErrorCode.INTERNAL_SERVER_ERROR);
                 });
     }
 
