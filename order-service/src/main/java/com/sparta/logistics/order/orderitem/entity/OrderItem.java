@@ -16,8 +16,11 @@ import java.util.UUID;
 public class OrderItem extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(nullable = false, name = "order_id")
@@ -52,6 +55,7 @@ public class OrderItem extends BaseEntity {
 
     public static OrderItem create(Order order, UUID productId, String productName, Long unitPrice, Integer quantity, UUID hubId) {
         OrderItem item = new OrderItem();
+        item.id = UUID.randomUUID();
         item.order = order;
         item.productId = productId;
         item.productName = productName;

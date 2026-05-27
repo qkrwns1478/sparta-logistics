@@ -15,7 +15,6 @@ import java.util.UUID;
 public class ProductStockSnapshot {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false, unique = true, name = "product_id")
@@ -35,6 +34,7 @@ public class ProductStockSnapshot {
 
     public static ProductStockSnapshot create(UUID productId, UUID hubId, Integer available, Long hubStockVersion) {
         ProductStockSnapshot snapshot = new ProductStockSnapshot();
+        snapshot.id = UUID.randomUUID();
         snapshot.productId = productId;
         snapshot.hubId = hubId;
         snapshot.available = available;

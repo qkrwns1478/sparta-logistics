@@ -19,6 +19,8 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   jpa:
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
         default_schema: schema_order

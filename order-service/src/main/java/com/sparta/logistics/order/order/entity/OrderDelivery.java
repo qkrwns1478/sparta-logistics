@@ -28,7 +28,6 @@ import java.util.UUID;
 public class OrderDelivery {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false, name = "order_id")
@@ -39,6 +38,7 @@ public class OrderDelivery {
 
     public static OrderDelivery of(UUID orderId, UUID deliveryId) {
         OrderDelivery od = new OrderDelivery();
+        od.id = UUID.randomUUID();
         od.orderId = orderId;
         od.deliveryId = deliveryId;
         return od;
