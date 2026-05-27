@@ -31,16 +31,16 @@ common/src/main/java/com/sparta/logistics/common/kafka/
 
 | DTO | 핵심 필드 |
 |---|---|
-| `OrderCreatedEvent` | `eventId`, `orderId`, `orderItems[]{productId, quantity, hubId}`, `requesterCompanyId`, `receiverCompanyId` |
+| `OrderCreatedEvent` | `eventId`, `orderId`, `orderItems[]{orderItemId, productId, quantity, hubId}`, `requesterCompanyId`, `receiverCompanyId` |
 | `StockReservedEvent` | `eventId`, `orderId`, `destinationHubId`, `orderItems[]{productId, reservedQuantity, sourceHubId}` |
 | `StockReservationFailedEvent` | `eventId`, `orderId`, `productId`, `reason` |
 | `DeliveryCreatedEvent` | `eventId`, `deliveryId`, `orderId`, `sourceHubId`, `destinationHubId`, `companyDeliveryManagerId` |
-| `DeliveryCreationFailedEvent` | `eventId`, `orderId`, `deliveryId`, `reason`, `itemsToRestore[]{productId, hubId, quantity}` |
-| `DeliveryStartedEvent` | `eventId`, `deliveryId`, `orderId`, `orderItems[]{productId, hubId, quantity}` |
+| `DeliveryCreationFailedEvent` | `eventId`, `orderId`, `deliveryId`, `reason`, `itemsToRestore[]{orderItemId, productId, hubId, quantity}` |
+| `DeliveryStartedEvent` | `eventId`, `deliveryId`, `orderId`, `orderItems[]{orderItemId, productId, hubId, quantity}` |
 | `CancelDeliveryCommand` | `eventId`, `orderId`, `deliveryId` |
 | `DeliveryCancelledAckEvent` | `eventId`, `deliveryId`, `orderId` |
 | `DeliveryCancellationFailedEvent` | `eventId`, `orderId`, `deliveryId`, `reason` |
-| `RestoreStockCommand` | `eventId`, `orderId`, `orderItems[]{productId, hubId, quantity}` |
+| `RestoreStockCommand` | `eventId`, `orderId`, `orderItems[]{orderItemId, productId, hubId, quantity}` |
 | `StockRestoredAckEvent` | `eventId`, `orderId` |
 | `StockRestorationFailedEvent` | `eventId`, `orderId`, `reason` |
 | `HubStockUpdatedEvent` | `eventId`, `productId`, `hubId`, `available`, `hubStockVersion` |
