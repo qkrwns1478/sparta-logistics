@@ -186,7 +186,7 @@ public class HubStockService {
                     item.getQuantity(),
                     beforeQuantity,
                     afterQuantity,
-                    HubStockChangeType.ORDER_DECREASE
+                    HubStockChangeType.ORDER_RESERVE
             ));
 
             // 아이템마다 sourceHubId 포함해서 리스트에 추가
