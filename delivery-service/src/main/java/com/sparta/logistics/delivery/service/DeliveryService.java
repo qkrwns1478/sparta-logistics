@@ -12,12 +12,15 @@ import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
+import com.sparta.logistics.delivery.entity.DeliveryOrderItemEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
+import com.sparta.logistics.delivery.entity.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.entity.enums.RouteType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import com.sparta.logistics.delivery.infrastructure.event.DeliveryEventPublisher;
 import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
+import com.sparta.logistics.delivery.repository.DeliveryOrderItemRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,9 +40,11 @@ public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryRouteRepository deliveryRouteRepository;
+    private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final DeliveryLogRepository deliveryLogRepository;
     private final DeliveryPermissionChecker permissionChecker;
     private final DeliveryEventPublisher eventPublisher;
+    private final DeliveryAssignmentService assignmentService;
 
     // 배송 단건 조회
     @Transactional(readOnly = true)
@@ -149,23 +154,64 @@ public class DeliveryService {
             ));
         }
 
-        // 트랜잭션 커밋 후 발행이 이상적이나 소규모 프로젝트 기준 단순 구조 채택
-        // 추후 outbox 패턴으로 전환 시 이 호출 제거
+        // delivery.started 발행을 위해 orderItems 저장
+        for (var item : event.orderItems()) {
+            deliveryOrderItemRepository.save(
+                    new DeliveryOrderItemEntity(entity, item.productId(), item.sourceHubId(), item.reservedQuantity())
+            );
+        }
+
+        // 배차 — 담당자 없으면 null 허용 후 계속 진행
+        assignmentService.assignManagersForSystem(entity.getId());
+
+        // 트랜잭션 커밋 후 발행이 이상적이나 우선적으로 단순 구조 채택
+        // 추후 outbox 패턴으로 전환 가능하다면 이 호출 제거
         eventPublisher.publishCreated(
                 entity.getId(),
                 event.orderId(),
                 entity.getSourceHubId(),
                 entity.getDestinationHubId(),
-                null  // companyDeliveryManagerId: 배차 전이므로 null
+                entity.getCompanyDeliveryManagerId()
         );
     }
 
-    // ai.deadline.calculated 이벤트 수신 시 호출
+    // ai.deadline.calculated 이벤트 수신 시 호출 — deadline 저장 후 delivery.started 발행
+    // TODO: deadline이 null이어도 delivery.started가 발행되게 할 것인지 결정
     @Transactional
     public void updateFinalDispatchDeadline(UUID deliveryId, LocalDateTime deadline) {
         DeliveryEntity entity = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
         entity.updateFinalDispatchDeadline(deadline);
+
+        List<DeliveryOrderItemEntity> items = deliveryOrderItemRepository.findByDelivery_Id(deliveryId);
+        eventPublisher.publishStarted(deliveryId, entity.getOrderId(), items);
+    }
+
+    // cancel.delivery.command 수신 시 호출 — 취소 가능 여부 확인 후 상태 전이
+    @Transactional
+    public boolean cancelDeliveryByCommand(UUID deliveryId) {
+        DeliveryEntity entity = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+
+        DeliveryStatus status = entity.getStatus();
+
+        if (status == DeliveryStatus.CANCELLED) {
+            log.info("[Saga] 이미 취소된 배송 — deliveryId={}", deliveryId);
+            return true;
+        }
+
+        if (status == DeliveryStatus.HUB_MOVING || status == DeliveryStatus.DESTINATION_HUB_ARRIVED
+                || status == DeliveryStatus.OUT_FOR_DELIVERY || status == DeliveryStatus.COMPLETED) {
+            log.warn("[Saga] 배송 취소 불가 — deliveryId={}, status={}", deliveryId, status);
+            return false;
+        }
+
+        entity.changeStatus(DeliveryStatus.CANCELLED);
+        deliveryLogRepository.save(new DeliveryLogEntity(
+                deliveryId, DeliveryEventType.CANCELLED, DeliveryStatus.CANCELLED,
+                "주문 취소 Saga 명령으로 배송 취소", null, null
+        ));
+        return true;
     }
 
     private DeliveryEntity findActiveOrThrow(UUID deliveryId) {

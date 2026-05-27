@@ -106,4 +106,53 @@ public class DeliveryAssignmentService {
                     deliveryId, route.getId(), manager.getId(), managerType);
         }
     }
+
+    // Kafka 트리거용 — 권한 체크 없이 라운드 로빈 배차, 담당자 없으면 null 허용
+    @Transactional
+    public void assignManagersForSystem(UUID deliveryId) {
+        DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+
+        List<DeliveryRouteEntity> routes =
+                deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId);
+
+        for (DeliveryRouteEntity route : routes) {
+            DeliveryManagerType managerType =
+                    route.getRouteType() == RouteType.HUB_TO_HUB
+                            ? DeliveryManagerType.HUB_DELIVERY
+                            : DeliveryManagerType.COMPANY_DELIVERY;
+
+            UUID searchHubId = route.getRouteType() == RouteType.HUB_TO_HUB
+                    ? route.getSourceHubId()
+                    : delivery.getDestinationHubId();
+
+            DeliveryManagerEntity manager = deliveryManagerRepository
+                    .findNextAssignee(searchHubId, managerType, DeliveryManagerStatus.IDLE)
+                    .orElse(null);
+
+            if (manager == null) {
+                log.warn("[배차] 가용 담당자 없음 — deliveryId={}, hubId={}, type={}", deliveryId, searchHubId, managerType);
+                continue;
+            }
+
+            manager.assign();
+            route.assignManager(manager.getId());
+
+            if (managerType == DeliveryManagerType.COMPANY_DELIVERY) {
+                delivery.assignCompanyDeliveryManager(manager.getId());
+            }
+
+            deliveryLogRepository.save(new DeliveryLogEntity(
+                    deliveryId,
+                    DeliveryEventType.MANAGER_ASSIGNED,
+                    delivery.getStatus(),
+                    "담당자 배정: " + managerType + " → " + manager.getId(),
+                    null,
+                    null
+            ));
+
+            log.info("[배차] 담당자 배정 완료 — deliveryId={}, managerId={}, type={}",
+                    deliveryId, manager.getId(), managerType);
+        }
+    }
 }
