@@ -241,29 +241,25 @@ public class HubStockService {
 
         for (DeliveryOrderItemPayload item : event.getOrderItems()) {
 
-            HubStock hubStock = hubStockRepository
-                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
-                    .orElseGet(() -> {
+            try {
+                executeWithLock(
+                        () -> { hubStockLockHelper.deductWithOptimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId(), event.getDeliveryId()
+                        ); return null; },
+                        () -> { hubStockLockHelper.deductWithPessimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId(), event.getDeliveryId()
+                        ); return null; }
+                );
+            } catch (BusinessException e) {
 
-                        log.error("[HubStock] 예약 재고 차감 실패 - 허브 재고 없음. orderId: {}, productId: {}",
-                                event.getOrderId(), item.getProductId());
+                // 재고 없음 → 컨슈머 재시도 제외
+                log.error("[HubStock] 예약 재고 차감 실패. orderId: {}, productId: {}, reason: {}",
+                        event.getOrderId(), item.getProductId(), e.getMessage());
 
-                        throw new KafkaSkipException("허브 재고 없음 - orderId: " + event.getOrderId());
-                    });
-
-            int beforeReserved = hubStock.getReserved();
-            hubStock.decreaseReserved(item.getQuantity());
-            int afterReserved = hubStock.getReserved();
-
-            hubStockLogRepository.save(HubStockLog.create(
-                    hubStock,
-                    item.getOrderItemId(),
-                    event.getDeliveryId(),
-                    -item.getQuantity(),
-                    beforeReserved,
-                    afterReserved,
-                    HubStockChangeType.ORDER_DECREASE
-            ));
+                throw new KafkaSkipException("예약 재고 차감 실패 - orderId: " + event.getOrderId());
+            }
         }
     }
 
