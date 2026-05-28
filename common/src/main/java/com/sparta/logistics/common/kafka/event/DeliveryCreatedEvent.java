@@ -34,7 +34,7 @@ public class DeliveryCreatedEvent {
     private UUID companyDeliveryManagerId;
     // 해당 주문에 대해 생성된 배송 총 건수 (주문 1건 : 배송 N건 구조 대응)
     private Integer totalDeliveryCount;
-    private String deliveryAddress;
+
     private List<DeliveryRouteDto> routes;
 
     @Getter
