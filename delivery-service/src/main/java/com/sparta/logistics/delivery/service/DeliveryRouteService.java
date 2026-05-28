@@ -59,6 +59,11 @@ public class DeliveryRouteService {
 
         permissionChecker.checkRouteWritePermission(delivery, route, userId, role, hubId);
 
+        DeliveryStatus ds = delivery.getStatus();
+        if (ds == DeliveryStatus.CANCELLED || ds == DeliveryStatus.COMPLETED) {
+            throw new BusinessException(DeliveryErrorCode.DELIVERY_ROUTE_UPDATE_FORBIDDEN);
+        }
+
         if (req.actualDistance() != null) route.updateActual(req.actualDistance(), req.actualDuration());
         // 멱등성 보장: 동일 상태 재요청 시 changeStatus 및 로그 INSERT 생략
         if (req.status() != null && route.getStatus() != req.status()) {
