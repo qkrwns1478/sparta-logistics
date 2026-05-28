@@ -3,7 +3,6 @@ package com.sparta.logistics.common.config;
 import com.sparta.logistics.common.filter.GatewayAuthFilter;
 import com.sparta.logistics.common.security.GatewayAuthEntryPoint;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,7 +17,6 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 @EnableWebSecurity
 @EnableMethodSecurity // 나중에 각 서비스에서 @PreAuthorize를 쓰기 위해 공통으로 켜둡니다!
 @RequiredArgsConstructor
-@Slf4j
 public class CommonSecurityConfig {
 
     private final GatewayAuthEntryPoint gatewayAuthEntryPoint;
