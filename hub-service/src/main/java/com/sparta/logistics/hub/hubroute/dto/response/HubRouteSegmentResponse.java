@@ -16,6 +16,7 @@ import java.util.UUID;
 public class HubRouteSegmentResponse {
 
     private int sequence;
+    private boolean lastMile;   // 허브 간 경로는 항상 false임.
     private UUID sourceHubId;
     private UUID destinationHubId;
     private BigDecimal estimatedDistance;
@@ -24,6 +25,7 @@ public class HubRouteSegmentResponse {
     public static HubRouteSegmentResponse of(int sequence, HubRoute hubRoute) {
         return HubRouteSegmentResponse.builder()
                 .sequence(sequence)
+                .lastMile(false)
                 .sourceHubId(hubRoute.getSourceHub().getId())
                 .destinationHubId(hubRoute.getDestinationHub().getId())
                 .estimatedDistance(hubRoute.getDistance())
