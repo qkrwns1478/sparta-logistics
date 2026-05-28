@@ -17,6 +17,8 @@ import com.sparta.logistics.delivery.service.DeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -33,12 +35,20 @@ public class DeliveryEventHandler {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = KafkaTopics.STOCK_RESERVED, groupId = "delivery-service")
-    public void handleStockReserved(String message) {
+    public void handleStockReserved(
+            String message,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset
+    ) {
         StockReservedEventDto event;
         try {
             event = objectMapper.readValue(message, StockReservedEventDto.class);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] stock.reserved 역직렬화 실패: {}", message, e);
+            // 역직렬화 실패는 재시도해도 의미 없음 — 의도적 offset 커밋
+            // orderId 추출 불가 → publishCreationFailed 미호출 (보상 불가, 수동 처리 필요)
+            log.error("[Kafka][수동처리 필요] stock.reserved 역직렬화 실패 — topic={}, partition={}, offset={}",
+                    topic, partition, offset, e);
             return;
         }
 
@@ -49,11 +59,11 @@ public class DeliveryEventHandler {
             return;
         }
 
-        // user-service Feign 호출 — 3회 retry 후 실패 시 BusinessException
+        // user-service Feign 호출 — 3회 retry 후 실패 시 BusinessException (CB 내부 예외 포함)
         ApiResponse<UserResponse> userResponse;
         try {
             userResponse = feignCallService.fetchUser(event.receiverId());
-        } catch (BusinessException e) {
+        } catch (Exception e) {
             log.warn("[Kafka] user-service 호출 실패 — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "USER_SERVICE_UNAVAILABLE",
                     toRestoreItems(event.orderItems()));
@@ -75,11 +85,11 @@ public class DeliveryEventHandler {
             return;
         }
 
-        // hub-service Feign 호출 — 3회 retry 후 실패 시 BusinessException
+        // hub-service Feign 호출 — 3회 retry 후 실패 시 BusinessException (CB 내부 예외 포함)
         List<HubRouteSegmentResponse> routeSegments;
         try {
             routeSegments = feignCallService.fetchRouteSegments(event.sourceHubId(), event.destinationHubId());
-        } catch (BusinessException e) {
+        } catch (Exception e) {
             log.warn("[Kafka] hub-service 호출 실패 — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "HUB_SERVICE_UNAVAILABLE",
                     toRestoreItems(event.orderItems()));
@@ -126,10 +136,19 @@ public class DeliveryEventHandler {
             event = objectMapper.readValue(message, AiDeadlineCalculatedEvent.class);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] ai.deadline.calculated 역직렬화 실패: {}", message, e);
-            return;
+            return;  // 보상 액션 없음 — offset 커밋
         }
-        deliveryService.updateFinalDispatchDeadline(event.getDeliveryId(), event.getFinalDispatchDeadlineAt());
-        log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.getDeliveryId());
+        try {
+            deliveryService.updateFinalDispatchDeadline(event.getDeliveryId(), event.getFinalDispatchDeadlineAt());
+            log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.getDeliveryId());
+        } catch (BusinessException e) {
+            // DELIVERY_NOT_FOUND 등 재처리해도 해결 안 됨 — offset 커밋
+            log.error("[Kafka] AI 발송 시한 업데이트 실패(비즈니스) — deliveryId={}", event.getDeliveryId(), e);
+        } catch (Exception e) {
+            // KafkaException 등 일시적 장애 — DefaultErrorHandler 재시도
+            log.error("[Kafka] AI 발송 시한 업데이트 실패 — deliveryId={}", event.getDeliveryId(), e);
+            throw new RuntimeException(e);
+        }
     }
 
     private List<RestoreStockItemPayload> toRestoreItems(List<StockReservedItemPayload> items) {
