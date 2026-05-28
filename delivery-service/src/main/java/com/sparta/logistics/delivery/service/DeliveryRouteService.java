@@ -13,6 +13,7 @@ import com.sparta.logistics.delivery.entity.enums.RouteStatus;
 import com.sparta.logistics.delivery.entity.enums.RouteType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
+import com.sparta.logistics.delivery.repository.DeliveryManagerRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class DeliveryRouteService {
     private final DeliveryRepository deliveryRepository;
     private final DeliveryRouteRepository routeRepository;
     private final DeliveryLogRepository logRepository;
+    private final DeliveryManagerRepository managerRepository;
     private final DeliveryPermissionChecker permissionChecker;
 
     // 배송경로 목록 조회
@@ -95,6 +97,7 @@ public class DeliveryRouteService {
                         delivery.getId(), DeliveryEventType.ROUTE_UPDATED, null,
                         sequence(route) + "번 구간 도착", null, actorId
                 ));
+                releaseManager(route);
                 if (route.getRouteType() == RouteType.HUB_TO_HUB) {
                     delivery.updateCurrentHub(route.getDestinationHubId());
                     if (isNextRouteLastMile(route)) {
@@ -107,6 +110,14 @@ public class DeliveryRouteService {
             }
             default -> { }
         }
+    }
+
+    private void releaseManager(DeliveryRouteEntity route) {
+        UUID managerId = route.getHubDeliveryManagerId();
+        if (managerId == null) return;
+        managerRepository.findById(managerId).ifPresent(m -> {
+            if (!m.isDeleted()) m.completeAssignment();
+        });
     }
 
     private boolean isNextRouteLastMile(DeliveryRouteEntity current) {
