@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -50,9 +51,7 @@ public class CommonSecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(gatewayAuthEntryPoint)
                 )
-                // GatewayAuthFilter를 AuthorizationFilter 이전에 등록
-                // → SecurityContext에 인증 정보를 먼저 세팅한 뒤 권한 체크가 이루어짐
-                .addFilterBefore(gatewayAuthFilter, AuthorizationFilter.class);
+                .addFilterBefore(gatewayAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
