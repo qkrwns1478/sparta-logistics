@@ -6,12 +6,17 @@ import com.sparta.logistics.common.exception.CommonErrorCode;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryManagerEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
+import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
 @Component
+@RequiredArgsConstructor
 public class DeliveryPermissionChecker {
+
+    private final DeliveryRouteRepository routeRepository;
 
     // 배송 단건 조회 — 권한 없으면 403
     public void checkDeliveryReadPermission(DeliveryEntity delivery, UUID userId, Role role,
@@ -50,7 +55,10 @@ public class DeliveryPermissionChecker {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
         if (role == Role.DELIVERY_MANAGER) {
+            // 업체 배송 담당자 체크
             if (userId != null && userId.equals(delivery.getCompanyDeliveryManagerId())) return;
+            // 허브 배송 담당자 체크: 해당 delivery의 구간(route) 담당자인 경우도 허용
+            if (userId != null && routeRepository.existsByDelivery_IdAndHubDeliveryManagerId(delivery.getId(), userId)) return;
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
         throw new BusinessException(CommonErrorCode.FORBIDDEN);

@@ -103,10 +103,11 @@ class DeliveryRouteServiceTest {
         assertThat(d.getStatus()).isEqualTo(DeliveryStatus.OUT_FOR_DELIVERY);
     }
 
-    // ── Fix ⑤: isNextRouteLastMile 다음 구간 없을 때 DESTINATION_HUB_ARRIVED 전이 ──
+    // ── Fix ⑤: isNextRouteLastMile ─────────────────────────────────────────
 
     @Test
-    void HUB_TO_HUB_ARRIVED_다음_구간_없으면_DESTINATION_HUB_ARRIVED() {
+    void HUB_TO_HUB_ARRIVED_다음_구간_누락시_ROUTE_MISSING_예외() {
+        // 다음 구간이 없는 데이터 정합성 오류 → ROUTE_MISSING 예외 (잘못된 상태 전이 방지)
         UUID deliveryId = UUID.randomUUID();
         UUID routeId = UUID.randomUUID();
         DeliveryEntity d = delivery(deliveryId);
@@ -117,6 +118,29 @@ class DeliveryRouteServiceTest {
         stub(deliveryId, d, routeId, r);
         when(logRepository.save(any())).thenReturn(null);
         when(routeRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId)).thenReturn(List.of(r));
+
+        assertThatThrownBy(() -> service.updateRoute(deliveryId, routeId,
+                new DeliveryRouteUpdateRequest(RouteStatus.ARRIVED, null, null),
+                UUID.randomUUID(), Role.MASTER, null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(DeliveryErrorCode.ROUTE_MISSING));
+    }
+
+    @Test
+    void HUB_TO_HUB_ARRIVED_다음_구간이_HUB_TO_COMPANY이면_DESTINATION_HUB_ARRIVED() {
+        UUID deliveryId = UUID.randomUUID();
+        UUID routeId = UUID.randomUUID();
+        DeliveryEntity d = delivery(deliveryId);
+        d.changeStatus(DeliveryStatus.HUB_WAITING);
+        d.changeStatus(DeliveryStatus.HUB_MOVING);
+        DeliveryRouteEntity r = route(d, RouteType.HUB_TO_HUB);           // sequence=0
+        r.changeStatus(RouteStatus.IN_TRANSIT);
+        DeliveryRouteEntity next = new DeliveryRouteEntity(d, 1, RouteType.HUB_TO_COMPANY,
+                UUID.randomUUID(), UUID.randomUUID(), BigDecimal.ONE, 30);  // sequence=1
+        stub(deliveryId, d, routeId, r);
+        when(logRepository.save(any())).thenReturn(null);
+        when(routeRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId)).thenReturn(List.of(r, next));
 
         service.updateRoute(deliveryId, routeId,
                 new DeliveryRouteUpdateRequest(RouteStatus.ARRIVED, null, null),
@@ -135,12 +159,14 @@ class DeliveryRouteServiceTest {
         DeliveryEntity d = delivery(deliveryId);
         d.changeStatus(DeliveryStatus.HUB_WAITING);
         d.changeStatus(DeliveryStatus.HUB_MOVING);
-        DeliveryRouteEntity r = route(d, RouteType.HUB_TO_HUB);
+        DeliveryRouteEntity r = route(d, RouteType.HUB_TO_HUB);           // sequence=0
         r.changeStatus(RouteStatus.IN_TRANSIT);
         r.assignManager(managerId);
+        DeliveryRouteEntity next = new DeliveryRouteEntity(d, 1, RouteType.HUB_TO_COMPANY,
+                UUID.randomUUID(), UUID.randomUUID(), BigDecimal.ONE, 30);  // sequence=1
         stub(deliveryId, d, routeId, r);
         when(logRepository.save(any())).thenReturn(null);
-        when(routeRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId)).thenReturn(List.of(r));
+        when(routeRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId)).thenReturn(List.of(r, next));
 
         DeliveryManagerEntity manager = new DeliveryManagerEntity(managerId, UUID.randomUUID(),
                 "slack", DeliveryManagerType.HUB_DELIVERY, 0);
@@ -161,12 +187,14 @@ class DeliveryRouteServiceTest {
         DeliveryEntity d = delivery(deliveryId);
         d.changeStatus(DeliveryStatus.HUB_WAITING);
         d.changeStatus(DeliveryStatus.HUB_MOVING);
-        DeliveryRouteEntity r = route(d, RouteType.HUB_TO_HUB);
+        DeliveryRouteEntity r = route(d, RouteType.HUB_TO_HUB);           // sequence=0
         r.changeStatus(RouteStatus.IN_TRANSIT);
         // managerId = null
+        DeliveryRouteEntity next = new DeliveryRouteEntity(d, 1, RouteType.HUB_TO_COMPANY,
+                UUID.randomUUID(), UUID.randomUUID(), BigDecimal.ONE, 30);  // sequence=1
         stub(deliveryId, d, routeId, r);
         when(logRepository.save(any())).thenReturn(null);
-        when(routeRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId)).thenReturn(List.of(r));
+        when(routeRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId)).thenReturn(List.of(r, next));
 
         service.updateRoute(deliveryId, routeId,
                 new DeliveryRouteUpdateRequest(RouteStatus.ARRIVED, null, null),

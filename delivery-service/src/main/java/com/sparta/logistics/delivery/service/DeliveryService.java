@@ -160,9 +160,6 @@ public class DeliveryService {
             );
         }
 
-        // 배차 — 담당자 없으면 null 허용 후 계속 진행
-        assignmentService.assignManagersForSystem(entity.getId());
-
         int totalEstimatedDuration = routeSegments.stream()
                 .mapToInt(HubRouteSegmentResponse::estimatedDuration)
                 .sum();
@@ -181,6 +178,13 @@ public class DeliveryService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                // TX 커밋 후 배차: 새 TX에서 커밋된 DeliveryEntity를 읽을 수 있어 DELIVERY_NOT_FOUND 방지
+                // 외부 TX 롤백과 무관하게 커밋되는 REQUIRES_NEW 문제도 동시 해결
+                try {
+                    assignmentService.assignManagersForSystem(capturedDeliveryId);
+                } catch (Exception e) {
+                    log.warn("[배송 생성] 담당자 배정 실패 — 스케줄러 재시도 예정, deliveryId={}", capturedDeliveryId, e);
+                }
                 try {
                     eventPublisher.publishCreated(
                             capturedDeliveryId, capturedOrderId,

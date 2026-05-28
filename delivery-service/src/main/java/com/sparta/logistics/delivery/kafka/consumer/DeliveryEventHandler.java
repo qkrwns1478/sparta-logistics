@@ -16,7 +16,10 @@ import com.sparta.logistics.delivery.client.response.UserResponse;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.dto.event.StockReservedItemPayload;
 import com.sparta.logistics.delivery.kafka.producer.DeliveryEventPublisher;
+import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import com.sparta.logistics.delivery.service.DeliveryService;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -37,6 +40,7 @@ public class DeliveryEventHandler {
     private final DeliveryEventPublisher eventPublisher;
     private final FeignCallService feignCallService;
     private final ObjectMapper objectMapper;
+    private final DeliveryRepository deliveryRepository;
 
     @KafkaListener(topics = KafkaTopics.STOCK_RESERVED, groupId = "delivery-service")
     public void handleStockReserved(
@@ -60,6 +64,12 @@ public class DeliveryEventHandler {
             log.warn("[Kafka] 허브 ID null — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "INVALID_HUB_ID",
                     toRestoreItems(event.orderItems()));
+            return;
+        }
+
+        // 멱등성 조기 반환: Feign 호출 이전에 중복 체크 → 재전달 시 불필요한 외부 호출 및 false publishCreationFailed 방지
+        if (deliveryRepository.existsByOrderIdAndSourceHubId(event.orderId(), event.sourceHubId())) {
+            log.info("[Kafka] 이미 처리된 주문+허브 — 스킵 orderId={}", event.orderId());
             return;
         }
 
@@ -103,6 +113,9 @@ public class DeliveryEventHandler {
         try {
             deliveryService.createDelivery(event, slackId, routeSegments);
             log.info("[Kafka] 배송 생성 완료 — orderId={}", event.orderId());
+        } catch (DataIntegrityViolationException e) {
+            // 동시 중복 저장 경쟁: 다른 스레드가 먼저 처리 완료 — 정상 상황, 사가 보상 불필요
+            log.info("[Kafka] 중복 저장 경쟁 — 이미 처리됨 orderId={}", event.orderId());
         } catch (Exception e) {
             log.error("[Kafka] 배송 생성 실패 — orderId={}", event.orderId(), e);
             eventPublisher.publishCreationFailed(event.orderId(), null, "CREATE_FAILED",
@@ -146,10 +159,11 @@ public class DeliveryEventHandler {
             deliveryService.updateFinalDispatchDeadline(event.getDeliveryId(), event.getFinalDispatchDeadlineAt());
             log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.getDeliveryId());
         } catch (BusinessException e) {
-            log.error("[Kafka] AI 발송 시한 업데이트 실패(비즈니스) — deliveryId={}", event.getDeliveryId(), e);
+            log.warn("[Kafka] AI 발송 시한 업데이트 실패(비즈니스) — deliveryId={}, code={}", event.getDeliveryId(), e.getErrorCode());
+        } catch (DataAccessException e) {
+            log.error("[Kafka] AI 발송 시한 업데이트 실패(DB) — deliveryId={}, 메시지 스킵", event.getDeliveryId(), e);
         } catch (Exception e) {
-            log.error("[Kafka] AI 발송 시한 업데이트 실패 — deliveryId={}", event.getDeliveryId(), e);
-            throw new RuntimeException(e);
+            log.error("[Kafka] AI 발송 시한 업데이트 실패(기타) — deliveryId={}, 메시지 스킵", event.getDeliveryId(), e);
         }
     }
 

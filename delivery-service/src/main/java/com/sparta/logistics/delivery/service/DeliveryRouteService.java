@@ -188,10 +188,9 @@ public class DeliveryRouteService {
                 .filter(r -> r.getSequence() == current.getSequence() + 1)
                 .findFirst()
                 .map(r -> r.getRouteType() == RouteType.HUB_TO_COMPANY)
-                .orElseGet(() -> {
-                    log.warn("[경로] 다음 구간 누락 — stuck 방지를 위해 DESTINATION_HUB_ARRIVED 전이 — deliveryId={}",
-                            deliveryId);
-                    return true;
+                .orElseThrow(() -> {
+                    log.error("[경로] 다음 구간 누락 — 데이터 정합성 오류 deliveryId={}", deliveryId);
+                    return new BusinessException(DeliveryErrorCode.ROUTE_MISSING);
                 });
     }
 

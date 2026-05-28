@@ -216,9 +216,8 @@ public class DeliveryAssignmentService {
         }
     }
 
-    public void recoverAssignManagersForSystem(UUID deliveryId,
-                                               ObjectOptimisticLockingFailureException e) {
-        log.error("[배차][시스템] 낙관적 락 재시도 초과 — deliveryId={}", deliveryId);
+    public void recoverAssignManagersForSystem(UUID deliveryId, Exception e) {
+        log.error("[배차][시스템] 배차 재시도 초과 — deliveryId={}, 스케줄러 재시도 예정", deliveryId, e);
         // 미배차 상태 유지, 스케줄러가 재시도
     }
 }
