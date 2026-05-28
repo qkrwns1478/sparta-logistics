@@ -675,6 +675,62 @@ class OrderServiceTest {
         verify(cancelOrderOrchestrator).onStockRestored(ORDER_ID);
     }
 
+    // Orchestration Saga 완료 시 CANCELLING 상태 키가 해제되는지 검증
+    @Test
+    void confirmOrderCancelled_clearsCancellingStatusKey() {
+        orderService.confirmOrderCancelled(ORDER_ID);
+
+        verify(orderLockManager).clearStatusKey(ORDER_ID);
+    }
+
+    // ===== handleDeliveryCancellationFailed (Orchestration Saga 보상 Step 4-1) =====
+
+    // delivery.cancellation.failed 수신 시 CancelOrderOrchestrator.onDeliveryCancellationFailed()에 위임하는지 검증
+    @Test
+    void handleDeliveryCancellationFailed_delegatesToOrchestrator() {
+        orderService.handleDeliveryCancellationFailed(ORDER_ID);
+
+        verify(cancelOrderOrchestrator).onDeliveryCancellationFailed(ORDER_ID);
+    }
+
+    // Saga 복구(배송 취소 실패) 시 CANCELLING 상태 키가 해제되는지 검증
+    // 복구 후 주문 상태가 PENDING/ACCEPTED로 돌아가므로 후속 Consumer 이벤트가 정상 처리될 수 있어야 함
+    @Test
+    void handleDeliveryCancellationFailed_clearsCancellingStatusKey() {
+        orderService.handleDeliveryCancellationFailed(ORDER_ID);
+
+        verify(orderLockManager).clearStatusKey(ORDER_ID);
+    }
+
+    // ===== cancelOrder 동시성 제어 =====
+
+    // 검증 통과 후 CANCELLING 키가 세팅되고, 성공 시 clearStatusKey가 호출되지 않는지 검증
+    // (CANCELLING 키는 Saga 완료/복구 시점에 해제됨)
+    @Test
+    void cancelOrder_success_setsCancellingKeyAfterValidation_doesNotClear() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.cancelOrder(ORDER_ID, "단순 변심", USER_ID, Role.MASTER, null);
+
+        verify(orderLockManager).setStatusKey(ORDER_ID, OrderProcessStatus.CANCELLING);
+        verify(orderLockManager, never()).clearStatusKey(ORDER_ID);
+    }
+
+    // 검증 실패(비취소 가능 상태) 시 CANCELLING 키가 세팅되지 않는지 검증
+    @Test
+    void cancelOrder_validationFails_doesNotSetCancellingKey() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        order.cancel(USER_ID, "이미 취소됨");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() ->
+                orderService.cancelOrder(ORDER_ID, "재취소 시도", USER_ID, Role.MASTER, null)
+        ).isInstanceOf(BusinessException.class);
+
+        verify(orderLockManager, never()).setStatusKey(any(), eq(OrderProcessStatus.CANCELLING));
+    }
+
     // ===== syncSnapshot =====
 
     // 해당 productId의 스냅샷이 없을 때 신규 스냅샷이 생성되는지 검증

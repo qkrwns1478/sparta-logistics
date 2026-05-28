@@ -305,9 +305,6 @@ public class OrderService {
                 }
             });
 
-            // 4. CANCELLING 세팅
-            orderLockManager.setStatusKey(orderId, OrderProcessStatus.CANCELLING);
-
             Order order = findOrder(orderId);
 
             // HUB_MANAGER는 본인 담당 허브 소속 업체의 주문만 취소 가능
@@ -320,13 +317,15 @@ public class OrderService {
                 throw new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE);
             }
 
+            // 4. 검증 통과 후 CANCELLING 세팅 (Saga 완료 또는 복구 시점에 해제됨)
+            orderLockManager.setStatusKey(orderId, OrderProcessStatus.CANCELLING);
+
             // Orchestration Saga Step 3-1: CANCELLING 전이 + cancel.delivery.command 발행
             cancelOrderOrchestrator.start(order, userId, cancelReason);
 
             return OrderDetailResponse.from(order);
         } finally {
-            // 5. 상태 키 및 락 해제
-            orderLockManager.clearStatusKey(orderId);
+            // 5. 락 해제 (CANCELLING 상태 키는 Saga 완료/복구 시점에 해제)
             orderLockManager.releaseLock(orderId);
         }
     }
@@ -342,17 +341,21 @@ public class OrderService {
     /**
      * Orchestration Saga Step 3-5: stock.restored.ack 수신 후 처리
      * StockRestoredAckConsumer에서 호출됨 → CancelOrderOrchestrator.onStockRestored()에 위임
+     * Saga 완료 시점에 CANCELLING 상태 키를 해제함
      **/
     public void confirmOrderCancelled(UUID orderId) {
         cancelOrderOrchestrator.onStockRestored(orderId);
+        orderLockManager.clearStatusKey(orderId);
     }
 
     /**
      * Orchestration Saga 보상 Step 4-1: delivery.cancellation.failed 수신 후 처리
      * DeliveryCancellationFailedConsumer에서 호출됨 → CancelOrderOrchestrator.onDeliveryCancellationFailed()에 위임
+     * Saga 복구 시점에 CANCELLING 상태 키를 해제하여 이후 Consumer 이벤트가 정상 처리되도록 함
      **/
     public void handleDeliveryCancellationFailed(UUID orderId) {
         cancelOrderOrchestrator.onDeliveryCancellationFailed(orderId);
+        orderLockManager.clearStatusKey(orderId);
     }
 
     /**
