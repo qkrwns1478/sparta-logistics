@@ -163,16 +163,38 @@ public class DeliveryService {
         // 배차 — 담당자 없으면 null 허용 후 계속 진행
         assignmentService.assignManagersForSystem(entity.getId());
 
-        // 트랜잭션 커밋 후 발행이 이상적이나 우선적으로 단순 구조 채택
-        // 추후 outbox 패턴으로 전환 가능하다면 이 호출 제거
-        eventPublisher.publishCreated(
-                entity.getId(),
-                event.orderId(),
-                entity.getSourceHubId(),
-                entity.getDestinationHubId(),
-                entity.getCompanyDeliveryManagerId(),
-                event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0
-        );
+        int totalEstimatedDuration = routeSegments.stream()
+                .mapToInt(HubRouteSegmentResponse::estimatedDuration)
+                .sum();
+
+        // afterCommit에서 쓸 값 미리 캡처 (엔티티 detach 이후에도 안전하게 접근)
+        UUID capturedDeliveryId = entity.getId();
+        UUID capturedOrderId = event.orderId();
+        UUID capturedSourceHubId = entity.getSourceHubId();
+        UUID capturedDestinationHubId = entity.getDestinationHubId();
+        UUID capturedManagerId = entity.getCompanyDeliveryManagerId();
+        int capturedCount = event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0;
+        String capturedAddress = entity.getDeliveryAddress();
+        String capturedSlackId = entity.getReceiverSlackId();
+        java.time.LocalDateTime capturedCreatedAt = entity.getCreatedAt();
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    eventPublisher.publishCreated(
+                            capturedDeliveryId, capturedOrderId,
+                            capturedSourceHubId, capturedDestinationHubId,
+                            capturedManagerId, capturedCount,
+                            capturedAddress, totalEstimatedDuration,
+                            capturedSlackId, capturedCreatedAt
+                    );
+                } catch (Exception e) {
+                    log.error("[Kafka][수동처리 필요] delivery.created 발행 실패(afterCommit) — deliveryId={}",
+                            capturedDeliveryId, e);
+                }
+            }
+        });
     }
 
     // ai.deadline.calculated 이벤트 수신 시 호출 — deadline 저장 후 delivery.started 발행
