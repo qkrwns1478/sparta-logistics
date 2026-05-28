@@ -16,12 +16,14 @@ import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeliveryRouteService {
@@ -82,6 +84,9 @@ public class DeliveryRouteService {
                     delivery.changeStatus(DeliveryStatus.HUB_MOVING);
                 }
                 if (route.getRouteType() == RouteType.HUB_TO_COMPANY) {
+                    if (delivery.getStatus() != DeliveryStatus.DESTINATION_HUB_ARRIVED) {
+                        throw new BusinessException(DeliveryErrorCode.ROUTE_SEQUENCE_VIOLATED);
+                    }
                     delivery.changeStatus(DeliveryStatus.OUT_FOR_DELIVERY);
                 }
             }
@@ -110,7 +115,11 @@ public class DeliveryRouteService {
                 .filter(r -> r.getSequence() == current.getSequence() + 1)
                 .findFirst()
                 .map(r -> r.getRouteType() == RouteType.HUB_TO_COMPANY)
-                .orElse(false);
+                .orElseGet(() -> {
+                    log.warn("[경로] 다음 구간 누락 — stuck 방지를 위해 DESTINATION_HUB_ARRIVED 전이 — deliveryId={}",
+                            current.getDelivery().getId());
+                    return true;
+                });
     }
 
     private DeliveryEntity findDeliveryOrThrow(UUID deliveryId) {

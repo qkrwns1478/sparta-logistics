@@ -29,6 +29,8 @@ public enum DeliveryErrorCode implements ErrorCode {
 
     USER_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "DELIVERY_USER_503", "User Service를 현재 사용할 수 없습니다."),
 
+    ROUTE_SEQUENCE_VIOLATED(HttpStatus.BAD_REQUEST, "DELIVERY_ROUTE_004", "이전 구간이 완료되지 않아 경로를 업데이트할 수 없습니다."),
+
     NO_AVAILABLE_MANAGER(HttpStatus.CONFLICT, "DELIVERY_ASSIGN_001", "배정 가능한 배송 담당자가 없습니다."),
     ASSIGNMENT_CONFLICT(HttpStatus.CONFLICT, "DELIVERY_ASSIGN_002", "배차 충돌이 반복됩니다. 잠시 후 다시 시도해주세요.");
 

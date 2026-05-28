@@ -6,6 +6,7 @@ import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
 import com.sparta.logistics.delivery.entity.DeliveryManagerEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
+import com.sparta.logistics.delivery.entity.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerType;
@@ -22,7 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -84,6 +84,11 @@ public class DeliveryAssignmentService {
             throw new BusinessException(DeliveryErrorCode.DELIVERY_ALREADY_DELETED);
         }
 
+        if (delivery.getStatus() == DeliveryStatus.COMPLETED
+                || delivery.getStatus() == DeliveryStatus.CANCELLED) {
+            throw new BusinessException(DeliveryErrorCode.DELIVERY_ROUTE_UPDATE_FORBIDDEN);
+        }
+
         // MASTER 또는 자기 허브 배송만 배차 가능 (배송 쓰기 권한과 동일)
         permissionChecker.checkDeliveryWritePermission(delivery, actorId, role, hubId);
 
@@ -91,6 +96,7 @@ public class DeliveryAssignmentService {
                 deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId);
 
         for (DeliveryRouteEntity route : routes) {
+            if (route.getHubDeliveryManagerId() != null) continue;
             DeliveryManagerType managerType =
                     route.getRouteType() == RouteType.HUB_TO_HUB
                             ? DeliveryManagerType.HUB_DELIVERY
@@ -144,15 +150,22 @@ public class DeliveryAssignmentService {
     }
 
     /** 시스템 배차 DB 작업 (트랜잭션 담당) — 재시도마다 새 트랜잭션으로 실행된다. */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void doAssignManagersForSystem(UUID deliveryId) {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+
+        if (delivery.getStatus() == DeliveryStatus.COMPLETED
+                || delivery.getStatus() == DeliveryStatus.CANCELLED) {
+            log.warn("[배차][시스템] 종료된 배송 배차 시도 무시 — deliveryId={}, status={}", deliveryId, delivery.getStatus());
+            return;
+        }
 
         List<DeliveryRouteEntity> routes =
                 deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId);
 
         for (DeliveryRouteEntity route : routes) {
+            if (route.getHubDeliveryManagerId() != null) continue;
             DeliveryManagerType managerType =
                     route.getRouteType() == RouteType.HUB_TO_HUB
                             ? DeliveryManagerType.HUB_DELIVERY
