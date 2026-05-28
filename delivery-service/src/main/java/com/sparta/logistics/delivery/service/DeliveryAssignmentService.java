@@ -107,6 +107,11 @@ public class DeliveryAssignmentService {
                     ? route.getSourceHubId()          // HUB 구간: 출발 허브 소속 담당자
                     : delivery.getDestinationHubId(); // COMPANY 구간: 목적지 허브 소속 담당자
 
+            if (searchHubId == null) {
+                log.warn("[배차] destinationHubId 미설정 — deliveryId={}", deliveryId);
+                throw new BusinessException(DeliveryErrorCode.NO_AVAILABLE_MANAGER);
+            }
+
             DeliveryManagerEntity manager = deliveryManagerRepository
                     .findNextAssignee(searchHubId, managerType, DeliveryManagerStatus.IDLE)
                     .orElseThrow(() -> {
@@ -175,6 +180,11 @@ public class DeliveryAssignmentService {
             UUID searchHubId = route.getRouteType() == RouteType.HUB_TO_HUB
                     ? route.getSourceHubId()
                     : delivery.getDestinationHubId();
+
+            if (searchHubId == null) {
+                log.warn("[배차][시스템] destinationHubId 미설정 — deliveryId={}", deliveryId);
+                continue;
+            }
 
             DeliveryManagerEntity manager = deliveryManagerRepository
                     .findNextAssignee(searchHubId, managerType, DeliveryManagerStatus.IDLE)

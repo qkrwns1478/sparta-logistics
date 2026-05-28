@@ -57,7 +57,7 @@ public class DeliveryRouteService {
         DeliveryRouteEntity route = routeRepository.findById(routeId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.ROUTE_NOT_FOUND));
 
-        if (!route.getDelivery().getId().equals(deliveryId)) {
+        if (!deliveryId.equals(route.getDelivery().getId())) {
             throw new BusinessException(DeliveryErrorCode.ROUTE_NOT_FOUND);
         }
 
@@ -121,14 +121,15 @@ public class DeliveryRouteService {
     }
 
     private boolean isNextRouteLastMile(DeliveryRouteEntity current) {
-        return routeRepository.findAllByDelivery_IdOrderBySequenceAsc(current.getDelivery().getId())
+        UUID deliveryId = current.getDelivery().getId();
+        return routeRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId)
                 .stream()
                 .filter(r -> r.getSequence() == current.getSequence() + 1)
                 .findFirst()
                 .map(r -> r.getRouteType() == RouteType.HUB_TO_COMPANY)
                 .orElseGet(() -> {
                     log.warn("[경로] 다음 구간 누락 — stuck 방지를 위해 DESTINATION_HUB_ARRIVED 전이 — deliveryId={}",
-                            current.getDelivery().getId());
+                            deliveryId);
                     return true;
                 });
     }
