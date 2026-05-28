@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -150,7 +151,7 @@ public class DeliveryAssignmentService {
     }
 
     /** 시스템 배차 DB 작업 (트랜잭션 담당) — 재시도마다 새 트랜잭션으로 실행된다. */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void doAssignManagersForSystem(UUID deliveryId) {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
