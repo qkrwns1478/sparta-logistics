@@ -38,4 +38,11 @@ public interface HubStockRepository extends JpaRepository<HubStock, UUID> {
             @Param("hubId") UUID hubId,
             @Param("productId") UUID productId
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT h FROM HubStock h WHERE h.hub.id = :hubId AND h.productId = :productId AND h.deletedAt IS NULL")
+    Optional<HubStock> findByHubIdAndProductIdWithLock(
+            @Param("hubId") UUID hubId,
+            @Param("productId") UUID productId
+    );
 }
