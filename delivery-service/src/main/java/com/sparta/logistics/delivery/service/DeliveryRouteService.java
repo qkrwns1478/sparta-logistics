@@ -7,8 +7,10 @@ import com.sparta.logistics.delivery.dto.route.DeliveryRouteUpdateRequest;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
+import com.sparta.logistics.delivery.entity.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.entity.enums.RouteStatus;
+import com.sparta.logistics.delivery.entity.enums.RouteType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import com.sparta.logistics.delivery.repository.DeliveryLogRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
@@ -61,15 +63,49 @@ public class DeliveryRouteService {
         // 멱등성 보장: 동일 상태 재요청 시 changeStatus 및 로그 INSERT 생략
         if (req.status() != null && route.getStatus() != req.status()) {
             route.changeStatus(req.status());
-            if (req.status() == RouteStatus.ARRIVED) {
-                logRepository.save(new DeliveryLogEntity(
-                        deliveryId, DeliveryEventType.ROUTE_UPDATED, null,
-                        sequence(route) + "번 구간 도착", null, userId
-                ));
-            }
+            syncDeliveryStatus(delivery, route, userId);
         }
 
         return DeliveryRouteResponse.from(route);
+    }
+
+    private void syncDeliveryStatus(DeliveryEntity delivery, DeliveryRouteEntity route, UUID actorId) {
+        switch (route.getStatus()) {
+            case IN_TRANSIT -> {
+                if (route.getRouteType() == RouteType.HUB_TO_HUB
+                        && delivery.getStatus() == DeliveryStatus.HUB_WAITING) {
+                    delivery.changeStatus(DeliveryStatus.HUB_MOVING);
+                }
+                if (route.getRouteType() == RouteType.HUB_TO_COMPANY) {
+                    delivery.changeStatus(DeliveryStatus.OUT_FOR_DELIVERY);
+                }
+            }
+            case ARRIVED -> {
+                logRepository.save(new DeliveryLogEntity(
+                        delivery.getId(), DeliveryEventType.ROUTE_UPDATED, null,
+                        sequence(route) + "번 구간 도착", null, actorId
+                ));
+                if (route.getRouteType() == RouteType.HUB_TO_HUB) {
+                    delivery.updateCurrentHub(route.getDestinationHubId());
+                    if (isNextRouteLastMile(route)) {
+                        delivery.changeStatus(DeliveryStatus.DESTINATION_HUB_ARRIVED);
+                    }
+                }
+                if (route.getRouteType() == RouteType.HUB_TO_COMPANY) {
+                    delivery.changeStatus(DeliveryStatus.COMPLETED);
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private boolean isNextRouteLastMile(DeliveryRouteEntity current) {
+        return routeRepository.findAllByDelivery_IdOrderBySequenceAsc(current.getDelivery().getId())
+                .stream()
+                .filter(r -> r.getSequence() == current.getSequence() + 1)
+                .findFirst()
+                .map(r -> r.getRouteType() == RouteType.HUB_TO_COMPANY)
+                .orElse(false);
     }
 
     private DeliveryEntity findDeliveryOrThrow(UUID deliveryId) {
