@@ -298,6 +298,8 @@ public class HubStockService {
     private void registerStockRestorationFailedEvent(UUID eventId, UUID orderId, String reason) {
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
+                    // KafkaSkipException 발생 시 트랜잭션 롤백 → afterCommit() 미실행
+                    // 롤백 후에도 실패 이벤트 발행이 필요하므로 afterCompletion 사용
                     @Override
                     public void afterCompletion(int status) {
                         hubStockEventPublisher.publishStockRestorationFailed(eventId, orderId, reason);
