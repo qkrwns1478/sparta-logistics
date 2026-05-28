@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -39,6 +40,18 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE;
     }
 
+    private static final Set<String> WHITE_LIST = Set.of(
+            "/api/v1/auth/login",
+            "/api/v1/auth/signup",
+            "/api/v1/auth/refresh"
+    );
+
+    private boolean isWhiteList(String path) {
+        return WHITE_LIST.contains(path) ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/v3/api-docs");
+    }
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 
@@ -46,6 +59,12 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
                 .headers(headers -> headers.remove("X-Internal-Call"))
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitized).build();
+
+        // 화이트리스트 경로는 JWT 검증 없이 통과
+        String path = sanitized.getPath().toString();
+        if (isWhiteList(path)) {
+            return chain.filter(sanitizedExchange);
+        }
 
         // 토큰만 반환
         String token = extractToken(sanitized);
