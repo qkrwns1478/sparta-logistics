@@ -17,9 +17,7 @@ public interface HubServiceClient {
     @GetMapping("/api/v1/hubs/{hubId}/exists")
     void checkHubExists(@PathVariable("hubId") UUID hubId);
 
-    // 허브 간 경로 구간 목록 조회 — hub-service 팀과 응답 구조 확정 필요
-    // GET /api/v1/hub-routes?sourceHubId=&destinationHubId=
-    @GetMapping("/api/v1/hub-routes")
+    @GetMapping("/api/v1/hub-routes/segments")
     List<HubRouteSegmentResponse> getRouteSegments(
             @RequestParam("sourceHubId") UUID sourceHubId,
             @RequestParam("destinationHubId") UUID destinationHubId
