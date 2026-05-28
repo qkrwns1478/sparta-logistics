@@ -117,15 +117,12 @@ public class DeliveryRouteService {
 
     // 경로 담당자 강제 재배정 — 기존 담당자 IDLE 복귀 후 라운드 로빈으로 신규 배정
     @Transactional
-    public DeliveryRouteResponse reassignManager(UUID deliveryId, UUID routeId,
+    public DeliveryRouteResponse reassignManager(UUID routeId,
                                                   UUID userId, Role role, UUID hubId) {
-        DeliveryEntity delivery = findDeliveryOrThrow(deliveryId);
         DeliveryRouteEntity route = routeRepository.findById(routeId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.ROUTE_NOT_FOUND));
 
-        if (!deliveryId.equals(route.getDelivery().getId())) {
-            throw new BusinessException(DeliveryErrorCode.ROUTE_NOT_FOUND);
-        }
+        DeliveryEntity delivery = findDeliveryOrThrow(route.getDelivery().getId());
 
         permissionChecker.checkDeliveryWritePermission(delivery, userId, role, hubId);
 
@@ -169,7 +166,7 @@ public class DeliveryRouteService {
                 "담당자 재배정: " + managerType + " → " + newManager.getId(), null, userId
         ));
 
-        log.info("[재배정] 완료 — deliveryId={}, routeId={}, managerId={}", deliveryId, routeId, newManager.getId());
+        log.info("[재배정] 완료 — deliveryId={}, routeId={}, managerId={}", delivery.getId(), routeId, newManager.getId());
         return DeliveryRouteResponse.from(route);
     }
 

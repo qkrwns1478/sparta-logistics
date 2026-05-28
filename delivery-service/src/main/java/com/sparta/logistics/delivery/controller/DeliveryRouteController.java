@@ -9,7 +9,6 @@ import com.sparta.logistics.delivery.service.DeliveryRouteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -51,18 +50,6 @@ public class DeliveryRouteController {
             @RequestBody DeliveryRouteUpdateRequest request
     ) {
         return ResponseEntity.ok(routeService.updateRoute(deliveryId, routeId, request, userId, role, hubId));
-    }
-
-    // 경로 담당자 강제 재배정
-    @PatchMapping("/routes/{routeId}/reassign")
-    public ResponseEntity<DeliveryRouteResponse> reassignManager(
-            @PathVariable UUID deliveryId,
-            @PathVariable UUID routeId,
-            @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") Role role,
-            @RequestHeader(value = "X-User-HubId", required = false) UUID hubId
-    ) {
-        return ResponseEntity.ok(routeService.reassignManager(deliveryId, routeId, userId, role, hubId));
     }
 
     // 배송 이벤트 로그 조회
