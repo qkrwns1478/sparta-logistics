@@ -3,6 +3,7 @@ package com.sparta.logistics.slack.ai.service;
 import com.sparta.logistics.slack.ai.client.GeminiApiClient;
 import com.sparta.logistics.slack.ai.client.HubFeignClient;
 import com.sparta.logistics.slack.ai.client.OrderFeignClient;
+import com.sparta.logistics.slack.ai.client.UserFeignClient;
 import com.sparta.logistics.slack.ai.entity.AiLog;
 import com.sparta.logistics.slack.ai.prompt.DeliveryPromptTemplate;
 import com.sparta.logistics.slack.ai.repository.AiLogRepository;
@@ -16,7 +17,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -29,6 +29,7 @@ public class AiMessageService {
   private final GeminiApiClient geminiApiClient;
   private final HubFeignClient hubFeignClient;
   private final OrderFeignClient orderFeignClient;
+  private final UserFeignClient userFeignClient;
   private final DeliveryPromptTemplate promptTemplate;
   private final AiLogRepository aiLogRepository;
   private final SlackApiSender slackApiSender;
@@ -42,15 +43,15 @@ public class AiMessageService {
 
     try {
       // 1. 허브 데이터 조회 (출발지/도착지 허브 이름 가져오기) 실패 시 기본값
-      List<UUID> hubIds = List.of(event.getSourceHubId(), event.getDestinationHubId());
       Map<UUID, String> hubNameMap = new HashMap<>();
       try {
-        List<HubFeignClient.HubBatchResponseDto> hubResponse = hubFeignClient.getHubsBatch(hubIds);
-        for (var res : hubResponse) {
-          hubNameMap.put(res.hubId(), res.name());
-        }
+        HubFeignClient.HubResponseDto sourceHub = hubFeignClient.getHub(event.getSourceHubId()).data();
+        HubFeignClient.HubResponseDto destHub = hubFeignClient.getHub(event.getDestinationHubId()).data();
+
+        hubNameMap.put(sourceHub.hubId(), sourceHub.name());
+        hubNameMap.put(destHub.hubId(), destHub.name());
       } catch (Exception e) {
-        log.warn("허브 통신 실패 - 가상 ID로 대체");
+        log.warn("허브 통신 실패 - 가상 ID로 대체합니다. 원인:{}", e.getMessage());
         hubNameMap.put(event.getSourceHubId(), "출발허브");
         hubNameMap.put(event.getDestinationHubId(), "도착허브");
       }
@@ -58,13 +59,14 @@ public class AiMessageService {
       //2. 주문 서비스에서 데이터 가져오기
       OrderFeignClient.OrderResponseDto orderData;
       try {
-        orderData = orderFeignClient.getOrder(event.getOrderId());
+        orderData = orderFeignClient.getOrder(event.getOrderId()).data();
         //필수 데이터가 비어있다면 강제로 에러를 던져 Fallback으로 넘김
         if (orderData == null || orderData.orderItems() == null || orderData.orderItems().isEmpty()) {
           throw new IllegalArgumentException("주문 상품 정보가 비어있습니다.");
         }
       } catch (Exception e) {
         log.warn("필수 데이터(주문 정보) 누락 발생! AI 요청을 취소하고 Fallback");
+        log.error("주문 통신 실패 원인: {}", e.getMessage());
         return executeFallbackProcess(event);
       }
 
@@ -86,8 +88,23 @@ public class AiMessageService {
       );
 
       //5. 슬랙 발송
-      String targetSlackId = (orderData.customerSlackId() != null) ? orderData.customerSlackId() : receiverSlackId;
+      String targetSlackId = receiverSlackId;
 
+      if (orderData.requesterUserId() != null) {
+        try {
+          UserFeignClient.UserResponseDto userData =
+              userFeignClient.getUser(UUID.fromString(orderData.requesterUserId())).data();
+
+          if (userData != null && userData.slackId() != null && !userData.slackId().isEmpty()) {
+            targetSlackId = userData.slackId();
+            log.info("유저 서버 통신 성공! 슬랙 ID 수신:{}", targetSlackId);
+          }
+        } catch (Exception e) {
+          log.warn("유저 통신 실패 - 기본 슬랙 ID로 대체합니다. 원인: {}", e.getMessage());
+        }
+      }
+
+      //최종 슬랙 발송
       slackApiSender.send(
           UUID.randomUUID(),
           targetSlackId,
@@ -162,8 +179,8 @@ public class AiMessageService {
 
     String customerRequest = orderData.customerRequest() != null ? orderData.customerRequest() : "없음";
     String productInfo = orderData.orderItems().stream()
-            .map(item -> item.productName() + " " + item.quantity() + "개")
-            .collect(Collectors.joining(", "));
+        .map(item -> item.productName() + " " + item.quantity() + "개")
+        .collect(Collectors.joining(", "));
 
     return
         """
@@ -175,17 +192,17 @@ public class AiMessageService {
             TotalTransitTime: %d분 (약 %.1f시간)
             Manager: %s
             """.formatted(
-        event.getOrderId(),
-        event.getCreatedAt(),
-        productInfo,
-        customerRequest,
-        hubNameMap.getOrDefault(event.getSourceHubId(), "알 수 없는 출발지"),
-        hubNameMap.getOrDefault(event.getDestinationHubId(), "알 수 없는 도착지"),
-        event.getDeliveryAddress(),
-        event.getTotalEstimatedDuration(),
-        durationHours,
-        event.getCompanyDeliveryManagerId()
-    );
+            event.getOrderId(),
+            event.getCreatedAt(),
+            productInfo,
+            customerRequest,
+            hubNameMap.getOrDefault(event.getSourceHubId(), "알 수 없는 출발지"),
+            hubNameMap.getOrDefault(event.getDestinationHubId(), "알 수 없는 도착지"),
+            event.getDeliveryAddress(),
+            event.getTotalEstimatedDuration(),
+            durationHours,
+            event.getCompanyDeliveryManagerId()
+        );
   }
 }
 
