@@ -165,6 +165,41 @@ public class HubStockLockHelper {
         registerHubStockUpdatedEvent(hubStock);
     }
 
+    // ========================
+    // 예약 재고 차감 (ORDER_DECREASE)
+    // ========================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deductWithOptimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId, UUID deliveryId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductId(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        deduct(hubStock, quantity, orderItemId, deliveryId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deductWithPessimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId, UUID deliveryId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductIdWithLock(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        deduct(hubStock, quantity, orderItemId, deliveryId);
+    }
+
+    private void deduct(HubStock hubStock, int quantity, UUID orderItemId, UUID deliveryId) {
+
+        int beforeReserved = hubStock.getReserved();
+        hubStock.decreaseReserved(quantity);
+        int afterReserved = hubStock.getReserved();
+
+        hubStockLogRepository.save(HubStockLog.create(
+                hubStock, orderItemId, deliveryId,
+                -quantity, beforeReserved, afterReserved,
+                HubStockChangeType.ORDER_DECREASE
+        ));
+    }
+
     private void registerHubStockUpdatedEvent(HubStock hubStock) {
 
         TransactionSynchronizationManager.registerSynchronization(
