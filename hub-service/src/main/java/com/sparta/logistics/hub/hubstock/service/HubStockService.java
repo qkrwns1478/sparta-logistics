@@ -124,38 +124,26 @@ public class HubStockService {
 
         for (RestoreStockItemPayload item : command.getOrderItems()) {
 
-            HubStock hubStock = hubStockRepository
-                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
-                    .orElseGet(() -> {
-
-                        log.error("[HubStock] 재고 복구 실패 - 허브 재고 없음. orderId: {}, productId: {}",
-                                command.getOrderId(), item.getProductId());
-
-                        registerStockRestorationFailedEvent(
-                                command.getEventId(),
-                                command.getOrderId(),
-                                "허브 재고 없음"
-                        );
-
-                        throw new KafkaSkipException("허브 재고 없음 - orderId: " + command.getOrderId());
-                    });
-
-            int beforeQuantity = hubStock.getAvailable();
-            hubStock.restore(item.getQuantity());
-            int afterQuantity = hubStock.getAvailable();
-
-            // 재고 변경 이력 기록(주문 취소 시에는 주문만 존재하고 배송은 존재하지 않음)
-            hubStockLogRepository.save(HubStockLog.create(
-                    hubStock,
-                    item.getOrderItemId(),
-                    null,
-                    item.getQuantity(),
-                    beforeQuantity,
-                    afterQuantity,
-                    HubStockChangeType.CANCEL_RESTORE
-            ));
-
-            registerHubStockUpdatedEvent(hubStock);
+            try {
+                executeWithLock(
+                        () -> { hubStockLockHelper.restoreWithOptimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId(), null
+                        ); return null; },
+                        () -> { hubStockLockHelper.restoreWithPessimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId(), null
+                        ); return null; }
+                );
+            } catch (BusinessException e) {
+                // 재고 없음 → 복구 실패 이벤트 발행 후 컨슈머 재시도 제외
+                log.error("[HubStock] 재고 복구 실패. orderId: {}, productId: {}, reason: {}",
+                        command.getOrderId(), item.getProductId(), e.getMessage());
+                registerStockRestorationFailedEvent(
+                        command.getEventId(), command.getOrderId(), e.getMessage()
+                );
+                throw new KafkaSkipException("재고 복구 실패 - orderId: " + command.getOrderId());
+            }
         }
 
         // DB 커밋 성공 후 ack 발행 (커밋 전 발행 시 정합성 문제 방지)
