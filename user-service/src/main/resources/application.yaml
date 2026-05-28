@@ -49,3 +49,9 @@ resilience4j:
 eureka:
   instance:
     instance-id: ${spring.application.name}:${server.port}
+
+springdoc:
+  api-docs:
+    path: /api-docs/user
+  swagger-ui:
+    path: /swagger-ui/user

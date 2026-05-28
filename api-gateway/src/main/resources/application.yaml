@@ -63,6 +63,48 @@ spring:
               predicates:
                 - Path=/api/v1/slack-messages/**, /api/v1/ai-logs/**
 
+            # user-service swagger docs
+            - id: user-service-docs
+              uri: lb://user-service
+              predicates:
+                - Path=/api-docs/user
+
+#            # hub-service swagger docs
+#            - id: hub-service-docs
+#              uri: lb://hub-service
+#              predicates:
+#                - Path=/api-docs/hub
+#
+#            # company-service swagger docs
+#            - id: company-service-docs
+#              uri: lb://company-service
+#              predicates:
+#                - Path=/api-docs/company
+#
+#            # product-service swagger docs
+#            - id: product-service-docs
+#              uri: lb://product-service
+#              predicates:
+#                - Path=/api-docs/product
+#
+#            # order-service swagger docs
+#            - id: order-service-docs
+#              uri: lb://order-service
+#              predicates:
+#                - Path=/api-docs/order
+#
+#            # delivery-service swagger docs
+#            - id: delivery-service-docs
+#              uri: lb://delivery-service
+#              predicates:
+#                - Path=/api-docs/delivery
+#
+#            # slack-service swagger docs
+#            - id: slack-service-docs
+#              uri: lb://slack-service
+#              predicates:
+#                - Path=/api-docs/slack
+
 eureka:
   client:
     service-url:
@@ -85,10 +127,27 @@ management:
 jwt:
   secret-key: ${JWT_SECRET:aGVsbG9Xb3JsZFNlY3JldEtleUZvckpXVEF1dGgxMjM0NTY=}
 
+springdoc:
+  swagger-ui:
+    urls:
+      - name: user-service
+        url: /api-docs/user
+#      - name: hub-service
+#        url: /api-docs/hub
+#      - name: company-service
+#        url: /api-docs/company
+#      - name: product-service
+#        url: /api-docs/product
+#      - name: order-service
+#        url: /api-docs/order
+#      - name: delivery-service
+#        url: /api-docs/delivery
+#      - name: slack-service
+#        url: /api-docs/slack
+
 
 logging:
   pattern:
     correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
   include-application-name: false
-
 
