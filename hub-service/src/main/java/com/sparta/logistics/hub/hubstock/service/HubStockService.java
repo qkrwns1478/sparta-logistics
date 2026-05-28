@@ -113,17 +113,10 @@ public class HubStockService {
             throw new BusinessException(HubStockErrorCode.HUB_STOCK_INVALID_CHANGE_TYPE);
         }
 
-        for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
-            try {
-                return hubStockLockHelper.adjustWithOptimisticLock(hubId, stockId, request);
-            } catch (OptimisticLockingFailureException e) {
-                if (attempt == MAX_RETRY - 1) {
-                    return hubStockLockHelper.adjustWithPessimisticLock(hubId, stockId, request);
-                }
-            }
-        }
-
-        throw new BusinessException(HubStockErrorCode.HUB_STOCK_ADJUST_FAILED);
+        return executeWithLock(
+                () -> hubStockLockHelper.adjustWithOptimisticLock(hubId, stockId, request),
+                () -> hubStockLockHelper.adjustWithPessimisticLock(hubId, stockId, request)
+        );
     }
 
     @Transactional
