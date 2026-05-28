@@ -4,6 +4,7 @@ import com.sparta.logistics.common.kafka.event.RestoreStockItemPayload;
 import com.sparta.logistics.order.kafka.producer.OrderEventPublisher;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ public class CancelOrderOrchestrator {
 
     private final OrderRepository orderRepository;
     private final OrderEventPublisher orderEventPublisher;
+    private final OrderLockManager orderLockManager;
 
     /**
      * Saga Step 3-1: CANCELLING 전이 + cancel.delivery.command 발행
@@ -96,6 +98,7 @@ public class CancelOrderOrchestrator {
 
         OrderStatus previous = order.getDeliveryId() == null ? OrderStatus.PENDING : OrderStatus.ACCEPTED;
         order.revertCancelling(previous);
+        orderLockManager.clearRestoreRetry(orderId);
         log.info("[CancelSaga] CANCELLING 복구 orderId={} restoredStatus={}", orderId, previous);
     }
 
@@ -128,8 +131,15 @@ public class CancelOrderOrchestrator {
                         .build())
                 .toList();
 
+        int retryCount = orderLockManager.incrementAndGetRestoreRetry(orderId);
+        if (retryCount > OrderLockManager.MAX_RESTORE_RETRY) {
+            log.warn("[CancelSaga] restore.stock.command 최대 재시도 초과 orderId={} retryCount={}", orderId, retryCount);
+            return;
+        }
+
         orderEventPublisher.publishRestoreStockCommand(orderId, items);
-        log.info("[CancelSaga] restore.stock.command 재발행 orderId={} itemCount={}", orderId, items.size());
+        log.info("[CancelSaga] restore.stock.command 재발행 orderId={} retryCount={} itemCount={}",
+                orderId, retryCount, items.size());
     }
 
     /**
@@ -154,6 +164,7 @@ public class CancelOrderOrchestrator {
         }
 
         order.confirmCancelled();
+        orderLockManager.clearRestoreRetry(orderId);
         log.info("[CancelSaga] CANCELLED 확정 orderId={}", orderId);
     }
 }

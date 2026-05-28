@@ -9,10 +9,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface OrderRepository extends JpaRepository<Order, UUID> {
+
+    List<Order> findByStatusAndUpdatedAtBefore(OrderStatus status, LocalDateTime threshold);
 
     @Query("""
             SELECT o FROM Order o

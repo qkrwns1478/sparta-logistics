@@ -134,6 +134,11 @@ sequenceDiagram
 | 위임 메서드 | `OrderService.acceptOrder()` |
 | 처리 내용 | 주문 상태 PENDING → ACCEPTED, `deliveryId` 저장 |
 | 멱등성 | PENDING이 아닌 경우 no-op |
+- 비고
+    - 동시성 제어
+        - CANCELLING 상태 키가 존재하면 이벤트를 skip합니다. Orchestration Saga 취소가 진행 중인 상태에서 `delivery.created`가 수신되어 ACCEPTED로 잘못 전이되는 경합을 방지합니다.
+        - 처리 시작 전 PROCESSING 상태 키를 세팅합니다. 처리 중 `cancelOrder()` HTTP 요청이 `ORDER_PROCESSING_IN_PROGRESS`로 차단됩니다.
+        - `acceptOrder()` 완료 후 주문이 PENDING/ACCEPTED 상태이므로 취소 요청이 정당합니다. 따라서 처리 완료 즉시 PROCESSING 키를 해제합니다(try-finally). 보상 Consumer 두 종과 달리 명시적 해제가 필요한 이유는, `cancelOrderByCompensation()` 이후 주문은 어차피 CANCELLED가 되어 취소 요청 자체가 불가능한 것과 다르기 때문입니다.
 
 ### [Step 1-5] `delivery.created` 구독 → AI 발송 시한 계산 → `ai.deadline.calculated` 발행
 
@@ -205,6 +210,10 @@ sequenceDiagram
 | 위임 메서드 | `OrderService.cancelOrderByCompensation()` |
 | 처리 내용 | 주문 즉시 CANCELLED, `cancelReason` = 실패 사유 |
 | 멱등성 | 이미 CANCELLED인 경우 no-op |
+- 비고
+    - 동시성 제어
+        - CANCELLING 상태 키가 존재하면 이벤트를 skip합니다. Orchestration Saga 취소가 이미 진행 중인 경우 Choreography 보상 취소가 중복으로 실행되지 않도록 방지합니다.
+        - 처리 시작 전 PROCESSING 상태 키를 세팅합니다. `cancelOrderByCompensation()` 완료 후 주문이 CANCELLED 상태가 되므로 PROCESSING 키는 TTL(30초) 자동 만료에 위임합니다.
 
 ### [Step 2-2] `delivery.creation.failed` 구독 → 주문 CANCELLED
 
@@ -216,6 +225,9 @@ sequenceDiagram
 | 위임 메서드 | `OrderService.cancelOrderByCompensation()` |
 | 처리 내용 | 주문 즉시 CANCELLED, `cancelReason` = 실패 사유 |
 | 멱등성 | 이미 CANCELLED인 경우 no-op |
+- 비고
+    - 동시성 제어
+        - Step 2-1과 동일한 패턴: CANCELLING 상태 키 존재 시 skip, 이외엔 PROCESSING 세팅 후 처리합니다. PROCESSING 키는 TTL 자동 만료에 위임합니다.
 
 ### [Step 2-3] `delivery.creation.failed` 구독 → 재고 예약 복구
 
@@ -282,6 +294,9 @@ sequenceDiagram
 | 권한 검사 | `OrderService.cancelOrder()`에서 MASTER/HUB_MANAGER 여부 및 허브 담당 검사 후 위임 |
 | 다음 단계 | Step 3-2: DeliveryService 배송 취소 |
 - 비고
+    - CANCELLING 상태 키 생명 주기
+        - 검증(권한·상태·허브)을 통과한 후에 CANCELLING 상태 키를 세팅합니다. 검증 실패 시 키가 남지 않도록 세팅 시점을 검증 통과 이후로 이동하였습니다.
+        - CANCELLING 상태 키는 Saga 완료(Step 3-5 `confirmOrderCancelled()`) 또는 복구(Step 4-1 `handleDeliveryCancellationFailed()`) 시점에 해제됩니다. 기존에는 `cancelOrder()` 반환 직후 해제되어 이후 Kafka Consumer가 키를 확인할 수 없었습니다.
     - [x]  배송 취소 명령(`cancel.delivery.command`)을 수신했을 때, 배송이 **이미 이동 중(HUB_MOVING 이후**)이라면? ✅
 
         - 현재 `DeliveryStatus` 상태 전이에서는 모든 진행 상태에서 CANCELLED 전이를 허용하고 있으나, 재고 복구 방식이 **허브에서 출발 전인지, 후인지**로 달라지기 때문에 정책 결정이 필요합니다.
@@ -345,7 +360,7 @@ sequenceDiagram
 | 위임 메서드 | `OrderService.confirmOrderCancelled()` → `CancelOrderOrchestrator.onStockRestored()` |
 | 처리 내용 | 주문 상태 CANCELLING → CANCELLED, `cancelledAt` 기록 |
 | 멱등성 | CANCELLING이 아닌 경우 no-op |
-| 비고 | `cancelledBy` 및 `cancelReason`은 Step 3-1에서 이미 저장되었으므로 기록하지 않음 |
+| 비고 | `cancelledBy` 및 `cancelReason`은 Step 3-1에서 이미 저장되었으므로 기록하지 않음. Orchestration Saga 완료 시점에 CANCELLING 상태 키를 해제함 |
 
 ---
 
@@ -385,7 +400,7 @@ sequenceDiagram
 | 처리 내용 | `CANCELLING` → 이전 상태 복구, `cancelledBy` 및 `cancelReason` 초기화 |
 | 이전 상태 판별 | `deliveryId == null ? PENDING : ACCEPTED`  |
 | 멱등성 | CANCELLING이 아닌 경우 no-op |
-| 비고 | 이 시점에서 재고·배송 모두 변경된 것이 없으므로 주문 상태만 복구하면 됨 |
+| 비고 | 이 시점에서 재고·배송 모두 변경된 것이 없으므로 주문 상태만 복구하면 됨. 복구 완료 시 CANCELLING 상태 키를 해제하여 이후 `delivery.created` 등 Consumer 이벤트가 정상 처리될 수 있도록 함 |
 
 ### Step 3-4 실패 (재고 복구 실패)
 
@@ -412,9 +427,23 @@ sequenceDiagram
 | 담당 컴포넌트 | `CancelOrderOrchestrator.onStockRestorationFailed()` |
 | 컨슈머 | `StockRestorationFailedConsumer` |
 | 구독 토픽 | `stock.restoration.failed` |
-| 처리 내용 | `restore.stock.command` 재발행 |
+| 처리 내용 | Redis 재시도 카운터 증가 → 한도(`MAX_RESTORE_RETRY = 3`) 이내이면 `restore.stock.command` 재발행, 초과 시 재발행 중단 후 `log.warn` |
 | 멱등성 | CANCELLING이 아닌 경우 no-op |
-| 비고 | 재고 복구는 `reserved` 차감 + `available` 증가로 멱등 연산이므로 재시도 안전<br>이 시점에서 배송 취소는 이미 완료되어 원복 불가 |
+| 비고 | 재고 복구는 `reserved` 차감 + `available` 증가로 멱등 연산이므로 재시도 안전<br>이 시점에서 배송 취소는 이미 완료되어 원복 불가<br>재시도 카운터는 Saga 정상 완료(`onStockRestored`) 또는 배송 취소 실패 복구(`onDeliveryCancellationFailed`) 시 삭제됨 |
+
+- 비고
+    - 재시도 한도 초과 또는 이벤트 유실로 주문이 `CANCELLING`에 고착될 수 있습니다.
+        - `CancellingSagaTimeoutChecker`가 30분 이상 고착된 주문을 5분 주기로 감지해 `log.warn`을 남깁니다.
+        - 자동 복구는 없으며 운영자가 원인을 확인 후 수동 처리해야 합니다.
+    - 자동 복구가 없는 이유
+        - 인프라 장애인지 로직 버그인지 코드가 판단할 수 없기 때문입니다.
+        - 자동으로 PENDING/ACCEPTED로 되돌리면, 원인이 로직 버그일 때 취소 요청이 유실된 채 주문이 살아나는 상황이 생깁니다.
+        - 반대로 CANCELLED로 강제 확정하면, 실제로 재고가 복구되지 않은 상태에서 주문이 닫힐 수 있습니다.
+        - 두 경우 모두 데이터 정합성 문제로 이어지므로 관리자가 원인을 보고 결정해야 합니다.
+    - 미결 사항
+        - 현재 타임아웃 감지 시 `log.warn`만 남기며, 별도 알림 채널이 없습니다.
+        - 누군가 로그를 직접 확인하지 않으면 고착 상태를 인지할 수 없습니다.
+        - 로그 모니터링 시스템 알람, Dead Letter Topic (`cancelling.timeout`) 발행, Slack 알림 등의 방안이 있지만 현재 일정 상 구현이 어렵습니다.
 
 ---
 
