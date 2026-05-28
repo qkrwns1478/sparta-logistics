@@ -6,9 +6,12 @@ import com.sparta.logistics.delivery.dto.route.DeliveryRouteResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteUpdateRequest;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
+import com.sparta.logistics.delivery.entity.DeliveryManagerEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
-import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
+import com.sparta.logistics.delivery.entity.enums.DeliveryManagerStatus;
+import com.sparta.logistics.delivery.entity.enums.DeliveryManagerType;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.RouteStatus;
 import com.sparta.logistics.delivery.entity.enums.RouteType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
@@ -110,6 +113,64 @@ public class DeliveryRouteService {
             }
             default -> { }
         }
+    }
+
+    // 경로 담당자 강제 재배정 — 기존 담당자 IDLE 복귀 후 라운드 로빈으로 신규 배정
+    @Transactional
+    public DeliveryRouteResponse reassignManager(UUID deliveryId, UUID routeId,
+                                                  UUID userId, Role role, UUID hubId) {
+        DeliveryEntity delivery = findDeliveryOrThrow(deliveryId);
+        DeliveryRouteEntity route = routeRepository.findById(routeId)
+                .orElseThrow(() -> new BusinessException(DeliveryErrorCode.ROUTE_NOT_FOUND));
+
+        if (!deliveryId.equals(route.getDelivery().getId())) {
+            throw new BusinessException(DeliveryErrorCode.ROUTE_NOT_FOUND);
+        }
+
+        permissionChecker.checkDeliveryWritePermission(delivery, userId, role, hubId);
+
+        DeliveryStatus ds = delivery.getStatus();
+        if (ds == DeliveryStatus.CANCELLED || ds == DeliveryStatus.COMPLETED) {
+            throw new BusinessException(DeliveryErrorCode.DELIVERY_ROUTE_UPDATE_FORBIDDEN);
+        }
+
+        // 기존 담당자 IDLE 복귀
+        releaseManager(route);
+
+        // 신규 담당자 라운드 로빈 배정
+        DeliveryManagerType managerType = route.getRouteType() == RouteType.HUB_TO_HUB
+                ? DeliveryManagerType.HUB_DELIVERY
+                : DeliveryManagerType.COMPANY_DELIVERY;
+
+        UUID searchHubId = route.getRouteType() == RouteType.HUB_TO_HUB
+                ? route.getSourceHubId()
+                : delivery.getDestinationHubId();
+
+        if (searchHubId == null) {
+            throw new BusinessException(DeliveryErrorCode.NO_AVAILABLE_MANAGER);
+        }
+
+        DeliveryManagerEntity newManager = managerRepository
+                .findNextAssignee(searchHubId, managerType, DeliveryManagerStatus.IDLE)
+                .orElseThrow(() -> {
+                    log.warn("[재배정] 가용 담당자 없음 — hubId={}, type={}", searchHubId, managerType);
+                    return new BusinessException(DeliveryErrorCode.NO_AVAILABLE_MANAGER);
+                });
+
+        newManager.assign();
+        route.assignManager(newManager.getId());
+
+        if (managerType == DeliveryManagerType.COMPANY_DELIVERY) {
+            delivery.assignCompanyDeliveryManager(newManager.getId());
+        }
+
+        logRepository.save(new DeliveryLogEntity(
+                deliveryId, DeliveryEventType.MANAGER_ASSIGNED, delivery.getStatus(),
+                "담당자 재배정: " + managerType + " → " + newManager.getId(), null, userId
+        ));
+
+        log.info("[재배정] 완료 — deliveryId={}, routeId={}, managerId={}", deliveryId, routeId, newManager.getId());
+        return DeliveryRouteResponse.from(route);
     }
 
     private void releaseManager(DeliveryRouteEntity route) {
