@@ -21,7 +21,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
+import java.math.BigDecimal;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -133,6 +134,84 @@ public class HubRouteService {
         hubRoute.delete(userId);
 
         return HubRouteDeleteResponse.from(hubRoute);
+    }
+
+    @Cacheable(value = "hubRouteSegments", key = "#sourceHubId + ':' + #destinationHubId")
+    @Transactional(readOnly = true)
+    public List<HubRouteSegmentResponse> getHubRouteSegments(UUID sourceHubId, UUID destinationHubId) {
+
+        if (sourceHubId.equals(destinationHubId)) {
+            return List.of();
+        }
+
+        List<HubRoute> allRoutes = hubRouteRepository.findAllWithHubs();
+
+        // 인접 리스트 생성
+        Map<UUID, List<HubRoute>> graph = new HashMap<>();
+        for (HubRoute route : allRoutes) {
+            graph.computeIfAbsent(route.getSourceHub().getId(), k -> new ArrayList<>())
+                    .add(route);
+        }
+
+        // dijkstra
+        Map<UUID, BigDecimal> dist = new HashMap<>();
+        Map<UUID, HubRoute> prev = new HashMap<>();
+        record Node(UUID hubId, BigDecimal distance) {}
+
+        PriorityQueue<Node> pq = new PriorityQueue<>(Comparator.comparing(Node::distance));
+
+        dist.put(sourceHubId, BigDecimal.ZERO);
+        pq.offer(new Node(sourceHubId, BigDecimal.ZERO));
+
+        Set<UUID> visited = new HashSet<>();
+
+        while (!pq.isEmpty()) {
+
+            Node now = pq.poll();
+
+            if (visited.contains(now.hubId())) {
+                continue;
+            }
+            visited.add(now.hubId());
+
+
+            for (HubRoute route : graph.getOrDefault(now.hubId(), List.of())) {
+
+                UUID next = route.getDestinationHub().getId();
+                BigDecimal newDist = now.distance().add(route.getDistance());
+
+                if (newDist.compareTo(dist.getOrDefault(next, BigDecimal.valueOf(Double.MAX_VALUE))) < 0) {
+
+                    dist.put(next, newDist);
+                    prev.put(next, route);
+                    pq.add(new Node(next, newDist));
+                }
+            }
+        }
+
+        // 경로 없음
+        if (!prev.containsKey(destinationHubId)) {
+            throw new BusinessException(HubRouteErrorCode.HUB_ROUTE_NOT_FOUND);
+        }
+
+        // 역추적
+        List<HubRoute> path = new ArrayList<>();
+        UUID cur = destinationHubId;
+        while (prev.containsKey(cur)) {
+            HubRoute route = prev.get(cur);
+            path.add(route);
+            cur = route.getSourceHub().getId();
+        }
+
+        Collections.reverse(path);
+
+        // sequence 붙여서 반환
+        List<HubRouteSegmentResponse> result = new ArrayList<>();
+        for (int i = 0; i < path.size(); i++) {
+            result.add(HubRouteSegmentResponse.of(i, path.get(i)));
+        }
+
+        return result;
     }
 
     private Hub findHubById(UUID hubId) {

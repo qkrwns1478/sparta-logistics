@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -76,5 +77,15 @@ public class HubRouteController {
         HubRouteDeleteResponse response = hubRouteService.deleteHubRoute(routeId, userId, role);
 
         return ResponseEntity.ok(ApiResponse.ok("이동 경로가 삭제되었습니다.", response));
+    }
+
+    @GetMapping("/segments")
+    public ResponseEntity<ApiResponse<List<HubRouteSegmentResponse>>> getHubRouteSegments(
+            @RequestParam UUID sourceHubId,
+            @RequestParam UUID destinationHubId) {
+
+        List<HubRouteSegmentResponse> response = hubRouteService.getHubRouteSegments(sourceHubId, destinationHubId);
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 }
