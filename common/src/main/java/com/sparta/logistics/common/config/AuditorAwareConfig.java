@@ -1,5 +1,6 @@
 package com.sparta.logistics.common.config;
 
+import com.sparta.logistics.common.constants.SystemConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,9 +20,6 @@ import java.util.UUID;
 @Configuration
 public class AuditorAwareConfig {
 
-    public static final UUID SYSTEM_UUID =
-            UUID.fromString("00000000-0000-0000-0000-000000000001");
-
     @Bean
     public AuditorAware<UUID> auditorProvider() {
         return () -> {
@@ -35,11 +33,11 @@ public class AuditorAwareConfig {
                     try {
                         return Optional.of(UUID.fromString(userId));
                     } catch (IllegalArgumentException e) {
-                        return Optional.of(SYSTEM_UUID);
+                        return Optional.of(SystemConstants.SYSTEM_UUID);
                     }
                 }
             }
-            return Optional.of(SYSTEM_UUID);
+            return Optional.of(SystemConstants.SYSTEM_UUID);
         };
     }
 }

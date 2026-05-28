@@ -1,6 +1,6 @@
 package com.sparta.logistics.common.filter;
 
-import com.sparta.logistics.common.config.AuditorAwareConfig;
+import com.sparta.logistics.common.constants.SystemConstants;
 import com.sparta.logistics.common.feign.FeignClientInterceptor;
 import com.sparta.logistics.common.security.GatewayAuthEntryPoint;
 import jakarta.servlet.FilterChain;
@@ -43,7 +43,7 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         if (FeignClientInterceptor.INTERNAL_CALL_VALUE.equals(internalCall)) {
             UsernamePasswordAuthenticationToken systemAuth =
                     new UsernamePasswordAuthenticationToken(
-                            AuditorAwareConfig.SYSTEM_UUID.toString(),
+                            SystemConstants.SYSTEM_UUID.toString(),
                             null,
                             List.of(new SimpleGrantedAuthority("ROLE_SYSTEM"))
                     );
