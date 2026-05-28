@@ -1,4 +1,4 @@
-package com.sparta.logistics.delivery.infrastructure.event;
+package com.sparta.logistics.delivery.kafka.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,11 +10,12 @@ import com.sparta.logistics.common.kafka.event.HubDeletedEvent;
 import com.sparta.logistics.delivery.service.DeliveryManagerService;
 import com.sparta.logistics.common.kafka.event.RestoreStockItemPayload;
 import com.sparta.logistics.common.response.ApiResponse;
+import com.sparta.logistics.delivery.client.FeignCallService;
 import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.client.response.UserResponse;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.dto.event.StockReservedItemPayload;
-import com.sparta.logistics.delivery.infrastructure.client.FeignCallService;
+import com.sparta.logistics.delivery.kafka.producer.DeliveryEventPublisher;
 import com.sparta.logistics.delivery.service.DeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -139,16 +140,14 @@ public class DeliveryEventHandler {
             event = objectMapper.readValue(message, AiDeadlineCalculatedEvent.class);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] ai.deadline.calculated 역직렬화 실패: {}", message, e);
-            return;  // 보상 액션 없음 — offset 커밋
+            return;
         }
         try {
             deliveryService.updateFinalDispatchDeadline(event.getDeliveryId(), event.getFinalDispatchDeadlineAt());
             log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.getDeliveryId());
         } catch (BusinessException e) {
-            // DELIVERY_NOT_FOUND 등 재처리해도 해결 안 됨 — offset 커밋
             log.error("[Kafka] AI 발송 시한 업데이트 실패(비즈니스) — deliveryId={}", event.getDeliveryId(), e);
         } catch (Exception e) {
-            // KafkaException 등 일시적 장애 — DefaultErrorHandler 재시도
             log.error("[Kafka] AI 발송 시한 업데이트 실패 — deliveryId={}", event.getDeliveryId(), e);
             throw new RuntimeException(e);
         }

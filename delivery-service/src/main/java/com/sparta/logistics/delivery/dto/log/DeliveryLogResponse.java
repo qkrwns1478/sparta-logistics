@@ -1,7 +1,7 @@
 package com.sparta.logistics.delivery.dto.log;
 
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
-import com.sparta.logistics.delivery.entity.DeliveryStatus;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 
 import java.time.LocalDateTime;

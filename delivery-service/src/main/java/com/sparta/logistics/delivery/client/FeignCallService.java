@@ -1,9 +1,7 @@
-package com.sparta.logistics.delivery.infrastructure.client;
+package com.sparta.logistics.delivery.client;
 
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.response.ApiResponse;
-import com.sparta.logistics.delivery.client.HubServiceClient;
-import com.sparta.logistics.delivery.client.UserServiceClient;
 import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.client.response.UserResponse;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;

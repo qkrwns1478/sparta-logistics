@@ -7,7 +7,7 @@ import com.sparta.logistics.delivery.dto.route.DeliveryRouteUpdateRequest;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
-import com.sparta.logistics.delivery.entity.DeliveryStatus;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.entity.enums.RouteStatus;
 import com.sparta.logistics.delivery.entity.enums.RouteType;

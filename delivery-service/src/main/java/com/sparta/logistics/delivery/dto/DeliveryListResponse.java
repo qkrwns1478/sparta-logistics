@@ -1,7 +1,7 @@
 package com.sparta.logistics.delivery.dto;
 
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
-import com.sparta.logistics.delivery.entity.DeliveryStatus;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

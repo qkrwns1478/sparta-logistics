@@ -1,4 +1,4 @@
-package com.sparta.logistics.delivery.infrastructure.event;
+package com.sparta.logistics.delivery.kafka.producer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -97,7 +97,7 @@ public class DeliveryEventPublisher {
             log.info("[Kafka] delivery.started 발행 — deliveryId={}", deliveryId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] delivery.started 직렬화 실패 — deliveryId={}", deliveryId, e);
-            throw new RuntimeException(e);  // 삼키면 order-service 미인지 — 핸들러 레벨 catch로 전파
+            throw new RuntimeException(e);
         }
     }
 
