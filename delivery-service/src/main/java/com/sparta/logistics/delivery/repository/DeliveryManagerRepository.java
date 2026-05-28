@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +32,8 @@ public interface DeliveryManagerRepository extends JpaRepository<DeliveryManager
     @Query("SELECT COALESCE(MAX(m.deliverySequence), -1) FROM DeliveryManagerEntity m " +
             "WHERE m.deletedAt IS NULL")
     int findMaxDeliverySequence();
+
+    List<DeliveryManagerEntity> findAllByHubIdAndDeletedAtIsNull(UUID hubId);
 
     @Query("SELECT m FROM DeliveryManagerEntity m WHERE " +
             "(:#{#cond.managerType} IS NULL OR m.managerType = :#{#cond.managerType}) AND " +

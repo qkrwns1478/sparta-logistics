@@ -119,6 +119,14 @@ public class DeliveryManagerService {
         entity.delete(actorId);
     }
 
+    // 허브 삭제 cascade — WORKING 상태 체크 없이 강제 soft delete
+    @Transactional
+    public void softDeleteManagersByHubId(UUID hubId, UUID deletedBy) {
+        List<DeliveryManagerEntity> managers = managerRepository.findAllByHubIdAndDeletedAtIsNull(hubId);
+        managers.forEach(m -> m.delete(deletedBy));
+        log.info("[hub.deleted] 배송 담당자 {}건 soft delete — hubId={}", managers.size(), hubId);
+    }
+
     private DeliveryManagerEntity findActiveOrThrow(UUID managerId) {
         DeliveryManagerEntity entity = managerRepository.findById(managerId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.MANAGER_NOT_FOUND));

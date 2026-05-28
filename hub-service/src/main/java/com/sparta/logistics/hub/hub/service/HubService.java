@@ -11,6 +11,7 @@ import com.sparta.logistics.hub.hub.enums.HubStatus;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
+import com.sparta.logistics.hub.kafka.publisher.HubStockEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -20,6 +21,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +33,7 @@ public class HubService {
 
     private final HubRepository hubRepository;
     private final HubRouteRepository hubRouteRepository;
+    private final HubStockEventPublisher eventPublisher;
 
 
     @CacheEvict(value = "hubList", allEntries = true)
@@ -138,7 +142,6 @@ public class HubService {
 
     }
 
-    // todo: 배송 담당자 논리 삭제 연동
     @Caching(evict = {
             @CacheEvict(value = "hubs", key = "#hubId"),
             @CacheEvict(value = "hubList", allEntries = true)
@@ -146,7 +149,6 @@ public class HubService {
     @Transactional
     public HubDeleteResponse deleteHub(UUID hubId, UUID userId, Role role) {
 
-        // master 검증
         if (!isMaster(role)) {
             throw new BusinessException(HubErrorCode.HUB_FORBIDDEN);
         }
@@ -156,6 +158,13 @@ public class HubService {
 
         List<HubRoute> routes = hubRouteRepository.findAllByHubAndDeletedAtIsNull(hub);
         routes.forEach(route -> route.delete(userId));
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                eventPublisher.publishHubDeleted(hubId, userId);
+            }
+        });
 
         return HubDeleteResponse.from(hub);
     }
