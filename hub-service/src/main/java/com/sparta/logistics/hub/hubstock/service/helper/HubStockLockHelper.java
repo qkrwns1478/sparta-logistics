@@ -200,6 +200,84 @@ public class HubStockLockHelper {
         ));
     }
 
+    // ========================
+    // 보상 (CANCEL_RESTORE 역연산 — available -, reserved +)
+    // ========================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void compensateRestoreWithOptimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductId(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        compensateRestore(hubStock, quantity, orderItemId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void compensateRestoreWithPessimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductIdWithLock(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        compensateRestore(hubStock, quantity, orderItemId);
+    }
+
+    private void compensateRestore(HubStock hubStock, int quantity, UUID orderItemId) {
+
+        int beforeQuantity = hubStock.getAvailable();
+        hubStock.reserve(quantity);
+        int afterQuantity = hubStock.getAvailable();
+
+        hubStockLogRepository.save(HubStockLog.create(
+                hubStock,
+                orderItemId,
+                null,
+                -quantity,
+                beforeQuantity,
+                afterQuantity,
+                HubStockChangeType.COMPENSATE
+        ));
+
+        registerHubStockUpdatedEvent(hubStock);
+    }
+
+    // ========================
+    // 보상 (ORDER_RESERVE 역연산 — available +, reserved -)
+    // ========================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void compensateReserveWithOptimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductId(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        compensateReserve(hubStock, quantity, orderItemId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void compensateReserveWithPessimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductIdWithLock(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        compensateReserve(hubStock, quantity, orderItemId);
+    }
+
+    private void compensateReserve(HubStock hubStock, int quantity, UUID orderItemId) {
+
+        int beforeQuantity = hubStock.getAvailable();
+        hubStock.restore(quantity);  // reserve의 역연산
+        int afterQuantity = hubStock.getAvailable();
+
+        hubStockLogRepository.save(HubStockLog.create(
+                hubStock, orderItemId, null,
+                quantity, beforeQuantity, afterQuantity,
+                HubStockChangeType.COMPENSATE
+        ));
+
+        registerHubStockUpdatedEvent(hubStock);
+    }
+
     private void registerHubStockUpdatedEvent(HubStock hubStock) {
 
         TransactionSynchronizationManager.registerSynchronization(

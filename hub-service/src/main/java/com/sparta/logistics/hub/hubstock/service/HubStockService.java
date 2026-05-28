@@ -122,6 +122,8 @@ public class HubStockService {
     @Transactional
     public void restoreStock(RestoreStockCommand command) {
 
+        List<RestoreStockItemPayload> succeededItems = new ArrayList<>();
+
         for (RestoreStockItemPayload item : command.getOrderItems()) {
 
             try {
@@ -135,11 +137,16 @@ public class HubStockService {
                                 item.getQuantity(), item.getOrderItemId(), null
                         ); return null; }
                 );
+
+                succeededItems.add(item);
+
             } catch (BusinessException e) {
 
                 // 재고 없음 → 복구 실패 이벤트 발행 후 컨슈머 재시도 제외
                 log.error("[HubStock] 재고 복구 실패. orderId: {}, productId: {}, reason: {}",
                         command.getOrderId(), item.getProductId(), e.getMessage());
+
+                compensateRestoredItems(succeededItems);
 
                 registerStockRestorationFailedEvent(
                         command.getEventId(), command.getOrderId(), e.getMessage()
@@ -156,6 +163,8 @@ public class HubStockService {
     @Transactional
     public void restoreOnDeliveryFailed(DeliveryCreationFailedEvent event) {
 
+        List<RestoreStockItemPayload> succeededItems = new ArrayList<>();
+
         for (RestoreStockItemPayload item : event.getItemsToRestore()) {
 
             try {
@@ -169,11 +178,16 @@ public class HubStockService {
                                 item.getQuantity(), item.getOrderItemId(), event.getDeliveryId()
                         ); return null; }
                 );
+
+                succeededItems.add(item);
+
             } catch (BusinessException e) {
 
                 // 재고 없음 → 복구 실패 이벤트 발행 후 컨슈머 재시도 제외
                 log.error("[HubStock] 배송 실패 재고 복구 실패. orderId: {}, productId: {}, reason: {}",
                         event.getOrderId(), item.getProductId(), e.getMessage());
+
+                compensateRestoredItems(succeededItems);
 
                 throw new KafkaSkipException("재고 복구 실패 - orderId: " + event.getOrderId());
             }
@@ -190,6 +204,8 @@ public class HubStockService {
         // stock.reserved 발행 시 필요한 리스트
         List<StockReservedItemPayload> reservedItems = new ArrayList<>();
 
+        List<OrderItemPayload> succeededItems = new ArrayList<>();
+
         for (OrderItemPayload item : event.getOrderItems()) {
 
             // 낙관적 락으로 재고 예약 시도, 충돌 시 비관적 락으로 폴백
@@ -204,11 +220,16 @@ public class HubStockService {
                                 item.getQuantity(), item.getOrderItemId()
                         ); return null; }
                 );
+
+                succeededItems.add(item);
+
             } catch (BusinessException e) {
 
                 // 재고 없음 or 재고 부족 → 실패 이벤트 발행 후 컨슈머 재시도 제외
                 log.warn("[HubStock] 재고 예약 실패. orderId: {}, productId: {}, reason: {}",
                         event.getOrderId(), item.getProductId(), e.getMessage());
+
+                compensateReservedItems(succeededItems);
 
                 registerStockReservationFailedEvent(
                         event.getEventId(), event.getOrderId(),
@@ -328,6 +349,48 @@ public class HubStockService {
                     }
                 }
         );
+    }
+
+    // restoreStock, restoreOnDeliveryFailed 보상 — 복구한 재고를 다시 예약 상태로 되돌리기
+    private void compensateRestoredItems(List<RestoreStockItemPayload> items) {
+        for (RestoreStockItemPayload item : items) {
+            try {
+                executeWithLock(
+                        () -> { hubStockLockHelper.compensateRestoreWithOptimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId()
+                        ); return null; },
+                        () -> { hubStockLockHelper.compensateRestoreWithPessimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId()
+                        ); return null; }
+                );
+            } catch (Exception e) {
+                log.error("[HubStock] 보상 트랜잭션 실패 - 수동 처리 필요. hubId: {}, productId: {}, quantity: {}",
+                        item.getHubId(), item.getProductId(), item.getQuantity(), e);
+            }
+        }
+    }
+
+    // reserveStock 보상 — 예약한 재고를 다시 복구
+    private void compensateReservedItems(List<OrderItemPayload> items) {
+        for (OrderItemPayload item : items) {
+            try {
+                executeWithLock(
+                        () -> { hubStockLockHelper.compensateReserveWithOptimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId()
+                        ); return null; },
+                        () -> { hubStockLockHelper.compensateReserveWithPessimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId()
+                        ); return null; }
+                );
+            } catch (Exception e) {
+                log.error("[HubStock] 보상 트랜잭션 실패 - 수동 처리 필요. hubId: {}, productId: {}, quantity: {}",
+                        item.getHubId(), item.getProductId(), item.getQuantity(), e);
+            }
+        }
     }
 
     private <T> T executeWithLock(Supplier<T> optimistic, Supplier<T> pessimistic) {

@@ -6,5 +6,6 @@ public enum HubStockChangeType {
     ORDER_DECREASE,   // 배송 확정 차감
     CANCEL_RESTORE,
     RETURN_RESTORE,
-    MANUAL_ADJUST
+    MANUAL_ADJUST,
+    COMPENSATE  // 보상 트랜잭션 전용
 }
