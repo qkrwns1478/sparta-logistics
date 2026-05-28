@@ -133,11 +133,16 @@ public class HubStockService {
             HubStock hubStock = hubStockRepository
                     .findByHubIdAndProductId(item.getHubId(), item.getProductId())
                     .orElseGet(() -> {
+
+                        log.error("[HubStock] 재고 복구 실패 - 허브 재고 없음. orderId: {}, productId: {}",
+                                command.getOrderId(), item.getProductId());
+
                         registerStockRestorationFailedEvent(
                                 command.getEventId(),
                                 command.getOrderId(),
                                 "허브 재고 없음"
                         );
+
                         throw new KafkaSkipException("허브 재고 없음 - orderId: " + command.getOrderId());
                     });
 
@@ -171,8 +176,10 @@ public class HubStockService {
             HubStock hubStock = hubStockRepository
                     .findByHubIdAndProductId(item.getHubId(), item.getProductId())
                     .orElseGet(() -> {
+
                         log.error("[HubStock] 재고 복구 실패 - 허브 재고 없음. orderId: {}, productId: {}",
                                 event.getOrderId(), item.getProductId());
+
                         throw new KafkaSkipException("허브 재고 없음 - orderId: " + event.getOrderId());
                     });
 
@@ -210,22 +217,32 @@ public class HubStockService {
             HubStock hubStock = hubStockRepository
                     .findByHubIdAndProductId(item.getHubId(), item.getProductId())
                     .orElseGet(() -> {
+
+                        log.warn("[HubStock] 재고 예약 실패 - 허브 재고 없음. orderId: {}, productId: {}",
+                                event.getOrderId(), item.getProductId());
+
                         registerStockReservationFailedEvent(
                                 event.getEventId(),
                                 event.getOrderId(),
                                 item.getProductId(),
                                 "허브 재고 없음"
                         );
+
                         throw new KafkaSkipException("허브 재고 없음 - orderId: " + event.getOrderId());
                     });
 
             // 재고 부족 시 실패 이벤트 발행하고 종료
             if (hubStock.getAvailable() < item.getQuantity()) {
+
+                log.warn("[HubStock] 재고 예약 실패 - 재고 부족. orderId: {}, productId: {}, available: {}, requested: {}",
+                        event.getOrderId(), item.getProductId(), hubStock.getAvailable(), item.getQuantity());
+
                 registerStockReservationFailedEvent(
                         event.getEventId(),
                         event.getOrderId(),
                         item.getProductId(),
                         "재고 부족");
+
                 throw new KafkaSkipException("재고 부족 - orderId: " + event.getOrderId());
             }
 
@@ -273,8 +290,10 @@ public class HubStockService {
             HubStock hubStock = hubStockRepository
                     .findByHubIdAndProductId(item.getHubId(), item.getProductId())
                     .orElseGet(() -> {
+
                         log.error("[HubStock] 예약 재고 차감 실패 - 허브 재고 없음. orderId: {}, productId: {}",
                                 event.getOrderId(), item.getProductId());
+
                         throw new KafkaSkipException("허브 재고 없음 - orderId: " + event.getOrderId());
                     });
 
