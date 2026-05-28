@@ -11,6 +11,6 @@ public record ApiResponse<T>(
         T data
 ) {
     public static <T> ApiResponse<T> error(ErrorCode errorCode) {
-        return new ApiResponse<>(false, errorCode.getStatus().value(), errorCode.getMessage(), null);
+        return new ApiResponse<>(false, 400, errorCode.getMessage(), null);
     }
 }
