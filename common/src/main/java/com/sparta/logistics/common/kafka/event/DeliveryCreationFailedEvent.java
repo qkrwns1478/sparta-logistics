@@ -28,9 +28,7 @@ public class DeliveryCreationFailedEvent {
     private UUID orderId;
     // 생성 실패한 배송 ID (생성 자체가 실패한 경우 null)
     private UUID deliveryId;
-    // 실패 사유
     private String reason;
-
-    // 해당 허브에서 복구할 상품 List (상품 ID, 수량)
+    // 해당 허브에서 복구할 상품 List
     private List<RestoreStockItemPayload> itemsToRestore;
 }

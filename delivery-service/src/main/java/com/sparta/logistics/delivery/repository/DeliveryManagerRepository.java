@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.repository;
 
+import com.sparta.logistics.delivery.dto.manager.DeliveryManagerSearchCond;
 import com.sparta.logistics.delivery.entity.DeliveryManagerEntity;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerType;
@@ -31,7 +32,12 @@ public interface DeliveryManagerRepository extends JpaRepository<DeliveryManager
             "WHERE m.deletedAt IS NULL")
     int findMaxDeliverySequence();
 
-    Page<DeliveryManagerEntity> findAllByDeletedAtIsNull(Pageable pageable);
-
-    Page<DeliveryManagerEntity> findAllByHubIdAndDeletedAtIsNull(UUID hubId, Pageable pageable);
+    @Query("SELECT m FROM DeliveryManagerEntity m WHERE " +
+            "(:#{#cond.managerType} IS NULL OR m.managerType = :#{#cond.managerType}) AND " +
+            "(:#{#cond.status} IS NULL OR m.status = :#{#cond.status}) AND " +
+            "(:#{#cond.authorizedHubId} IS NULL OR m.hubId = :#{#cond.authorizedHubId}) AND " +
+            "m.deletedAt IS NULL")
+    Page<DeliveryManagerEntity> findAllByCondition(
+            @Param("cond") DeliveryManagerSearchCond cond,
+            Pageable pageable);
 }

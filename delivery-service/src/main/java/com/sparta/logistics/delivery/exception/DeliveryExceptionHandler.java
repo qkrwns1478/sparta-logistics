@@ -1,12 +1,9 @@
 package com.sparta.logistics.delivery.exception;
 
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.common.exception.CommonErrorCode;
-import com.sparta.logistics.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;

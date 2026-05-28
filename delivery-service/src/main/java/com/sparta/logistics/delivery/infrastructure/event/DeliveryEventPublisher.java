@@ -3,8 +3,8 @@ package com.sparta.logistics.delivery.infrastructure.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
-import com.sparta.logistics.common.kafka.event.DeliveryCancelledAckEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryCancellationFailedEvent;
+import com.sparta.logistics.common.kafka.event.DeliveryCancelledAckEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryCreatedEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryCreationFailedEvent;
 import com.sparta.logistics.common.kafka.event.DeliveryOrderItemPayload;
@@ -18,7 +18,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -30,7 +29,8 @@ public class DeliveryEventPublisher {
 
     public void publishCreated(UUID deliveryId, UUID orderId,
                                UUID sourceHubId, UUID destinationHubId,
-                               UUID companyDeliveryManagerId, int totalDeliveryCount) {
+                               UUID companyDeliveryManagerId, int totalDeliveryCount,
+                               String deliveryAddress) {
         try {
             String message = objectMapper.writeValueAsString(
                     DeliveryCreatedEvent.builder()
@@ -41,12 +41,14 @@ public class DeliveryEventPublisher {
                             .destinationHubId(destinationHubId)
                             .companyDeliveryManagerId(companyDeliveryManagerId)
                             .totalDeliveryCount(totalDeliveryCount)
+                            .deliveryAddress(deliveryAddress)
                             .build()
             );
             kafkaTemplate.send(KafkaTopics.DELIVERY_CREATED, deliveryId.toString(), message);
             log.info("[Kafka] delivery.created 발행 — deliveryId={}, orderId={}", deliveryId, orderId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] delivery.created 직렬화 실패 — deliveryId={}", deliveryId, e);
+            throw new RuntimeException(e);  // 삼키면 order-service 미인지 — 트랜잭션 롤백 후 재처리
         }
     }
 
@@ -65,7 +67,7 @@ public class DeliveryEventPublisher {
             kafkaTemplate.send(KafkaTopics.DELIVERY_CREATION_FAILED, orderId.toString(), message);
             log.info("[Kafka] delivery.creation.failed 발행 — orderId={}, reason={}", orderId, reason);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] delivery.creation.failed 직렬화 실패 — orderId={}", orderId, e);
+            log.error("[Kafka][수동처리 필요] delivery.creation.failed 직렬화 실패 — orderId={}", orderId, e);
         }
     }
 
@@ -90,6 +92,7 @@ public class DeliveryEventPublisher {
             log.info("[Kafka] delivery.started 발행 — deliveryId={}", deliveryId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] delivery.started 직렬화 실패 — deliveryId={}", deliveryId, e);
+            throw new RuntimeException(e);  // 삼키면 order-service 미인지 — 핸들러 레벨 catch로 전파
         }
     }
 
@@ -105,7 +108,7 @@ public class DeliveryEventPublisher {
             kafkaTemplate.send(KafkaTopics.DELIVERY_CANCELLED_ACK, orderId.toString(), message);
             log.info("[Kafka] delivery.cancelled.ack 발행 — orderId={}", orderId);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] delivery.cancelled.ack 직렬화 실패 — deliveryId={}", deliveryId, e);
+            log.error("[Kafka][수동처리 필요] delivery.cancelled.ack 직렬화 실패 — deliveryId={}", deliveryId, e);
         }
     }
 
@@ -122,7 +125,7 @@ public class DeliveryEventPublisher {
             kafkaTemplate.send(KafkaTopics.DELIVERY_CANCELLATION_FAILED, orderId.toString(), message);
             log.info("[Kafka] delivery.cancellation.failed 발행 — orderId={}, reason={}", orderId, reason);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] delivery.cancellation.failed 직렬화 실패 — orderId={}", orderId, e);
+            log.error("[Kafka][수동처리 필요] delivery.cancellation.failed 직렬화 실패 — orderId={}", orderId, e);
         }
     }
 }

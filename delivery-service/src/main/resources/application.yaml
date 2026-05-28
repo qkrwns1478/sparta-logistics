@@ -35,6 +35,34 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+
+resilience4j:
+  retry:
+    instances:
+      assignment:
+        max-attempts: 3
+        wait-duration: 100ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.orm.ObjectOptimisticLockingFailureException
+      feign-call:
+        max-attempts: 3
+        wait-duration: 500ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - feign.FeignException
+  circuitbreaker:
+    instances:
+      hub-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
+      user-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
 
 eureka:
   instance:

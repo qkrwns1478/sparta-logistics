@@ -2,24 +2,27 @@ package com.sparta.logistics.delivery.infrastructure.event;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.AiDeadlineCalculatedEvent;
 import com.sparta.logistics.common.kafka.event.CancelDeliveryCommand;
 import com.sparta.logistics.common.kafka.event.RestoreStockItemPayload;
-import com.sparta.logistics.delivery.client.HubServiceClient;
-import com.sparta.logistics.delivery.client.UserServiceClient;
+import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
+import com.sparta.logistics.delivery.client.response.UserResponse;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.dto.event.StockReservedItemPayload;
+import com.sparta.logistics.delivery.infrastructure.client.FeignCallService;
 import com.sparta.logistics.delivery.service.DeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -28,17 +31,24 @@ public class DeliveryEventHandler {
 
     private final DeliveryService deliveryService;
     private final DeliveryEventPublisher eventPublisher;
-    private final UserServiceClient userServiceClient;
-    private final HubServiceClient hubServiceClient;
+    private final FeignCallService feignCallService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = KafkaTopics.STOCK_RESERVED, groupId = "delivery-service")
-    public void handleStockReserved(String message) {
+    public void handleStockReserved(
+            String message,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset
+    ) {
         StockReservedEventDto event;
         try {
             event = objectMapper.readValue(message, StockReservedEventDto.class);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] stock.reserved 역직렬화 실패: {}", message, e);
+            // 역직렬화 실패는 재시도해도 의미 없음 — 의도적 offset 커밋
+            // orderId 추출 불가 → publishCreationFailed 미호출 (보상 불가, 수동 처리 필요)
+            log.error("[Kafka][수동처리 필요] stock.reserved 역직렬화 실패 — topic={}, partition={}, offset={}",
+                    topic, partition, offset, e);
             return;
         }
 
@@ -49,25 +59,25 @@ public class DeliveryEventHandler {
             return;
         }
 
-        // user-service Feign 호출 — 트랜잭션 범위 밖
-        // data() null 을 catch 바깥에서 명시적으로 체크: data()==null 은 NPE→USER_SERVICE_UNAVAILABLE 오분류 방지
-        String slackId;
+        // user-service Feign 호출 — 3회 retry 후 실패 시 BusinessException (CB 내부 예외 포함)
+        ApiResponse<UserResponse> userResponse;
         try {
-            var userResponse = userServiceClient.getUser(event.receiverId());
-            if (userResponse.data() == null) {
-                log.warn("[Kafka] slackId 없음(data=null) — receiverId={}, orderId={}", event.receiverId(), event.orderId());
-                eventPublisher.publishCreationFailed(event.orderId(), null, "SLACK_ID_NOT_FOUND",
-                        toRestoreItems(event.orderItems()));
-                return;
-            }
-            slackId = userResponse.data().slackId();
+            userResponse = feignCallService.fetchUser(event.receiverId());
         } catch (Exception e) {
-            log.warn("[Kafka] user-service 호출 실패 — orderId={}", event.orderId(), e);
+            log.warn("[Kafka] user-service 호출 실패 — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "USER_SERVICE_UNAVAILABLE",
                     toRestoreItems(event.orderItems()));
             return;
         }
 
+        if (userResponse.data() == null) {
+            log.warn("[Kafka] slackId 없음(data=null) — receiverId={}, orderId={}", event.receiverId(), event.orderId());
+            eventPublisher.publishCreationFailed(event.orderId(), null, "SLACK_ID_NOT_FOUND",
+                    toRestoreItems(event.orderItems()));
+            return;
+        }
+
+        String slackId = userResponse.data().slackId();
         if (slackId == null) {
             log.warn("[Kafka] slackId 없음 — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "SLACK_ID_NOT_FOUND",
@@ -75,12 +85,12 @@ public class DeliveryEventHandler {
             return;
         }
 
-        // hub-service Feign 호출 — 트랜잭션 범위 밖 (경로 정보는 주문 완료 시점에 확정)
+        // hub-service Feign 호출 — 3회 retry 후 실패 시 BusinessException (CB 내부 예외 포함)
         List<HubRouteSegmentResponse> routeSegments;
         try {
-            routeSegments = hubServiceClient.getRouteSegments(event.sourceHubId(), event.destinationHubId());
+            routeSegments = feignCallService.fetchRouteSegments(event.sourceHubId(), event.destinationHubId());
         } catch (Exception e) {
-            log.warn("[Kafka] hub-service 호출 실패 — orderId={}", event.orderId(), e);
+            log.warn("[Kafka] hub-service 호출 실패 — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "HUB_SERVICE_UNAVAILABLE",
                     toRestoreItems(event.orderItems()));
             return;
@@ -126,10 +136,19 @@ public class DeliveryEventHandler {
             event = objectMapper.readValue(message, AiDeadlineCalculatedEvent.class);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] ai.deadline.calculated 역직렬화 실패: {}", message, e);
-            return;
+            return;  // 보상 액션 없음 — offset 커밋
         }
-        deliveryService.updateFinalDispatchDeadline(event.getDeliveryId(), event.getFinalDispatchDeadlineAt());
-        log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.getDeliveryId());
+        try {
+            deliveryService.updateFinalDispatchDeadline(event.getDeliveryId(), event.getFinalDispatchDeadlineAt());
+            log.info("[Kafka] AI 발송 시한 업데이트 — deliveryId={}", event.getDeliveryId());
+        } catch (BusinessException e) {
+            // DELIVERY_NOT_FOUND 등 재처리해도 해결 안 됨 — offset 커밋
+            log.error("[Kafka] AI 발송 시한 업데이트 실패(비즈니스) — deliveryId={}", event.getDeliveryId(), e);
+        } catch (Exception e) {
+            // KafkaException 등 일시적 장애 — DefaultErrorHandler 재시도
+            log.error("[Kafka] AI 발송 시한 업데이트 실패 — deliveryId={}", event.getDeliveryId(), e);
+            throw new RuntimeException(e);
+        }
     }
 
     private List<RestoreStockItemPayload> toRestoreItems(List<StockReservedItemPayload> items) {

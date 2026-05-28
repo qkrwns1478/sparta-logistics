@@ -2,13 +2,12 @@ package com.sparta.logistics.delivery.service;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.dto.DeliveryDetailResponse;
-import lombok.extern.slf4j.Slf4j;
 import com.sparta.logistics.delivery.dto.DeliveryListResponse;
 import com.sparta.logistics.delivery.dto.DeliverySearchCond;
 import com.sparta.logistics.delivery.dto.DeliveryStatusChangeRequest;
 import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
-import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import com.sparta.logistics.delivery.dto.event.StockReservedEventDto;
 import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
@@ -24,10 +23,13 @@ import com.sparta.logistics.delivery.repository.DeliveryOrderItemRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRepository;
 import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -172,7 +174,8 @@ public class DeliveryService {
                 entity.getSourceHubId(),
                 entity.getDestinationHubId(),
                 entity.getCompanyDeliveryManagerId(),
-                event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0
+                event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0,
+                entity.getDeliveryAddress()
         );
     }
 
@@ -185,7 +188,21 @@ public class DeliveryService {
         entity.updateFinalDispatchDeadline(deadline);
 
         List<DeliveryOrderItemEntity> items = deliveryOrderItemRepository.findByDelivery_Id(deliveryId);
-        eventPublisher.publishStarted(deliveryId, entity.getOrderId(), items);
+        UUID orderId = entity.getOrderId();
+
+        // 트랜잭션 커밋 성공 후 발행 — 롤백 시 delivery.started 미발행 보장
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    eventPublisher.publishStarted(deliveryId, orderId, items);
+                } catch (Exception e) {
+                    // offset 이미 커밋됨 — delivery.started 유실, 수동 처리 필요
+                    log.error("[Kafka][수동처리 필요] delivery.started 발행 실패(afterCommit) — deliveryId={}",
+                            deliveryId, e);
+                }
+            }
+        });
     }
 
     // cancel.delivery.command 수신 시 호출 — 취소 가능 여부 확인 후 상태 전이

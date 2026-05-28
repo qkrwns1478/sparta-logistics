@@ -5,7 +5,15 @@ import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.order.exception.OrderErrorCode;
 import com.sparta.logistics.order.order.enums.OrderStatus;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,7 +32,6 @@ import java.util.UUID;
 public class Order extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false, name = "requester_company_id")
@@ -68,13 +75,14 @@ public class Order extends BaseEntity {
 
     @Version
     @Column(nullable = false)
-    private Long version = 0L;
+    private Long version;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
     public static Order create(UUID requesterCompanyId, UUID receiverCompanyId, UUID requesterUserId, LocalDateTime dueDate, String requestMemo) {
         Order order = new Order();
+        order.id = UUID.randomUUID();
         order.requesterCompanyId = requesterCompanyId;
         order.receiverCompanyId = receiverCompanyId;
         order.requesterUserId = requesterUserId;
