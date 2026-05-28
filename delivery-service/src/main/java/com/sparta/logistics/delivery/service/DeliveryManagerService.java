@@ -5,6 +5,7 @@ import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.client.HubServiceClient;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerCreateRequest;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerResponse;
+import com.sparta.logistics.delivery.dto.manager.DeliveryManagerSearchCond;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerStatusChangeRequest;
 import com.sparta.logistics.delivery.dto.manager.DeliveryManagerUpdateRequest;
 import com.sparta.logistics.delivery.entity.DeliveryManagerEntity;
@@ -56,13 +57,16 @@ public class DeliveryManagerService {
 
     // 배송담당자 목록 조회
     @Transactional(readOnly = true)
-    public Page<DeliveryManagerResponse> getManagerList(UUID userId, Role role, UUID hubId, Pageable pageable) {
+    public Page<DeliveryManagerResponse> getManagerList(UUID userId, Role role, UUID hubId, Pageable pageable,
+                                                         DeliveryManagerSearchCond cond) {
         return switch (role) {
-            case MASTER -> managerRepository.findAllByDeletedAtIsNull(pageable)
-                    .map(DeliveryManagerResponse::from);
+            case MASTER ->
+                managerRepository.findAllByCondition(cond, pageable)
+                        .map(DeliveryManagerResponse::from);
             case HUB_MANAGER -> {
                 if (hubId == null) throw new BusinessException(DeliveryErrorCode.HUB_NOT_FOUND);
-                yield managerRepository.findAllByHubIdAndDeletedAtIsNull(hubId, pageable)
+                cond.setAuthorizedHubId(hubId);
+                yield managerRepository.findAllByCondition(cond, pageable)
                         .map(DeliveryManagerResponse::from);
             }
             case DELIVERY_MANAGER -> {
