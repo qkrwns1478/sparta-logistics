@@ -452,7 +452,7 @@ public class OrderService {
                     throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
                 }
                 // AVAILABLE 상태가 아닌 상품은 주문 불가
-                if (!"AVAILABLE".equals(product.status())) {
+                if (!ProductResponse.STATUS_AVAILABLE.equals(product.status())) {
                     throw new BusinessException(OrderErrorCode.PRODUCT_NOT_AVAILABLE);
                 }
             }
