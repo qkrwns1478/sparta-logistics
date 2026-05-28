@@ -20,8 +20,10 @@ public class GeminiApiClient {
   @Value("${gemini.api.key}")
   private String geminiApiKey;
 
+  public record AiMessageResult(String message, int totalTokens){}
+
   @SuppressWarnings("unchecked")
-  public String generateDeliveryDeadlineMessage(String promptData){
+  public AiMessageResult generateDeliveryDeadlineMessage(String promptData){
     //1. 프롬프트 템플릿 구성
     String systemPrompt = """
         당신은 물류 배송 전문가입니다. 제공된 데이터를 분석하여 '발송 허브 담당자'가 납기일자에 맞출 수 있도록 '최종 발송 시한'을 계산하고 슬랙 메시지를 생성해주세요.
@@ -54,8 +56,8 @@ public class GeminiApiClient {
     requestBody.put("contents", List.of(contents));
 
     //2. Gemini API 요청 스펙에 맞게 JSON Body 구성
-    try{
-    //3. WebClient로 비동기/동기 API 호출
+    try {
+      //3. WebClient로 비동기/동기 API 호출
       Map<String, Object> response = webClient.post()
           .uri(uriBuilder -> uriBuilder.queryParam("key", geminiApiKey).build())
           .bodyValue(requestBody)
@@ -63,9 +65,12 @@ public class GeminiApiClient {
           .bodyToMono(Map.class)
           .block(); //동기(block)처리, 필요시 Mono 비동기로 유지
 
-    //4.응답 JSON에서 텍스트 파싱
-      return parseGeminiResponse(response);
-    } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+      //4.응답 JSON에서 텍스트 파싱 및 토큰 추출
+      String aiMessage = parseGeminiResponse(response);
+      int tokenCount = parseTokenCount(response);
+      return new AiMessageResult(aiMessage, tokenCount);
+
+    }catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
       log.error("Gemini API 거절 상세 이유: {}", e.getResponseBodyAsString());
       throw new RuntimeException("AI 메시지 생성 실패"+ e.getResponseBodyAsString(), e);
     } catch (Exception e){
@@ -73,6 +78,7 @@ public class GeminiApiClient {
       throw new RuntimeException("AI 메시지 생성 실패", e);
     }
   }
+
 
   //Gemini API의 JSON 응답 구조에서 실제 답변 텍스트만 추출하는 메서드
   @SuppressWarnings("unchecked")
@@ -86,6 +92,19 @@ public class GeminiApiClient {
       log.error("Gemini 응답 파싱 실패: {}", response);
       return "배송 정보 알림 생성을 실패했습니다. 기본 메시지로 대체합니다.";
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  private int parseTokenCount(Map<String, Object> response){
+    try{
+      Map<String, Object> usageMetadata = (Map<String, Object>) response.get("usageMetadata");
+      if (usageMetadata != null && usageMetadata.get("totalTokenCount") != null) {
+        return ((Number) usageMetadata.get("totalTokenCount")).intValue();
+      }
+    } catch (Exception e) {
+        log.warn("Gemini 토큰 사용량 파싱 실패 (기본값 0 처리");
+    }
+    return 0;
   }
 
 }

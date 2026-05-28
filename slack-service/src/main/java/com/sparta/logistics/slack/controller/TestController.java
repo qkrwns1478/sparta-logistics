@@ -5,12 +5,14 @@ import com.sparta.logistics.slack.enums.MessageType;
 import com.sparta.logistics.slack.enums.RelatedType;
 import com.sparta.logistics.slack.sender.SlackApiSender;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class TestController {
@@ -37,18 +39,20 @@ public class TestController {
         """;
 
     // 2. Gemini API 호출해서 텍스트 생성
-    String aiMessage = geminiApiClient.generateDeliveryDeadlineMessage(dummyData);
+    GeminiApiClient.AiMessageResult aiResult = geminiApiClient.generateDeliveryDeadlineMessage(dummyData);
+
+    log.info("제미나이가 사용한 총 토큰 수: {}", aiResult.totalTokens());
 
     // 3. 슬랙으로 발송 (receiverSlackId에는 본인의 슬랙 아이디나 테스트 채널명, 예: "#일반" 입력)
     slackApiSender.send(
         UUID.randomUUID(),
         receiverSlackId,
-        aiMessage,
+        aiResult.message(),
         MessageType.AI_DELIVERY_DEADLINE,
         RelatedType.DELIVERY,
         UUID.randomUUID()
     );
 
-    return "AI 슬랙 발송 성공! 생성된 메시지: \n" + aiMessage;
+    return "AI 슬랙 발송 성공! 생성된 메시지: \n" + aiResult.message() + "\n\n사용된 토큰 수: " + aiResult.totalTokens();
   }
 }
