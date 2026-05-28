@@ -11,4 +11,5 @@ dependencies {
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.slack.api:slack-api-client:1.38.0'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 }
