@@ -154,6 +154,7 @@ public class DeliveryService {
         }
 
         // delivery.started 발행을 위해 orderItems 저장
+        // TODO: sourceHubId가 아니라 hubId로 변수명 변경
         for (var item : event.orderItems()) {
             deliveryOrderItemRepository.save(
                     new DeliveryOrderItemEntity(entity, item.productId(), item.sourceHubId(), item.reservedQuantity())
@@ -178,8 +179,8 @@ public class DeliveryService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                // TX 커밋 후 배차: 새 TX에서 커밋된 DeliveryEntity를 읽을 수 있어 DELIVERY_NOT_FOUND 방지
-                // 외부 TX 롤백과 무관하게 커밋되는 REQUIRES_NEW 문제도 동시 해결
+                // 트랜잭션 커밋 후 배차: 새 트랜잭션에서 커밋된 DeliveryEntity를 읽을 수 있어 DELIVERY_NOT_FOUND 방지
+                // 외부 트랜잭션 롤백과 무관하게 커밋되는 REQUIRES_NEW 문제도 동시 해결
                 try {
                     assignmentService.assignManagersForSystem(capturedDeliveryId);
                 } catch (Exception e) {

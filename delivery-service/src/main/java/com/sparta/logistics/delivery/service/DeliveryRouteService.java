@@ -162,7 +162,7 @@ public class DeliveryRouteService {
         }
 
         logRepository.save(new DeliveryLogEntity(
-                deliveryId, DeliveryEventType.MANAGER_ASSIGNED, delivery.getStatus(),
+                delivery.getId(), DeliveryEventType.MANAGER_ASSIGNED, delivery.getStatus(),
                 "담당자 재배정: " + managerType + " → " + newManager.getId(), null, userId
         ));
 
