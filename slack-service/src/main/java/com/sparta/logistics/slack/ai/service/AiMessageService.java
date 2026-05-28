@@ -51,9 +51,11 @@ public class AiMessageService {
         hubNameMap.put(sourceHub.hubId(), sourceHub.name());
         hubNameMap.put(destHub.hubId(), destHub.name());
       } catch (Exception e) {
-        log.warn("허브 통신 실패 - 가상 ID로 대체합니다. 원인:{}", e.getMessage());
-        hubNameMap.put(event.getSourceHubId(), "출발허브");
-        hubNameMap.put(event.getDestinationHubId(), "도착허브");
+        log.error("허브 서버 통신 실패로 출발/도착 허브 정보를 알 수 없습니다!");
+        log.error("요청한 SourceHubId:{}, DestHubId: {}", event.getSourceHubId(), event.getDestinationHubId());
+        log.error("실패 원인: {}",e.getMessage());
+
+        throw new RuntimeException("필수 배송 정보(출발/도착 허브 이름) 누락으로 기사님 알림 발송이 취소되었습니다.");
       }
 
       //2. 주문 서비스에서 데이터 가져오기
