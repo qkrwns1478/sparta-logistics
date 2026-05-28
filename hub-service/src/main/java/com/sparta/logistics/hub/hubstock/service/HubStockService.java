@@ -35,6 +35,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -379,7 +380,21 @@ public class HubStockService {
                 }
         );
     }
-    
+
+    private <T> T executeWithLock(Supplier<T> optimistic, Supplier<T> pessimistic) {
+
+        for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
+            try {
+                return optimistic.get();
+            } catch (OptimisticLockingFailureException e) {
+                if (attempt == MAX_RETRY - 1) {
+                    return pessimistic.get();
+                }
+            }
+        }
+        throw new BusinessException(HubStockErrorCode.HUB_STOCK_ADJUST_FAILED);
+    }
+
     private void checkHubStockPermission(Role role, UUID userHubId, UUID hubId) {
 
         if (role == Role.MASTER) return;
