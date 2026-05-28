@@ -4,6 +4,7 @@ import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -32,10 +33,10 @@ public class FeignClientInterceptor implements RequestInterceptor{
             String hubId = request.getHeader(USER_HUB_ID_HEADER);
             String companyId = request.getHeader(USER_COMPANY_ID_HEADER);
 
-            if (userId != null) template.header(USER_ID_HEADER, userId);
-            if (userRole != null) template.header(USER_ROLE_HEADER, userRole);
-            if (hubId != null) template.header(USER_HUB_ID_HEADER, hubId);
-            if (companyId != null) template.header(USER_COMPANY_ID_HEADER, companyId);
+            if (StringUtils.hasText(userId)) template.header(USER_ID_HEADER, userId);
+            if (StringUtils.hasText(userRole)) template.header(USER_ROLE_HEADER, userRole);
+            if (StringUtils.hasText(hubId)) template.header(USER_HUB_ID_HEADER, hubId);
+            if (StringUtils.hasText(companyId)) template.header(USER_COMPANY_ID_HEADER, companyId);
         }
     }
 }

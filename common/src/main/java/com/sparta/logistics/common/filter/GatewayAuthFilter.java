@@ -69,7 +69,7 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
             }
 
             List<GrantedAuthority> authorities = new ArrayList<>();
-            authorities.add(new SimpleGrantedAuthority("ROLE_" + role)); // Spring Security의 전통적인 권한 포맷 맞추기 위함.
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role.trim())); // Spring Security의 전통적인 권한 포맷 맞추기 위함.
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(userId, null, authorities);

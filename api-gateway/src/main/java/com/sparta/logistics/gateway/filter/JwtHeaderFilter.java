@@ -149,7 +149,7 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
     private String extractToken(ServerHttpRequest request){
         String bearerToken = request.getHeaders().getFirst("Authorization");
         if(StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")){
-            return bearerToken.substring(7);
+            return bearerToken.substring(7).trim();
         }
         return null;
     }
