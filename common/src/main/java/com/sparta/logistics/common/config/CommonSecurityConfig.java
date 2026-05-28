@@ -43,7 +43,8 @@ public class CommonSecurityConfig {
                                 "/api/v1/auth/signup",
                                 "/api/v1/auth/refresh"
                         ).permitAll()
-                        .anyRequest().authenticated()
+                        // TODO: 개발 편의용 설정 (배포 전에는 인증 필요하도록 변경 필요)
+                        .anyRequest().permitAll()
                 )
                 // 5. 인증 실패 시 GatewayAuthEntryPoint로 처리
                 .exceptionHandling(ex -> ex
