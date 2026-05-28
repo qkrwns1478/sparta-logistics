@@ -208,62 +208,38 @@ public class HubStockService {
 
         for (OrderItemPayload item : event.getOrderItems()) {
 
-            HubStock hubStock = hubStockRepository
-                    .findByHubIdAndProductId(item.getHubId(), item.getProductId())
-                    .orElseGet(() -> {
+            // 낙관적 락으로 재고 예약 시도, 충돌 시 비관적 락으로 폴백
+            try {
+                executeWithLock(
+                        () -> { hubStockLockHelper.reserveWithOptimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId()
+                        ); return null; },
+                        () -> { hubStockLockHelper.reserveWithPessimisticLock(
+                                item.getHubId(), item.getProductId(),
+                                item.getQuantity(), item.getOrderItemId()
+                        ); return null; }
+                );
+            } catch (BusinessException e) {
 
-                        log.warn("[HubStock] 재고 예약 실패 - 허브 재고 없음. orderId: {}, productId: {}",
-                                event.getOrderId(), item.getProductId());
-
-                        registerStockReservationFailedEvent(
-                                event.getEventId(),
-                                event.getOrderId(),
-                                item.getProductId(),
-                                "허브 재고 없음"
-                        );
-
-                        throw new KafkaSkipException("허브 재고 없음 - orderId: " + event.getOrderId());
-                    });
-
-            // 재고 부족 시 실패 이벤트 발행하고 종료
-            if (hubStock.getAvailable() < item.getQuantity()) {
-
-                log.warn("[HubStock] 재고 예약 실패 - 재고 부족. orderId: {}, productId: {}, available: {}, requested: {}",
-                        event.getOrderId(), item.getProductId(), hubStock.getAvailable(), item.getQuantity());
+                // 재고 없음 or 재고 부족 → 실패 이벤트 발행 후 컨슈머 재시도 제외
+                log.warn("[HubStock] 재고 예약 실패. orderId: {}, productId: {}, reason: {}",
+                        event.getOrderId(), item.getProductId(), e.getMessage());
 
                 registerStockReservationFailedEvent(
-                        event.getEventId(),
-                        event.getOrderId(),
-                        item.getProductId(),
-                        "재고 부족");
+                        event.getEventId(), event.getOrderId(),
+                        item.getProductId(), e.getMessage()
+                );
 
-                throw new KafkaSkipException("재고 부족 - orderId: " + event.getOrderId());
+                throw new KafkaSkipException("재고 예약 실패 - orderId: " + event.getOrderId());
             }
 
-            int beforeQuantity = hubStock.getAvailable();
-            hubStock.reserve(item.getQuantity());
-            int afterQuantity = hubStock.getAvailable();
-
-            // 재고 변경 이력 기록
-            hubStockLogRepository.save(HubStockLog.create(
-                    hubStock,
-                    item.getOrderItemId(),
-                    null,
-                    item.getQuantity(),
-                    beforeQuantity,
-                    afterQuantity,
-                    HubStockChangeType.ORDER_RESERVE
-            ));
-
-            // 아이템마다 sourceHubId 포함해서 리스트에 추가
             reservedItems.add(StockReservedItemPayload.builder()
                     .productId(item.getProductId())
                     .reservedQuantity(item.getQuantity())
                     .sourceHubId(item.getHubId())
                     .build()
             );
-
-            registerHubStockUpdatedEvent(hubStock);
         }
 
         // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)

@@ -5,6 +5,7 @@ import com.sparta.logistics.hub.exception.HubStockErrorCode;
 import com.sparta.logistics.hub.hubstock.dto.request.AdjustHubStockRequest;
 import com.sparta.logistics.hub.hubstock.dto.response.HubStockAdjustResponse;
 import com.sparta.logistics.hub.hubstock.entity.HubStock;
+import com.sparta.logistics.hub.hubstock.enums.HubStockChangeType;
 import com.sparta.logistics.hub.kafka.publisher.HubStockEventPublisher;
 import com.sparta.logistics.hub.hubstock.repository.HubStockRepository;
 import com.sparta.logistics.hub.hubstocklog.entity.HubStockLog;
@@ -25,6 +26,12 @@ public class HubStockLockHelper {
     private final HubStockRepository hubStockRepository;
     private final HubStockLogRepository hubStockLogRepository;
     private final HubStockEventPublisher hubStockEventPublisher;
+
+
+    // ========================
+    // MANUAL_ADJUST
+    // ========================
+
 
     // 새 트랜잭션 생성
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -75,6 +82,50 @@ public class HubStockLockHelper {
         registerHubStockUpdatedEvent(hubStock);
 
         return HubStockAdjustResponse.from(hubStock, request.getChangeQuantity(), request.getChangeType());
+    }
+
+    // ========================
+    // 재고 예약 (ORDER_RESERVE)
+    // ========================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void reserveWithOptimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductId(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        reserve(hubStock, quantity, orderItemId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void reserveWithPessimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId) {
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductIdWithLock(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        reserve(hubStock, quantity, orderItemId);
+    }
+
+    private void reserve(HubStock hubStock, int quantity, UUID orderItemId) {
+
+        if (hubStock.getAvailable() < quantity) {
+            throw new BusinessException(HubStockErrorCode.HUB_STOCK_INSUFFICIENT);
+        }
+
+        int beforeQuantity = hubStock.getAvailable();
+        hubStock.reserve(quantity);
+        int afterQuantity = hubStock.getAvailable();
+
+        hubStockLogRepository.save(HubStockLog.create(
+                hubStock,
+                orderItemId,
+                null,
+                -quantity,
+                beforeQuantity,
+                afterQuantity,
+                HubStockChangeType.ORDER_RESERVE
+        ));
+
+        registerHubStockUpdatedEvent(hubStock);
     }
 
     private void registerHubStockUpdatedEvent(HubStock hubStock) {
