@@ -46,7 +46,7 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
             log.info("GatewayAuthFilter: 내부 서비스 호출 감지 - SYSTEM 권한으로 처리");
             UsernamePasswordAuthenticationToken systemAuth =
                     new UsernamePasswordAuthenticationToken(
-                            AuditorAwareConfig.SYSTEM_AUDITOR.toString(),
+                            AuditorAwareConfig.SYSTEM_UUID.toString(),
                             null,
                             List.of(new SimpleGrantedAuthority("ROLE_SYSTEM"))
                     );

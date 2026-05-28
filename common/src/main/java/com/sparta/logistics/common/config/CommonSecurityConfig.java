@@ -2,10 +2,6 @@ package com.sparta.logistics.common.config;
 
 import com.sparta.logistics.common.filter.GatewayAuthFilter;
 import com.sparta.logistics.common.security.GatewayAuthEntryPoint;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -15,13 +11,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
-import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
 
 @Configuration
 @EnableWebSecurity
@@ -62,18 +53,7 @@ public class CommonSecurityConfig {
                 )
                 // GatewayAuthFilter를 AuthorizationFilter 이전에 등록
                 // → SecurityContext에 인증 정보를 먼저 세팅한 뒤 권한 체크가 이루어짐
-                .addFilterBefore(gatewayAuthFilter, AuthorizationFilter.class)
-                .addFilterBefore(new OncePerRequestFilter() {
-                    @Override
-                    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
-                            throws ServletException, IOException {
-                        log.info(">>> SecurityContextHolderFilter 직전: {}",
-                                SecurityContextHolder.getContext().getAuthentication());
-                        chain.doFilter(req, res);
-                        log.info(">>> SecurityContextHolderFilter 직후: {}",
-                                SecurityContextHolder.getContext().getAuthentication());
-                    }
-                }, SecurityContextHolderFilter.class);
+                .addFilterBefore(gatewayAuthFilter, AuthorizationFilter.class);
         return http.build();
     }
 
