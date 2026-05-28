@@ -427,9 +427,23 @@ sequenceDiagram
 | 담당 컴포넌트 | `CancelOrderOrchestrator.onStockRestorationFailed()` |
 | 컨슈머 | `StockRestorationFailedConsumer` |
 | 구독 토픽 | `stock.restoration.failed` |
-| 처리 내용 | `restore.stock.command` 재발행 |
+| 처리 내용 | Redis 재시도 카운터 증가 → 한도(`MAX_RESTORE_RETRY = 3`) 이내이면 `restore.stock.command` 재발행, 초과 시 재발행 중단 후 `log.warn` |
 | 멱등성 | CANCELLING이 아닌 경우 no-op |
-| 비고 | 재고 복구는 `reserved` 차감 + `available` 증가로 멱등 연산이므로 재시도 안전<br>이 시점에서 배송 취소는 이미 완료되어 원복 불가 |
+| 비고 | 재고 복구는 `reserved` 차감 + `available` 증가로 멱등 연산이므로 재시도 안전<br>이 시점에서 배송 취소는 이미 완료되어 원복 불가<br>재시도 카운터는 Saga 정상 완료(`onStockRestored`) 또는 배송 취소 실패 복구(`onDeliveryCancellationFailed`) 시 삭제됨 |
+
+- 비고
+    - 재시도 한도 초과 또는 이벤트 유실로 주문이 `CANCELLING`에 고착될 수 있습니다.
+        - `CancellingSagaTimeoutChecker`가 30분 이상 고착된 주문을 5분 주기로 감지해 `log.warn`을 남깁니다.
+        - 자동 복구는 없으며 운영자가 원인을 확인 후 수동 처리해야 합니다.
+    - 자동 복구가 없는 이유
+        - 인프라 장애인지 로직 버그인지 코드가 판단할 수 없기 때문입니다.
+        - 자동으로 PENDING/ACCEPTED로 되돌리면, 원인이 로직 버그일 때 취소 요청이 유실된 채 주문이 살아나는 상황이 생깁니다.
+        - 반대로 CANCELLED로 강제 확정하면, 실제로 재고가 복구되지 않은 상태에서 주문이 닫힐 수 있습니다.
+        - 두 경우 모두 데이터 정합성 문제로 이어지므로 관리자가 원인을 보고 결정해야 합니다.
+    - 미결 사항
+        - 현재 타임아웃 감지 시 `log.warn`만 남기며, 별도 알림 채널이 없습니다.
+        - 누군가 로그를 직접 확인하지 않으면 고착 상태를 인지할 수 없습니다.
+        - 로그 모니터링 시스템 알람, Dead Letter Topic (`cancelling.timeout`) 발행, Slack 알림 등의 방안이 있지만 현재 일정 상 구현이 어렵습니다.
 
 ---
 
