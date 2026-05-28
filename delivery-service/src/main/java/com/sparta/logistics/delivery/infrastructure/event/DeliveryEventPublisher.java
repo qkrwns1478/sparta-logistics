@@ -78,6 +78,7 @@ public class DeliveryEventPublisher {
     public void publishStarted(UUID deliveryId, UUID orderId, List<DeliveryOrderItemEntity> items) {
         List<DeliveryOrderItemPayload> payloads = items.stream()
                 .map(i -> DeliveryOrderItemPayload.builder()
+                        .orderItemId(i.getId())
                         .productId(i.getProductId())
                         .hubId(i.getHubId())
                         .quantity(i.getQuantity())
