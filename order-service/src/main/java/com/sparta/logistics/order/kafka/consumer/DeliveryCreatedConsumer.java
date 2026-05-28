@@ -46,10 +46,14 @@ public class DeliveryCreatedConsumer {
                 return;
             }
             orderLockManager.setStatusKey(orderId, OrderProcessStatus.PROCESSING);
-
-            log.info("[delivery.created] 수신 orderId={} deliveryId={} totalDeliveryCount={}",
-                    orderId, event.getDeliveryId(), event.getTotalDeliveryCount());
-            orderService.acceptOrder(orderId, event.getDeliveryId(), event.getTotalDeliveryCount());
+            try {
+                log.info("[delivery.created] 수신 orderId={} deliveryId={} totalDeliveryCount={}",
+                        orderId, event.getDeliveryId(), event.getTotalDeliveryCount());
+                orderService.acceptOrder(orderId, event.getDeliveryId(), event.getTotalDeliveryCount());
+            } finally {
+                // acceptOrder() 후 주문이 PENDING/ACCEPTED가 되므로 즉시 해제해야 cancelOrder() 요청이 정상 처리됨
+                orderLockManager.clearStatusKey(orderId);
+            }
         });
     }
 
