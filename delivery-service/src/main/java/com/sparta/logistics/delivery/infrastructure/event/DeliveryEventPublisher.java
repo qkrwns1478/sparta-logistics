@@ -65,7 +65,7 @@ public class DeliveryEventPublisher {
             kafkaTemplate.send(KafkaTopics.DELIVERY_CREATION_FAILED, orderId.toString(), message);
             log.info("[Kafka] delivery.creation.failed 발행 — orderId={}, reason={}", orderId, reason);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] delivery.creation.failed 직렬화 실패 — orderId={}", orderId, e);
+            log.error("[Kafka][수동처리 필요] delivery.creation.failed 직렬화 실패 — orderId={}", orderId, e);
         }
     }
 
@@ -106,7 +106,7 @@ public class DeliveryEventPublisher {
             kafkaTemplate.send(KafkaTopics.DELIVERY_CANCELLED_ACK, orderId.toString(), message);
             log.info("[Kafka] delivery.cancelled.ack 발행 — orderId={}", orderId);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] delivery.cancelled.ack 직렬화 실패 — deliveryId={}", deliveryId, e);
+            log.error("[Kafka][수동처리 필요] delivery.cancelled.ack 직렬화 실패 — deliveryId={}", deliveryId, e);
         }
     }
 
@@ -123,7 +123,7 @@ public class DeliveryEventPublisher {
             kafkaTemplate.send(KafkaTopics.DELIVERY_CANCELLATION_FAILED, orderId.toString(), message);
             log.info("[Kafka] delivery.cancellation.failed 발행 — orderId={}, reason={}", orderId, reason);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] delivery.cancellation.failed 직렬화 실패 — orderId={}", orderId, e);
+            log.error("[Kafka][수동처리 필요] delivery.cancellation.failed 직렬화 실패 — orderId={}", orderId, e);
         }
     }
 }
