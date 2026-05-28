@@ -12,6 +12,25 @@ spring:
     gateway:
       server:
         webflux:
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns:
+                  - "http://localhost:3000"
+                  - "http://localhost:8080"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders:
+                  - "*"
+                exposedHeaders:
+                  - "Authorization"
+                  - "X-Refresh-Token"
+                allowCredentials: true
           routes:
             # internal 경로 차단
             - id: product-internal-block

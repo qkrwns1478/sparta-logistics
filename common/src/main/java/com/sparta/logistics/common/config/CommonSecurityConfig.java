@@ -11,7 +11,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
@@ -28,15 +27,16 @@ public class CommonSecurityConfig {
         http
                 // 1. CSRF 비활성화 (JWT 사용하므로 불필요)
                 .csrf(csrf -> csrf.disable())
-                // 2. 기본 로그인 폼 및 HTTP Basic 인증 비활성화
+                // 2. CORS는 Gateway에서 일괄 처리 (개별 서비스에서 처리 안 함)
+                .cors(cors -> cors.disable())
+                // 3. 기본 로그인 폼 및 HTTP Basic 인증 비활성화
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
-                // 3. 세션을 사용하지 않음 (Stateless)
+                // 4. 세션을 사용하지 않음 (Stateless)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // 4. 공통 권한 설정
+                // 5. 공통 권한 설정
                 .authorizeHttpRequests(auth -> auth
-                        // Swagger 및 Actuator는 인증 없이 통과
                         .requestMatchers("/api-docs/**", "/swagger-ui/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(
@@ -47,7 +47,7 @@ public class CommonSecurityConfig {
                         // TODO: 개발 편의용 설정 (배포 전에는 인증 필요하도록 변경 필요)
                         .anyRequest().permitAll()
                 )
-                // 5. 인증 실패 시 GatewayAuthEntryPoint로 처리
+                // 6. 인증 실패 시 GatewayAuthEntryPoint로 처리
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(gatewayAuthEntryPoint)
                 )
@@ -56,7 +56,6 @@ public class CommonSecurityConfig {
     }
 
     // GatewayAuthFilter는 Security FilterChain에만 등록되어야 함.
-    // @Component에 의해 서블릿 필터로도 자동 등록되는 것을 방지함.
     @Bean
     public FilterRegistrationBean<GatewayAuthFilter> gatewayAuthFilterRegistration(GatewayAuthFilter filter) {
         FilterRegistrationBean<GatewayAuthFilter> registration = new FilterRegistrationBean<>(filter);
