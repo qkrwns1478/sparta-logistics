@@ -128,6 +128,43 @@ public class HubStockLockHelper {
         registerHubStockUpdatedEvent(hubStock);
     }
 
+    // ========================
+    // 재고 복구 (CANCEL_RESTORE)
+    // ========================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void restoreWithOptimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId, UUID deliveryId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductId(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        restore(hubStock, quantity, orderItemId, deliveryId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void restoreWithPessimisticLock(UUID hubId, UUID productId, int quantity, UUID orderItemId, UUID deliveryId) {
+
+        HubStock hubStock = hubStockRepository.findByHubIdAndProductIdWithLock(hubId, productId)
+                .orElseThrow(() -> new BusinessException(HubStockErrorCode.HUB_STOCK_NOT_FOUND));
+
+        restore(hubStock, quantity, orderItemId, deliveryId);
+    }
+
+    private void restore(HubStock hubStock, int quantity, UUID orderItemId, UUID deliveryId) {
+
+        int beforeQuantity = hubStock.getAvailable();
+        hubStock.restore(quantity);
+        int afterQuantity = hubStock.getAvailable();
+
+        hubStockLogRepository.save(HubStockLog.create(
+                hubStock, orderItemId, deliveryId,
+                quantity, beforeQuantity, afterQuantity,
+                HubStockChangeType.CANCEL_RESTORE
+        ));
+
+        registerHubStockUpdatedEvent(hubStock);
+    }
+
     private void registerHubStockUpdatedEvent(HubStock hubStock) {
 
         TransactionSynchronizationManager.registerSynchronization(
