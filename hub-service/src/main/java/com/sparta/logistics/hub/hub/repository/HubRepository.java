@@ -34,4 +34,8 @@ public interface HubRepository extends JpaRepository<Hub, UUID> {
             Pageable pageable);
 
     List<Hub> findAllByIdInAndDeletedAtIsNull(List<UUID> hubIds);
+
+    int countByDeletedAtIsNull();
+
+    List<Hub> findAllByDeletedAtIsNull();
 }

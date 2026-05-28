@@ -9,6 +9,7 @@ import com.sparta.logistics.hub.hub.dto.response.*;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.enums.HubStatus;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
+import com.sparta.logistics.hub.hub.service.util.HubDistanceCalculator;
 import com.sparta.logistics.hub.hubroute.entity.HubRoute;
 import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,9 +33,12 @@ public class HubService {
 
     private final HubRepository hubRepository;
     private final HubRouteRepository hubRouteRepository;
+    private final HubDistanceCalculator hubDistanceCalculator;
 
-
-    @CacheEvict(value = "hubList", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "hubList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
+    })
     @Transactional
     public HubCreateResponse createHub(CreateHubRequest request, Role role) {
 
@@ -57,6 +63,26 @@ public class HubService {
         try {
             Hub savedHub = hubRepository.save(hub);
             hubRepository.flush();
+
+            // 인접 허브 경로 자동 생성
+            List<Hub> existingHubs = hubRepository.findAllByDeletedAtIsNull();
+            for (Hub existingHub : existingHubs) {
+                if (existingHub.getId().equals(savedHub.getId())) continue;
+
+                double distance = hubDistanceCalculator.calculate(
+                        savedHub.getLatitude().doubleValue(), savedHub.getLongitude().doubleValue(),
+                        existingHub.getLatitude().doubleValue(), existingHub.getLongitude().doubleValue()
+                );
+
+                if (hubDistanceCalculator.isWithinRange(distance)) {
+                    int duration = (int) (distance / 80.0 * 60);
+                    BigDecimal distanceBd = BigDecimal.valueOf(distance).setScale(3, RoundingMode.HALF_UP);
+
+                    hubRouteRepository.save(HubRoute.create(savedHub, existingHub, distanceBd, duration));
+                    hubRouteRepository.save(HubRoute.create(existingHub, savedHub, distanceBd, duration));
+                }
+            }
+
             return HubCreateResponse.from(savedHub);
         } catch (DataIntegrityViolationException e) {
             String message = e.getMostSpecificCause().getMessage();
@@ -99,7 +125,8 @@ public class HubService {
 
     @Caching(evict = {
             @CacheEvict(value = "hubs", key = "#hubId"),
-            @CacheEvict(value = "hubList", allEntries = true)
+            @CacheEvict(value = "hubList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
     })
     @Transactional
     public HubUpdateResponse updateHub(UUID hubId, UpdateHubRequest request, Role role) {
@@ -141,7 +168,8 @@ public class HubService {
     // todo: 배송 담당자 논리 삭제 연동
     @Caching(evict = {
             @CacheEvict(value = "hubs", key = "#hubId"),
-            @CacheEvict(value = "hubList", allEntries = true)
+            @CacheEvict(value = "hubList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
     })
     @Transactional
     public HubDeleteResponse deleteHub(UUID hubId, UUID userId, Role role) {
@@ -167,6 +195,10 @@ public class HubService {
                 .stream()
                 .map(HubBatchResponse::from)
                 .toList();
+    }
+
+    public int count() {
+        return hubRepository.countByDeletedAtIsNull();
     }
 
     private Hub findByHubId(UUID hubId) {
