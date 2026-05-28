@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.util.UUID;
 
 // user-service 팀과 실제 엔드포인트 경로 및 응답 구조 협의 필요
-@FeignClient(name = "user-service")
+@FeignClient(name = "user-service", fallback = UserServiceClientFallback.class)
 public interface UserServiceClient {
 
     @GetMapping("/api/v1/users/{userId}")
