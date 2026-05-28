@@ -37,13 +37,10 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        log.info("GatewayAuthFilter 실행 시점의 SecurityContext: {}",
-                SecurityContextHolder.getContext().getAuthentication());
 
         // 내부 서비스 호출인 경우 SYSTEM 권한으로 SecurityContext 세팅 후 통과
         String internalCall = request.getHeader(FeignClientInterceptor.INTERNAL_CALL_HEADER);
         if (FeignClientInterceptor.INTERNAL_CALL_VALUE.equals(internalCall)) {
-            log.info("GatewayAuthFilter: 내부 서비스 호출 감지 - SYSTEM 권한으로 처리");
             UsernamePasswordAuthenticationToken systemAuth =
                     new UsernamePasswordAuthenticationToken(
                             AuditorAwareConfig.SYSTEM_UUID.toString(),
