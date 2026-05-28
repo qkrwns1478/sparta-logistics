@@ -31,7 +31,9 @@ public class HubRouteService {
     private final HubRouteRepository hubRouteRepository;
     private final HubRepository hubRepository;
 
-
+    @Caching(evict = {
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
+    })
     @Transactional
     public HubRouteDetailResponse createHubRoute(CreateHubRouteRequest request, Role role) {
 
@@ -100,7 +102,8 @@ public class HubRouteService {
 
     @Caching(evict = {
             @CacheEvict(value = "hubRoutes", key = "#routeId"),
-            @CacheEvict(value = "hubRouteList", allEntries = true)
+            @CacheEvict(value = "hubRouteList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
     })
     @Transactional
     public HubRouteUpdateResponse updateHubRoute(UUID routeId, UpdateHubRouteRequest request, Role role) {
@@ -119,7 +122,8 @@ public class HubRouteService {
 
     @Caching(evict = {
             @CacheEvict(value = "hubRoutes", key = "#routeId"),
-            @CacheEvict(value = "hubRouteList", allEntries = true)
+            @CacheEvict(value = "hubRouteList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
     })
     @Transactional
     public HubRouteDeleteResponse deleteHubRoute(UUID routeId, UUID userId, Role role) {
