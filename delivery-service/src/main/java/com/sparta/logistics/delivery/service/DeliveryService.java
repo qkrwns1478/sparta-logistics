@@ -154,10 +154,9 @@ public class DeliveryService {
         }
 
         // delivery.started 발행을 위해 orderItems 저장
-        // TODO: sourceHubId가 아니라 hubId로 변수명 변경
         for (var item : event.orderItems()) {
             deliveryOrderItemRepository.save(
-                    new DeliveryOrderItemEntity(entity, item.productId(), item.sourceHubId(), item.reservedQuantity())
+                    new DeliveryOrderItemEntity(entity, item.orderItemId(), item.productId(), item.sourceHubId(), item.reservedQuantity())
             );
         }
 

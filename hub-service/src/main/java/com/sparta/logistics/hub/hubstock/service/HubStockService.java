@@ -263,6 +263,7 @@ public class HubStockService {
 
             // 아이템마다 sourceHubId 포함해서 리스트에 추가
             reservedItems.add(StockReservedItemPayload.builder()
+                    .orderItemId(item.getOrderItemId())
                     .productId(item.getProductId())
                     .reservedQuantity(item.getQuantity())
                     .sourceHubId(item.getHubId())
