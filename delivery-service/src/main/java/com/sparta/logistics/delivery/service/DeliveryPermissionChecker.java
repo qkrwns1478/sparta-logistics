@@ -95,9 +95,9 @@ public class DeliveryPermissionChecker {
         throw new BusinessException(CommonErrorCode.FORBIDDEN);
     }
 
-    // 허브 변경 가능 여부 — MASTER, HUB_MANAGER만 허용
+    // 허브 변경 가능 여부 — MASTER만 허용
     public boolean canChangeHubId(Role role) {
-        return role == Role.MASTER || role == Role.HUB_MANAGER;
+        return role == Role.MASTER;
     }
 
     // 배송담당자 본인 수정 — MASTER, HUB_MANAGER(자기 허브), DELIVERY_MANAGER(본인)
