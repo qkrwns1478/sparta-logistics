@@ -1,7 +1,9 @@
 package com.sparta.logistics.delivery.entity;
 
 import com.sparta.logistics.common.domain.BaseEntity;
+import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
+import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -92,6 +94,9 @@ public class DeliveryEntity extends BaseEntity {
     }
 
     public void changeStatus(DeliveryStatus next) {
+        if (!this.status.canTransitionTo(next)) {
+            throw new BusinessException(DeliveryErrorCode.INVALID_STATUS_TRANSITION);
+        }
         this.status = next;
         if (next == DeliveryStatus.OUT_FOR_DELIVERY) {
             this.startedAt = LocalDateTime.now();

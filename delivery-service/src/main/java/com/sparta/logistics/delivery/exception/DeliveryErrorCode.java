@@ -21,6 +21,8 @@ public enum DeliveryErrorCode implements ErrorCode {
     MANAGER_ALREADY_EXISTS(HttpStatus.CONFLICT, "DELIVERY_MGR_409", "이미 등록된 배송담당자입니다."),
 
     ROUTE_NOT_FOUND(HttpStatus.NOT_FOUND, "DELIVERY_ROUTE_404", "배송경로를 찾을 수 없습니다."),
+    INVALID_ROUTE_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "DELIVERY_ROUTE_002", "허용되지 않는 배송경로 상태 전이입니다."),
+    DELIVERY_ROUTE_UPDATE_FORBIDDEN(HttpStatus.BAD_REQUEST, "DELIVERY_ROUTE_003", "완료되거나 취소된 배송의 경로는 수정할 수 없습니다."),
 
     HUB_NOT_FOUND(HttpStatus.BAD_REQUEST, "DELIVERY_HUB_001", "존재하지 않는 허브입니다."),
     HUB_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "DELIVERY_HUB_503", "Hub Service를 현재 사용할 수 없습니다."),

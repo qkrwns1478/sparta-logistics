@@ -3,6 +3,7 @@ package com.sparta.logistics.order.order.saga;
 import com.sparta.logistics.order.kafka.producer.OrderEventPublisher;
 import com.sparta.logistics.order.order.entity.Order;
 import com.sparta.logistics.order.order.enums.OrderStatus;
+import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.repository.OrderRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +39,9 @@ class CancelOrderOrchestratorTest {
 
     @Mock
     private OrderEventPublisher orderEventPublisher;
+
+    @Mock
+    private OrderLockManager orderLockManager;
 
     private final UUID ORDER_ID = UUID.randomUUID();
     private final UUID USER_ID = UUID.randomUUID();
@@ -124,6 +129,7 @@ class CancelOrderOrchestratorTest {
         // cancelledBy, cancelReason은 start() 시점에 이미 저장됨
         assertThat(order.getCancelledBy()).isEqualTo(USER_ID);
         assertThat(order.getCancelReason()).isEqualTo("단순 변심");
+        verify(orderLockManager).clearRestoreRetry(ORDER_ID);
     }
 
     // 주문이 존재하지 않으면 예외 없이 무시하는지 검증 (Kafka 재시도 방지)
@@ -144,5 +150,45 @@ class CancelOrderOrchestratorTest {
         assertThatCode(() -> orchestrator.onStockRestored(ORDER_ID)).doesNotThrowAnyException();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancelReason()).isEqualTo("이미 취소됨"); // 기존 사유 유지
+    }
+
+    // ===== onStockRestorationFailed =====
+
+    // 재시도 횟수가 한도 이내면 restore.stock.command를 재발행하는지 검증
+    @Test
+    void onStockRestorationFailed_underLimit_republishesCommand() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        ReflectionTestUtils.setField(order, "id", ORDER_ID);
+        order.startCancelling(USER_ID, "단순 변심");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderLockManager.incrementAndGetRestoreRetry(ORDER_ID)).thenReturn(1);
+
+        orchestrator.onStockRestorationFailed(ORDER_ID);
+
+        verify(orderEventPublisher).publishRestoreStockCommand(eq(ORDER_ID), any());
+    }
+
+    // 재시도 횟수가 한도를 초과하면 재발행 없이 CANCELLING 상태를 유지하는지 검증
+    @Test
+    void onStockRestorationFailed_overLimit_doesNotRepublish() {
+        Order order = Order.create(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, USER_ID, DUE_DATE, null);
+        ReflectionTestUtils.setField(order, "id", ORDER_ID);
+        order.startCancelling(USER_ID, "단순 변심");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderLockManager.incrementAndGetRestoreRetry(ORDER_ID))
+                .thenReturn(OrderLockManager.MAX_RESTORE_RETRY + 1);
+
+        orchestrator.onStockRestorationFailed(ORDER_ID);
+
+        verify(orderEventPublisher, never()).publishRestoreStockCommand(any(), any());
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLING);
+    }
+
+    // 주문이 존재하지 않으면 예외 없이 무시하는지 검증
+    @Test
+    void onStockRestorationFailed_orderNotFound_noException() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
+
+        assertThatCode(() -> orchestrator.onStockRestorationFailed(ORDER_ID)).doesNotThrowAnyException();
     }
 }

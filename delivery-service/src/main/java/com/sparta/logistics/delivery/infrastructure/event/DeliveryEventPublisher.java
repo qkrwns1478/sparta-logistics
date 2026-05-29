@@ -29,8 +29,7 @@ public class DeliveryEventPublisher {
 
     public void publishCreated(UUID deliveryId, UUID orderId,
                                UUID sourceHubId, UUID destinationHubId,
-                               UUID companyDeliveryManagerId, int totalDeliveryCount,
-                               String deliveryAddress) {
+                               UUID companyDeliveryManagerId, int totalDeliveryCount) {
         try {
             String message = objectMapper.writeValueAsString(
                     DeliveryCreatedEvent.builder()
@@ -41,7 +40,6 @@ public class DeliveryEventPublisher {
                             .destinationHubId(destinationHubId)
                             .companyDeliveryManagerId(companyDeliveryManagerId)
                             .totalDeliveryCount(totalDeliveryCount)
-                            .deliveryAddress(deliveryAddress)
                             .build()
             );
             kafkaTemplate.send(KafkaTopics.DELIVERY_CREATED, deliveryId.toString(), message);

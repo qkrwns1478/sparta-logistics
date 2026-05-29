@@ -87,9 +87,6 @@ public class DeliveryService {
         DeliveryEntity entity = findActiveOrThrow(deliveryId);
         permissionChecker.checkDeliveryStatusChangePermission(entity, userId, role, hubId);
 
-        if (!entity.getStatus().canTransitionTo(req.status())) {
-            throw new BusinessException(DeliveryErrorCode.INVALID_STATUS_TRANSITION);
-        }
         entity.changeStatus(req.status());
 
         deliveryLogRepository.save(new DeliveryLogEntity(
@@ -174,8 +171,7 @@ public class DeliveryService {
                 entity.getSourceHubId(),
                 entity.getDestinationHubId(),
                 entity.getCompanyDeliveryManagerId(),
-                event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0,
-                entity.getDeliveryAddress()
+                event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0
         );
     }
 

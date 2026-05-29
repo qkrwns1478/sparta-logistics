@@ -2,6 +2,7 @@ package com.sparta.logistics.order.order.controller;
 
 import com.sparta.logistics.common.config.CommonSecurityConfig;
 import com.sparta.logistics.common.domain.Role;
+import com.sparta.logistics.common.security.GatewayAuthEntryPoint;
 import com.sparta.logistics.order.order.dto.response.OrderDetailResponse;
 import com.sparta.logistics.order.order.dto.response.OrderSummaryResponse;
 import com.sparta.logistics.order.order.enums.OrderStatus;
@@ -42,6 +43,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private OrderService orderService;
+
+    @MockitoBean
+    private GatewayAuthEntryPoint gatewayAuthEntryPoint;
 
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID ORDER_ID = UUID.randomUUID();
