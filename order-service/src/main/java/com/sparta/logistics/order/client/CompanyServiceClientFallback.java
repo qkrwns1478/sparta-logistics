@@ -26,6 +26,6 @@ public class CompanyServiceClientFallback implements CompanyServiceClient {
     @Override
     public ApiResponse<CompanyResponse> getCompany(UUID companyId) {
         log.warn(warnMessage(companyId));
-        return ApiResponse.ok(null);
+        throw new BusinessException(OrderErrorCode.COMPANY_SERVICE_UNAVAILABLE);
     }
 }

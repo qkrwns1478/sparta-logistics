@@ -469,6 +469,9 @@ public class OrderService {
         } catch (FeignException e) {
             log.warn("[FeignClient] 업체 이름 조회 실패 companyId={} status={}", companyId, e.status());
             return null;
+        } catch (BusinessException e) {
+            log.warn("[FeignClient] 업체 이름 조회 실패 (서비스 불가) companyId={}", companyId);
+            return null;
         }
     }
 
