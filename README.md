@@ -6,12 +6,12 @@
 
 | 프로필 | 이름 | 역할 및 담당 도메인 | GitHub |
 | :---: | :---: | :--- | :---: |
-| <img src="https://github.com/euneuneun.png" width="80" height="80" style="border-radius:50%"/> | **김다은** | 인프라 & 사용자 | [![GitHub](https://img.shields.io/badge/GitHub-euneuneun-181717?style=flat&logo=github)](https://github.com/euneuneun) |
-| <img src="https://github.com/swissmissed2.png" width="80" height="80" style="border-radius:50%"/> | **김승현** | 리더 & 허브 | [![GitHub](https://img.shields.io/badge/GitHub-swissmissed2-181717?style=flat&logo=github)](https://github.com/swissmissed2) |
-| <img src="https://github.com/qkrwns1478.png" width="80" height="80" style="border-radius:50%"/> | **박준식** | 주문 | [![GitHub](https://img.shields.io/badge/GitHub-qkrwns1478-181717?style=flat&logo=github)](http://github.com/qkrwns1478) |
-| <img src="https://github.com/dahye1111.png" width="80" height="80" style="border-radius:50%"/> | **이다혜** | 업체 & 상품 | [![GitHub](https://img.shields.io/badge/GitHub-dahye1111-181717?style=flat&logo=github)](http://github.com/dahye1111) |
-| <img src="https://github.com/start-ha.png" width="80" height="80" style="border-radius:50%"/> | **장하영** | 인프라 & Slack + AI | [![GitHub](https://img.shields.io/badge/GitHub-start--ha-181717?style=flat&logo=github)](https://github.com/start-ha) |
-| <img src="https://github.com/look516.png" width="80" height="80" style="border-radius:50%"/> | **조아영** | 배송 | [![GitHub](https://img.shields.io/badge/GitHub-look516-181717?style=flat&logo=github)](http://github.com/look516) |
+| <img src="https://github.com/euneuneun.png" width="80" height="80"/> | **김다은** | 인프라 & 사용자 | [![GitHub](https://img.shields.io/badge/GitHub-euneuneun-181717?style=flat&logo=github)](https://github.com/euneuneun) |
+| <img src="https://github.com/swissmissed2.png" width="80" height="80"/> | **김승현** | 리더 & 허브 | [![GitHub](https://img.shields.io/badge/GitHub-swissmissed2-181717?style=flat&logo=github)](https://github.com/swissmissed2) |
+| <img src="https://github.com/qkrwns1478.png" width="80" height="80"/> | **박준식** | 주문 | [![GitHub](https://img.shields.io/badge/GitHub-qkrwns1478-181717?style=flat&logo=github)](http://github.com/qkrwns1478) |
+| <img src="https://github.com/dahye1111.png" width="80" height="80"/> | **이다혜** | 업체 & 상품 | [![GitHub](https://img.shields.io/badge/GitHub-dahye1111-181717?style=flat&logo=github)](http://github.com/dahye1111) |
+| <img src="https://github.com/start-ha.png" width="80" height="80"/> | **장하영** | 인프라 & Slack + AI | [![GitHub](https://img.shields.io/badge/GitHub-start--ha-181717?style=flat&logo=github)](https://github.com/start-ha) |
+| <img src="https://github.com/look516.png" width="80" height="80"/> | **조아영** | 배송 | [![GitHub](https://img.shields.io/badge/GitHub-look516-181717?style=flat&logo=github)](http://github.com/look516) |
 
 ## 서비스 구성
 
@@ -38,6 +38,13 @@
 | Database | ![PostgreSQL 15](https://img.shields.io/badge/PostgreSQL_15-4169E1?style=flat&logo=postgresql&logoColor=white) ![Redis 7.2](https://img.shields.io/badge/Redis_7.2-DC382D?style=flat&logo=redis&logoColor=white)                                                                                                     |
 | Observability | ![Zipkin 3](https://img.shields.io/badge/Zipkin_3-F25E22?style=flat)                                                                                                                                                                                                                                                        |
 | Build | ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)                                                                                                                                                                                                                       |
+
+## 아키텍처 설계도
+
+<details>
+    <summary>더보기</summary>
+    <img src="./docs/architecture.png" alt="architecture"/>
+</details>
 
 ## 문서
 
