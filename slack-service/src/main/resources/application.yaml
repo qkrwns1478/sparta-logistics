@@ -19,6 +19,9 @@ spring:
       properties:
         spring.json.trusted.packages: "*" # 모든 패키지의 DTO 허용 (보안 필요 시 패키지 제한)
         # 데이터 변환 에러시 강제 매핑 spring.json.value.default.type: com.sparta.logistics.slack.infrastructure.DeliveryCreatedEvent
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
   datasource:
     url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_slack

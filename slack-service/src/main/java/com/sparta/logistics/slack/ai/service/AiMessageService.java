@@ -79,17 +79,22 @@ public class AiMessageService {
       //3-2. Gemini API 호출
       GeminiApiClient.AiMessageResult aiResult = geminiApiClient.generateDeliveryDeadlineMessage(fullPrompt);
 
+      //슬랙과 AI로그를 연결할 공통 ID 생성
+      UUID slackMessageId = UUID.randomUUID();
+
       //4. AI 로그 저장 (성공)
       aiLogRepository.save(
           AiLog.builder()
-              .promptData(fullPrompt)
-              .responseMessage(aiResult.message())
-              .totalTokens(aiResult.totalTokens())
-              .success(true)
+              .slackMessageId(slackMessageId)
+              .orderId(event.getOrderId())
+              .requestType(AiLog.AiRequestType.DEADLINE)
+              .requestContent(fullPrompt)
+              .responseContent(aiResult.message())
+              .status(AiLog.AiLogStatus.SUCCESS)
               .build()
       );
 
-      //5. 슬랙 발송
+      //5. 슬랙 타겟 ID
       String targetSlackId = receiverSlackId;
 
       if (orderData.requesterUserId() != null) {
@@ -106,9 +111,9 @@ public class AiMessageService {
         }
       }
 
-      //최종 슬랙 발송
+      //6. 최종 슬랙 발송
       slackApiSender.send(
-          UUID.randomUUID(),
+          slackMessageId,
           targetSlackId,
           aiResult.message(),
           MessageType.AI_DELIVERY_DEADLINE,
@@ -123,15 +128,15 @@ public class AiMessageService {
       log.error("Gemini API 서버 오류 발생! 카프카 재시도를 위해 예외를 던집니다.");
       throw e;
     } catch (Exception e) {
-      //6. AI 로그 저장 (실패) DB에 저장
+      //7. AI 로그 저장 (실패) DB에 저장
       log.error("AI 배송 마감 메시지 생성 중 예외 발생: ", e);
       aiLogRepository.save(
           AiLog.builder()
-              .promptData(fullPrompt.isEmpty() ? "데이터 조합 실패" : fullPrompt)
-              .responseMessage("AI 메시지 생성 실패")
-              .totalTokens(0)
-              .success(false)
-              .errorMessage(e.getMessage())
+              .orderId(event.getOrderId())
+              .requestType(AiLog.AiRequestType.DEADLINE)
+              .requestContent(fullPrompt.isEmpty() ? "데이터 조합 실패" : fullPrompt)
+              .responseContent("AI 메시지 생성 실패" + e.getMessage())
+              .status(AiLog.AiLogStatus.FAILED)
               .build()
       );
       throw e;
@@ -151,23 +156,27 @@ public class AiMessageService {
         담당자께서는 해당 시간 내에 처리를 부탁드립니다.
         """.formatted(event.getOrderId(), fallbackHours);
 
+    //Fallback ID
+    UUID fallbackSlackMsgId = UUID.randomUUID();
+
     //Fallback 메시지를 슬랙으로 발송 (배송 흐름 정상화)
     slackApiSender.send(
         UUID.randomUUID(), receiverSlackId, fallbackMessage,
         MessageType.AI_DELIVERY_DEADLINE, RelatedType.DELIVERY, event.getDeliveryId()
     );
 
+    //Fallback 로그 저장
     aiLogRepository.save(
         AiLog.builder()
-            .promptData("주문 도메인 데이터 누락으로 AI 프롬프트 생성 생략")
-            .responseMessage(fallbackMessage)
-            .totalTokens(0)
-            .success(false)
-            .errorMessage("Fallback 로직 발동 (주문 데이터 조회 실패)")
+            .slackMessageId(fallbackSlackMsgId)
+            .orderId(event.getOrderId())
+            .requestType(AiLog.AiRequestType.DEADLINE)
+            .responseContent("주문 도메인 데이터 누락으로 AI 프롬프트 생성 생략")
+            .responseContent(fallbackMessage)
+            .status(AiLog.AiLogStatus.FAILED)
             .build()
     );
 
-    //Fallback 로그
     log.info("Fallback 슬랙 메시지 발송 및 DB 저장 완료: {}", event.getDeliveryId());
     return fallbackMessage;
   }
@@ -178,7 +187,6 @@ public class AiMessageService {
       OrderFeignClient.OrderResponseDto orderData) {
 
     double durationHours = event.getTotalEstimatedDuration() / 60.0;
-
     String customerRequest = orderData.customerRequest() != null ? orderData.customerRequest() : "없음";
     String productInfo = orderData.orderItems().stream()
         .map(item -> item.productName() + " " + item.quantity() + "개")

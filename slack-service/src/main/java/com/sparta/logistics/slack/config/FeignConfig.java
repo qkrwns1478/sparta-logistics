@@ -11,7 +11,7 @@ public class FeignConfig {
   public RequestInterceptor requestInterceptor() {
     return requestTemplate -> {
       requestTemplate.header("Content-Type", "application/json");
-      requestTemplate.header("X-User-Id", "550e8400-e29b-41d4-a716-446655440000");
+      requestTemplate.header("X-User-Id", "44444444-4444-4444-4444-444444444444");
       requestTemplate.header("X-User-Role", "MASTER");
     };
   }
