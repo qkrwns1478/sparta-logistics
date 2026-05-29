@@ -50,6 +50,7 @@
 
 | 문서 | 내용 |
 |---|---|
+| [docs/ERD.md](docs/ERD.md) | ERD 다이어그램 |
 | [docs/SAGA.md](docs/SAGA.md) | Saga 패턴 의사결정, Kafka 토픽 전체 목록, 시퀀스 다이어그램 |
 | [delivery-service/docs/](delivery-service/docs/) | 배송 서비스 API 명세, 아키텍처, 상태 머신, 권한 정책 등 |
 
