@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.*;
+import com.sparta.logistics.common.kafka.event.HubDeletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -120,6 +121,28 @@ public class HubStockEventPublisher {
 
         } catch (JsonProcessingException e) {
             log.error("[Kafka] hub.stock.updated 발행 실패 - productId: {}", productId, e);
+        }
+    }
+
+    public void publishHubDeleted(UUID hubId, UUID deletedBy) {
+        try {
+            String message = objectMapper.writeValueAsString(
+                    HubDeletedEvent.builder()
+                            .eventId(UUID.randomUUID())
+                            .hubId(hubId)
+                            .deletedBy(deletedBy)
+                            .build()
+            );
+            kafkaTemplate.send(KafkaTopics.HUB_DELETED, hubId.toString(), message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("[Kafka][수동처리 필요] hub.deleted 발행 실패 — hubId: {}", hubId, ex);
+                        } else {
+                            log.info("[Kafka] hub.deleted 발행 성공 — hubId: {}", hubId);
+                        }
+                    });
+        } catch (JsonProcessingException e) {
+            log.error("[Kafka][수동처리 필요] hub.deleted 직렬화 실패 — hubId: {}", hubId, e);
         }
     }
 

@@ -6,6 +6,7 @@ import com.sparta.logistics.delivery.entity.DeliveryEntity;
 import com.sparta.logistics.delivery.entity.DeliveryLogEntity;
 import com.sparta.logistics.delivery.entity.DeliveryManagerEntity;
 import com.sparta.logistics.delivery.entity.DeliveryRouteEntity;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerType;
@@ -84,6 +85,11 @@ public class DeliveryAssignmentService {
             throw new BusinessException(DeliveryErrorCode.DELIVERY_ALREADY_DELETED);
         }
 
+        if (delivery.getStatus() == DeliveryStatus.COMPLETED
+                || delivery.getStatus() == DeliveryStatus.CANCELLED) {
+            throw new BusinessException(DeliveryErrorCode.DELIVERY_ROUTE_UPDATE_FORBIDDEN);
+        }
+
         // MASTER 또는 자기 허브 배송만 배차 가능 (배송 쓰기 권한과 동일)
         permissionChecker.checkDeliveryWritePermission(delivery, actorId, role, hubId);
 
@@ -91,6 +97,7 @@ public class DeliveryAssignmentService {
                 deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId);
 
         for (DeliveryRouteEntity route : routes) {
+            if (route.getHubDeliveryManagerId() != null) continue;
             DeliveryManagerType managerType =
                     route.getRouteType() == RouteType.HUB_TO_HUB
                             ? DeliveryManagerType.HUB_DELIVERY
@@ -99,6 +106,11 @@ public class DeliveryAssignmentService {
             UUID searchHubId = route.getRouteType() == RouteType.HUB_TO_HUB
                     ? route.getSourceHubId()          // HUB 구간: 출발 허브 소속 담당자
                     : delivery.getDestinationHubId(); // COMPANY 구간: 목적지 허브 소속 담당자
+
+            if (searchHubId == null) {
+                log.warn("[배차] destinationHubId 미설정 — deliveryId={}", deliveryId);
+                throw new BusinessException(DeliveryErrorCode.NO_AVAILABLE_MANAGER);
+            }
 
             DeliveryManagerEntity manager = deliveryManagerRepository
                     .findNextAssignee(searchHubId, managerType, DeliveryManagerStatus.IDLE)
@@ -149,10 +161,17 @@ public class DeliveryAssignmentService {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
 
+        if (delivery.getStatus() == DeliveryStatus.COMPLETED
+                || delivery.getStatus() == DeliveryStatus.CANCELLED) {
+            log.warn("[배차][시스템] 종료된 배송 배차 시도 무시 — deliveryId={}, status={}", deliveryId, delivery.getStatus());
+            return;
+        }
+
         List<DeliveryRouteEntity> routes =
                 deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId);
 
         for (DeliveryRouteEntity route : routes) {
+            if (route.getHubDeliveryManagerId() != null) continue;
             DeliveryManagerType managerType =
                     route.getRouteType() == RouteType.HUB_TO_HUB
                             ? DeliveryManagerType.HUB_DELIVERY
@@ -161,6 +180,11 @@ public class DeliveryAssignmentService {
             UUID searchHubId = route.getRouteType() == RouteType.HUB_TO_HUB
                     ? route.getSourceHubId()
                     : delivery.getDestinationHubId();
+
+            if (searchHubId == null) {
+                log.warn("[배차][시스템] destinationHubId 미설정 — deliveryId={}", deliveryId);
+                continue;
+            }
 
             DeliveryManagerEntity manager = deliveryManagerRepository
                     .findNextAssignee(searchHubId, managerType, DeliveryManagerStatus.IDLE)
@@ -192,9 +216,8 @@ public class DeliveryAssignmentService {
         }
     }
 
-    public void recoverAssignManagersForSystem(UUID deliveryId,
-                                               ObjectOptimisticLockingFailureException e) {
-        log.error("[배차][시스템] 낙관적 락 재시도 초과 — deliveryId={}", deliveryId);
+    public void recoverAssignManagersForSystem(UUID deliveryId, Exception e) {
+        log.error("[배차][시스템] 배차 재시도 초과 — deliveryId={}, 스케줄러 재시도 예정", deliveryId, e);
         // 미배차 상태 유지, 스케줄러가 재시도
     }
 }

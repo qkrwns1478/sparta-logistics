@@ -49,7 +49,9 @@ public class JwtHeaderFilter implements GlobalFilter, Ordered {
     private boolean isWhiteList(String path) {
         return WHITE_LIST.contains(path) ||
                 path.startsWith("/swagger-ui") ||
-                path.startsWith("/v3/api-docs");
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/api-docs") ||
+                path.startsWith("/webjars");
     }
 
     @Override

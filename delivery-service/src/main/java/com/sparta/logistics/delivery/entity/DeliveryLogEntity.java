@@ -1,6 +1,7 @@
 package com.sparta.logistics.delivery.entity;
 
 import com.sparta.logistics.delivery.entity.enums.DeliveryEventType;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

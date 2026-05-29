@@ -1,4 +1,4 @@
-package com.sparta.logistics.delivery.infrastructure.event;
+package com.sparta.logistics.delivery.kafka.producer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,7 +29,9 @@ public class DeliveryEventPublisher {
 
     public void publishCreated(UUID deliveryId, UUID orderId,
                                UUID sourceHubId, UUID destinationHubId,
-                               UUID companyDeliveryManagerId, int totalDeliveryCount) {
+                               UUID companyDeliveryManagerId, int totalDeliveryCount,
+                               String deliveryAddress, int totalEstimatedDuration,
+                               String receiverSlackId, java.time.LocalDateTime createdAt) {
         try {
             String message = objectMapper.writeValueAsString(
                     DeliveryCreatedEvent.builder()
@@ -40,13 +42,17 @@ public class DeliveryEventPublisher {
                             .destinationHubId(destinationHubId)
                             .companyDeliveryManagerId(companyDeliveryManagerId)
                             .totalDeliveryCount(totalDeliveryCount)
+                            .deliveryAddress(deliveryAddress)
+                            .totalEstimatedDuration(totalEstimatedDuration)
+                            .receiverSlackId(receiverSlackId)
+                            .createdAt(createdAt)
                             .build()
             );
             kafkaTemplate.send(KafkaTopics.DELIVERY_CREATED, deliveryId.toString(), message);
             log.info("[Kafka] delivery.created 발행 — deliveryId={}, orderId={}", deliveryId, orderId);
         } catch (JsonProcessingException e) {
-            log.error("[Kafka] delivery.created 직렬화 실패 — deliveryId={}", deliveryId, e);
-            throw new RuntimeException(e);  // 삼키면 order-service 미인지 — 트랜잭션 롤백 후 재처리
+            log.error("[Kafka][수동처리 필요] delivery.created 발행 실패(afterCommit) — deliveryId={}", deliveryId, e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -62,8 +68,14 @@ public class DeliveryEventPublisher {
                             .itemsToRestore(itemsToRestore)
                             .build()
             );
-            kafkaTemplate.send(KafkaTopics.DELIVERY_CREATION_FAILED, orderId.toString(), message);
-            log.info("[Kafka] delivery.creation.failed 발행 — orderId={}, reason={}", orderId, reason);
+            kafkaTemplate.send(KafkaTopics.DELIVERY_CREATION_FAILED, orderId.toString(), message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("[Kafka][수동처리 필요] delivery.creation.failed 전송 실패 — orderId={}", orderId, ex);
+                        } else {
+                            log.info("[Kafka] delivery.creation.failed 발행 — orderId={}, reason={}", orderId, reason);
+                        }
+                    });
         } catch (JsonProcessingException e) {
             log.error("[Kafka][수동처리 필요] delivery.creation.failed 직렬화 실패 — orderId={}", orderId, e);
         }
@@ -72,6 +84,7 @@ public class DeliveryEventPublisher {
     public void publishStarted(UUID deliveryId, UUID orderId, List<DeliveryOrderItemEntity> items) {
         List<DeliveryOrderItemPayload> payloads = items.stream()
                 .map(i -> DeliveryOrderItemPayload.builder()
+                        .orderItemId(i.getOrderItemId())
                         .productId(i.getProductId())
                         .hubId(i.getHubId())
                         .quantity(i.getQuantity())
@@ -90,7 +103,7 @@ public class DeliveryEventPublisher {
             log.info("[Kafka] delivery.started 발행 — deliveryId={}", deliveryId);
         } catch (JsonProcessingException e) {
             log.error("[Kafka] delivery.started 직렬화 실패 — deliveryId={}", deliveryId, e);
-            throw new RuntimeException(e);  // 삼키면 order-service 미인지 — 핸들러 레벨 catch로 전파
+            throw new RuntimeException(e);
         }
     }
 

@@ -240,6 +240,7 @@ public class HubStockService {
             }
 
             reservedItems.add(StockReservedItemPayload.builder()
+                    .orderItemId(item.getOrderItemId())
                     .productId(item.getProductId())
                     .reservedQuantity(item.getQuantity())
                     .sourceHubId(item.getHubId())

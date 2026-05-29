@@ -42,4 +42,10 @@ public interface HubRouteRepository extends JpaRepository<HubRoute, UUID> {
             "WHERE (r.sourceHub = :hub OR r.destinationHub = :hub) " +
             "AND r.deletedAt IS NULL")
     List<HubRoute> findAllByHubAndDeletedAtIsNull(@Param("hub") Hub hub);
+
+    @Query("SELECT r FROM HubRoute r " +
+            "JOIN FETCH r.sourceHub " +
+            "JOIN FETCH r.destinationHub " +
+            "WHERE r.deletedAt IS NULL")
+    List<HubRoute> findAllWithHubs();
 }
