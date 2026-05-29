@@ -59,13 +59,14 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    void HUB_MANAGER는_허브_변경_가능() {
-        when(permissionChecker.canChangeHubId(Role.HUB_MANAGER)).thenReturn(true);
+    void HUB_MANAGER는_허브_변경_불가_slackId만_변경() {
+        when(permissionChecker.canChangeHubId(Role.HUB_MANAGER)).thenReturn(false);
         DeliveryManagerUpdateRequest req = new DeliveryManagerUpdateRequest(newHubId, "new-slack");
 
         service.updateManager(managerId, req, actorId, Role.HUB_MANAGER, originalHubId);
 
-        assertThat(manager.getHubId()).isEqualTo(newHubId);
+        assertThat(manager.getHubId()).isEqualTo(originalHubId);
+        assertThat(manager.getSlackId()).isEqualTo("new-slack");
     }
 
     @Test
