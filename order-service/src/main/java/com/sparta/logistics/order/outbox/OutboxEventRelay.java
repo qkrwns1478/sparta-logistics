@@ -3,6 +3,7 @@ package com.sparta.logistics.order.outbox;
 import com.sparta.logistics.common.outbox.OutboxEvent;
 import com.sparta.logistics.common.outbox.OutboxEventRepository;
 import com.sparta.logistics.common.outbox.OutboxEventStatus;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Outbox 릴레이: PENDING 이벤트를 Kafka에 발행하고 상태를 갱신함
@@ -24,8 +26,16 @@ public class OutboxEventRelay {
     private final OutboxEventRepository outboxEventRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
+    private final AtomicBoolean running = new AtomicBoolean(true);
+
+    @PreDestroy
+    public void shutdown() {
+        running.set(false);
+    }
+
     @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:1000}")
     public void relay() {
+        if (!running.get()) return;
         List<OutboxEvent> pending =
                 outboxEventRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxEventStatus.PENDING);
 
