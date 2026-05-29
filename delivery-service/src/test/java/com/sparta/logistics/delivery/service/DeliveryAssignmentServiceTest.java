@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -121,6 +122,53 @@ class DeliveryAssignmentServiceTest {
         // 이미 배정된 route라 새 manager 조회 안 함
         verify(deliveryManagerRepository, never()).findNextAssignee(any(), any(), any());
         assertThat(assigned.getHubDeliveryManagerId()).isEqualTo(existingManagerId);
+    }
+
+    // ── 동시 배차 경쟁 — @Version 충돌 후 retry 시 이중 배정 방지 ─────────────
+    //
+    // 시나리오: Pod A와 Pod B가 같은 delivery를 동시에 배차 시도
+    //   1) 두 Pod 모두 route.managerId = null 인 상태를 읽음
+    //   2) Pod A가 먼저 커밋 → route.version 증가
+    //   3) Pod B가 커밋 시도 → ObjectOptimisticLockingFailureException → @Retry 발동
+    //   4) Pod B가 route를 재조회 → managerId != null → skip
+    // 결과: manager가 한 명만 배정됨
+    //
+    // 이 테스트는 4번 상태(retry 후 재조회)를 시뮬레이션한다.
+    // @Version + @Retry 조합이 없으면 4번에서 두 번째 manager가 덮어써진다.
+    @Test
+    void version충돌_retry시_이미배정된_route는_스킵되어_이중배정_방지() {
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryEntity d = delivery();
+
+        // 1차 읽기(배차 시도): 미배정 route
+        DeliveryRouteEntity firstRead = route(d, RouteType.HUB_TO_HUB);
+
+        // 2차 읽기(retry 시뮬레이션): 다른 Pod가 먼저 커밋하여 담당자 배정 완료
+        DeliveryRouteEntity secondRead = route(d, RouteType.HUB_TO_HUB);
+        secondRead.assignManager(UUID.randomUUID());
+
+        UUID managerId = UUID.randomUUID();
+        DeliveryManagerEntity manager = new DeliveryManagerEntity(
+                managerId, firstRead.getSourceHubId(), "slack", DeliveryManagerType.HUB_DELIVERY, 0);
+
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(d));
+        when(deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId))
+                .thenReturn(List.of(firstRead))   // 1차: 미배정
+                .thenReturn(List.of(secondRead)); // 2차(retry): 이미 배정됨
+        when(deliveryManagerRepository.findNextAssignee(any(), any(), any()))
+                .thenReturn(Optional.of(manager));
+        when(deliveryLogRepository.save(any())).thenReturn(null);
+
+        // 1차 배차 — 정상 배정
+        service.doAssignManagersForSystem(deliveryId);
+        assertThat(manager.getStatus()).isEqualTo(DeliveryManagerStatus.WORKING);
+        assertThat(firstRead.getHubDeliveryManagerId()).isEqualTo(managerId);
+
+        // 2차(retry 시뮬레이션) — 모든 route가 이미 배정됨 → findNextAssignee 추가 호출 없음
+        service.doAssignManagersForSystem(deliveryId);
+
+        // findNextAssignee는 1차에서 1회만 호출되어야 함 (2차에서 호출되면 이중 배정 위험)
+        verify(deliveryManagerRepository, times(1)).findNextAssignee(any(), any(), any());
     }
 
     @Test
