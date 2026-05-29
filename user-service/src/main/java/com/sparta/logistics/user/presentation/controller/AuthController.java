@@ -12,6 +12,8 @@ import com.sparta.logistics.user.presentation.dto.request.SignupRequest;
 import com.sparta.logistics.user.presentation.dto.response.ApproveResponse;
 import com.sparta.logistics.user.presentation.dto.response.LoginResponse;
 import com.sparta.logistics.user.presentation.dto.response.SignupResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +38,7 @@ public class AuthController {
     private final HubCompanyValidator hubCompanyValidator;
 
     // 회원가입 ( 모든 사용자 )
+    @SecurityRequirements
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<SignupResponse>> signUp(@Valid @RequestBody SignupRequest request) {
 
@@ -51,6 +54,7 @@ public class AuthController {
     }
 
     // 로그인 ( 승인된 사용자 )
+    @SecurityRequirements
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request){
 
@@ -67,6 +71,7 @@ public class AuthController {
     }
 
     // 토큰 갱신
+    @SecurityRequirements
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(
             @RequestHeader("X-Refresh-Token") String refreshToken){
