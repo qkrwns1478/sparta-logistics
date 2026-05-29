@@ -86,6 +86,8 @@ class OrderServiceTest {
     private final UUID USER_ID = UUID.randomUUID();
     private final UUID ORDER_ID = UUID.randomUUID();
     private final UUID HUB_ID = UUID.randomUUID();
+    private final UUID SOURCE_HUB_ID = UUID.randomUUID();
+    private final UUID DESTINATION_HUB_ID = UUID.randomUUID();
     private final LocalDateTime DUE_DATE = LocalDateTime.now().plusDays(7);
 
     // ===== createOrder =====
@@ -98,6 +100,10 @@ class OrderServiceTest {
                 PRODUCT_ID, "테스트 상품", REQUESTER_COMPANY_ID, "업체명",
                 HUB_ID, "허브명", 10_000L, "설명", "AVAILABLE"
         );
+        CompanyResponse requesterCompany = new CompanyResponse(REQUESTER_COMPANY_ID, "요청업체", "PRODUCER", SOURCE_HUB_ID, "출발허브", "주소", "ACTIVE");
+        CompanyResponse receiverCompany = new CompanyResponse(RECEIVER_COMPANY_ID, "수령업체", "RECEIVER", DESTINATION_HUB_ID, "도착허브", "주소", "ACTIVE");
+        when(companyServiceClient.getCompany(REQUESTER_COMPANY_ID)).thenReturn(ApiResponse.ok(requesterCompany));
+        when(companyServiceClient.getCompany(RECEIVER_COMPANY_ID)).thenReturn(ApiResponse.ok(receiverCompany));
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
         when(itemRequest.getQuantity()).thenReturn(2);
@@ -115,11 +121,11 @@ class OrderServiceTest {
                 REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, "메모", List.of(itemRequest), USER_ID
         );
 
-        verify(companyServiceClient).checkCompanyExists(REQUESTER_COMPANY_ID);
-        verify(companyServiceClient).checkCompanyExists(RECEIVER_COMPANY_ID);
+        verify(companyServiceClient).getCompany(REQUESTER_COMPANY_ID);
+        verify(companyServiceClient).getCompany(RECEIVER_COMPANY_ID);
         verify(orderRepository).save(any(Order.class));
         // order.created 이벤트가 Kafka로 발행되는지 검증
-        verify(orderEventPublisher).publishOrderCreated(any(Order.class));
+        verify(orderEventPublisher).publishOrderCreated(any(Order.class), any(UUID.class), any(UUID.class));
         assertThat(result).isNotNull();
     }
 
@@ -127,7 +133,7 @@ class OrderServiceTest {
     @Test
     void createOrder_companyNotFound_throwsException() {
         doThrow(mock(FeignException.NotFound.class))
-                .when(companyServiceClient).checkCompanyExists(REQUESTER_COMPANY_ID);
+                .when(companyServiceClient).getCompany(REQUESTER_COMPANY_ID);
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(), USER_ID)
@@ -140,7 +146,7 @@ class OrderServiceTest {
     @Test
     void createOrder_companyServiceUnavailable_throwsException() {
         doThrow(mock(FeignException.class))
-                .when(companyServiceClient).checkCompanyExists(any());
+                .when(companyServiceClient).getCompany(any());
 
         assertThatThrownBy(() ->
                 orderService.createOrder(REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID, DUE_DATE, null, List.of(), USER_ID)
@@ -152,6 +158,7 @@ class OrderServiceTest {
     // 배치 응답에 요청한 상품 ID가 없으면 PRODUCT_NOT_FOUND 예외가 발생하는지 검증
     @Test
     void createOrder_productNotFound_throwsException() {
+        stubCompanyClients();
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
         when(itemRequest.getQuantity()).thenReturn(1);
@@ -167,6 +174,7 @@ class OrderServiceTest {
     // 상품 상태가 AVAILABLE이 아니면 PRODUCT_NOT_AVAILABLE 예외가 발생하는지 검증
     @Test
     void createOrder_productNotAvailable_throwsException() {
+        stubCompanyClients();
         ProductResponse unavailable = new ProductResponse(
                 PRODUCT_ID, "단종 상품", REQUESTER_COMPANY_ID, "업체",
                 HUB_ID, "허브", 10_000L, "설명", "DISCONTINUED"
@@ -186,6 +194,7 @@ class OrderServiceTest {
     // Product Service 호출 중 네트워크 오류가 발생하면 PRODUCT_SERVICE_UNAVAILABLE 예외가 발생하는지 검증
     @Test
     void createOrder_productServiceUnavailable_throwsException() {
+        stubCompanyClients();
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
         when(itemRequest.getQuantity()).thenReturn(1);
@@ -202,6 +211,7 @@ class OrderServiceTest {
     // Hub 서비스 호출 없이 즉시 반환되어야 함
     @Test
     void createOrder_snapshotStockInsufficient_throwsException() {
+        stubCompanyClients();
         OrderItemRequest itemRequest = mock(OrderItemRequest.class);
         when(itemRequest.getProductId()).thenReturn(PRODUCT_ID);
         when(itemRequest.getQuantity()).thenReturn(10);
@@ -222,6 +232,7 @@ class OrderServiceTest {
     // 해당 상품의 스냅샷이 없으면 사전 검증을 건너뛰고 주문 생성을 계속 진행하는지 검증
     @Test
     void createOrder_noSnapshot_skipsPreValidationAndProceeds() {
+        stubCompanyClients();
         ProductResponse product = new ProductResponse(
                 PRODUCT_ID, "테스트 상품", REQUESTER_COMPANY_ID, "업체명",
                 HUB_ID, "허브명", 10_000L, "설명", "AVAILABLE"
@@ -243,6 +254,11 @@ class OrderServiceTest {
 
         assertThat(result).isNotNull();
         verify(orderRepository).save(any(Order.class));
+    }
+
+    private void stubCompanyClients() {
+        CompanyResponse stub = new CompanyResponse(REQUESTER_COMPANY_ID, "업체", "PRODUCER", HUB_ID, "허브", "주소", "ACTIVE");
+        when(companyServiceClient.getCompany(any())).thenReturn(ApiResponse.ok(stub));
     }
 
     // ===== getOrders =====
