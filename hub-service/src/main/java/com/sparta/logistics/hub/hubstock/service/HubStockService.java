@@ -47,6 +47,7 @@ public class HubStockService {
     private final HubStockLockHelper hubStockLockHelper;
     private final HubStockLogRepository hubStockLogRepository;
     private final HubStockEventPublisher hubStockEventPublisher;
+    private final HubStockCompensator hubStockCompensator;
     private final CompanyClient companyClient;
 
     private static final int MAX_RETRY = 3;
@@ -146,7 +147,7 @@ public class HubStockService {
                 log.error("[HubStock] 재고 복구 실패. orderId: {}, productId: {}, reason: {}",
                         command.getOrderId(), item.getProductId(), e.getMessage());
 
-                compensateRestoredItems(succeededItems);
+                hubStockCompensator.compensateRestoredItems(succeededItems);
 
                 registerStockRestorationFailedEvent(
                         command.getEventId(), command.getOrderId(), e.getMessage()
@@ -187,7 +188,7 @@ public class HubStockService {
                 log.error("[HubStock] 배송 실패 재고 복구 실패. orderId: {}, productId: {}, reason: {}",
                         event.getOrderId(), item.getProductId(), e.getMessage());
 
-                compensateRestoredItems(succeededItems);
+                hubStockCompensator.compensateRestoredItems(succeededItems);
 
                 throw new KafkaSkipException("재고 복구 실패 - orderId: " + event.getOrderId());
             }
@@ -350,27 +351,6 @@ public class HubStockService {
                     }
                 }
         );
-    }
-
-    // restoreStock, restoreOnDeliveryFailed 보상 — 복구한 재고를 다시 예약 상태로 되돌리기
-    private void compensateRestoredItems(List<RestoreStockItemPayload> items) {
-        for (RestoreStockItemPayload item : items) {
-            try {
-                executeWithLock(
-                        () -> { hubStockLockHelper.compensateRestoreWithOptimisticLock(
-                                item.getHubId(), item.getProductId(),
-                                item.getQuantity(), item.getOrderItemId()
-                        ); return null; },
-                        () -> { hubStockLockHelper.compensateRestoreWithPessimisticLock(
-                                item.getHubId(), item.getProductId(),
-                                item.getQuantity(), item.getOrderItemId()
-                        ); return null; }
-                );
-            } catch (Exception e) {
-                log.error("[HubStock] 보상 트랜잭션 실패 - 수동 처리 필요. hubId: {}, productId: {}, quantity: {}",
-                        item.getHubId(), item.getProductId(), item.getQuantity(), e);
-            }
-        }
     }
 
     // reserveStock 보상 — 예약한 재고를 다시 복구

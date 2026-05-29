@@ -68,8 +68,14 @@ public class DeliveryEventPublisher {
                             .itemsToRestore(itemsToRestore)
                             .build()
             );
-            kafkaTemplate.send(KafkaTopics.DELIVERY_CREATION_FAILED, orderId.toString(), message);
-            log.info("[Kafka] delivery.creation.failed 발행 — orderId={}, reason={}", orderId, reason);
+            kafkaTemplate.send(KafkaTopics.DELIVERY_CREATION_FAILED, orderId.toString(), message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("[Kafka][수동처리 필요] delivery.creation.failed 전송 실패 — orderId={}", orderId, ex);
+                        } else {
+                            log.info("[Kafka] delivery.creation.failed 발행 — orderId={}, reason={}", orderId, reason);
+                        }
+                    });
         } catch (JsonProcessingException e) {
             log.error("[Kafka][수동처리 필요] delivery.creation.failed 직렬화 실패 — orderId={}", orderId, e);
         }
