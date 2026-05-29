@@ -188,6 +188,7 @@ public class DeliveryEventHandler {
         if (items == null) return Collections.emptyList();
         return items.stream()
                 .map(i -> RestoreStockItemPayload.builder()
+                        .orderItemId(i.orderItemId())
                         .productId(i.productId())
                         .hubId(i.sourceHubId())
                         .quantity(i.reservedQuantity())
