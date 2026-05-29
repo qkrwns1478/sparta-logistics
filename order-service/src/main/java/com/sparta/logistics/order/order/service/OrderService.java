@@ -212,35 +212,45 @@ public class OrderService {
      * 멱등성 보장:
      *   - PENDING 이외 상태는 이미 처리된 이벤트로 간주하고 무시함
      *   - 동일 (orderId, deliveryId) 쌍이 이미 저장되어 있으면 재저장하지 않음
+     * <p>
+     * 동시성 보장:
+     *   - 동일 orderId에 대한 delivery.created 이벤트가 수 밀리초 내에 동시 도달하면
+     *     countByOrderId 읽기와 order.accept() 전이 사이에 레이스 컨디션이 발생할 수 있음
+     *   - 분산 락으로 직렬화하여 방지 (updateOrder / cancelOrder와 동일한 패턴)
      **/
     @Transactional
     public void acceptOrder(UUID orderId, UUID deliveryId, int totalDeliveryCount) {
-        Order order = orderRepository.findById(orderId).orElse(null);
+        orderLockManager.acquireLock(orderId);
+        try {
+            Order order = orderRepository.findById(orderId).orElse(null);
 
-        if (order == null) {
-            log.warn("[delivery.created] 주문을 찾을 수 없음 orderId={}", orderId);
-            return;
-        }
+            if (order == null) {
+                log.warn("[delivery.created] 주문을 찾을 수 없음 orderId={}", orderId);
+                return;
+            }
 
-        if (order.getStatus() != OrderStatus.PENDING) {
-            log.warn("[delivery.created] 이미 처리된 주문 orderId={} status={}", orderId, order.getStatus());
-            return;
-        }
+            if (order.getStatus() != OrderStatus.PENDING) {
+                log.warn("[delivery.created] 이미 처리된 주문 orderId={} status={}", orderId, order.getStatus());
+                return;
+            }
 
-        // 동일 deliveryId가 이미 저장되어 있으면 재저장하지 않음
-        if (!orderDeliveryRepository.existsByOrderIdAndDeliveryId(orderId, deliveryId)) {
-            orderDeliveryRepository.save(OrderDelivery.of(orderId, deliveryId));
-        }
-        order.linkDelivery(deliveryId);
+            // 동일 deliveryId가 이미 저장되어 있으면 재저장하지 않음
+            if (!orderDeliveryRepository.existsByOrderIdAndDeliveryId(orderId, deliveryId)) {
+                orderDeliveryRepository.save(OrderDelivery.of(orderId, deliveryId));
+            }
+            order.linkDelivery(deliveryId);
 
-        long receivedCount = orderDeliveryRepository.countByOrderId(orderId);
-        if (receivedCount >= totalDeliveryCount) {
-            order.accept();
-            log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryCount={}/{}",
-                    orderId, receivedCount, totalDeliveryCount);
-        } else {
-            log.info("[delivery.created] 배송 부분 등록 orderId={} received={}/{}",
-                    orderId, receivedCount, totalDeliveryCount);
+            long receivedCount = orderDeliveryRepository.countByOrderId(orderId);
+            if (receivedCount >= totalDeliveryCount) {
+                order.accept();
+                log.info("[delivery.created] 주문 ACCEPTED 전이 완료 orderId={} deliveryCount={}/{}",
+                        orderId, receivedCount, totalDeliveryCount);
+            } else {
+                log.info("[delivery.created] 배송 부분 등록 orderId={} received={}/{}",
+                        orderId, receivedCount, totalDeliveryCount);
+            }
+        } finally {
+            orderLockManager.releaseLock(orderId);
         }
     }
 
@@ -442,7 +452,7 @@ public class OrderService {
                     throw new BusinessException(OrderErrorCode.PRODUCT_NOT_FOUND);
                 }
                 // AVAILABLE 상태가 아닌 상품은 주문 불가
-                if (!"AVAILABLE".equals(product.status())) {
+                if (!ProductResponse.STATUS_AVAILABLE.equals(product.status())) {
                     throw new BusinessException(OrderErrorCode.PRODUCT_NOT_AVAILABLE);
                 }
             }

@@ -12,4 +12,6 @@ public record ProductResponse(
         Long price,
         String description,
         String status
-) {}
+) {
+    public static final String STATUS_AVAILABLE = "AVAILABLE";
+}
