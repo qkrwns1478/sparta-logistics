@@ -78,7 +78,7 @@ configure(subprojects.findAll{!excludedModules.contains(it.name)}) {
         implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
 
         // Swagger (API 문서)
-        implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+        implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
         // DB (전 서비스가 PostgreSQL을 사용한다면 공통으로 처리)
         runtimeOnly 'org.postgresql:postgresql'

@@ -42,6 +42,8 @@ class OrderEventPublisherTest {
     private final UUID HUB_ID = UUID.randomUUID();
     private final UUID REQUESTER_COMPANY_ID = UUID.randomUUID();
     private final UUID RECEIVER_COMPANY_ID = UUID.randomUUID();
+    private final UUID SOURCE_HUB_ID = UUID.randomUUID();
+    private final UUID DESTINATION_HUB_ID = UUID.randomUUID();
     private final UUID USER_ID = UUID.randomUUID();
     private final LocalDateTime DUE_DATE = LocalDateTime.now().plusDays(7);
 
@@ -55,7 +57,7 @@ class OrderEventPublisherTest {
         ReflectionTestUtils.setField(item, "id", ORDER_ITEM_ID);
         order.addOrderItem(item);
 
-        publisher.publishOrderCreated(order);
+        publisher.publishOrderCreated(order, SOURCE_HUB_ID, DESTINATION_HUB_ID);
 
         // KafkaTemplate에 전달된 raw JSON string 캡처
         ArgumentCaptor<String> valueCaptor = ArgumentCaptor.forClass(String.class);
@@ -66,6 +68,8 @@ class OrderEventPublisherTest {
         assertThat(event.getOrderId()).isEqualTo(ORDER_ID);
         assertThat(event.getRequesterCompanyId()).isEqualTo(REQUESTER_COMPANY_ID);
         assertThat(event.getReceiverCompanyId()).isEqualTo(RECEIVER_COMPANY_ID);
+        assertThat(event.getSourceHubId()).isEqualTo(SOURCE_HUB_ID);
+        assertThat(event.getDestinationHubId()).isEqualTo(DESTINATION_HUB_ID);
         assertThat(event.getOrderItems()).hasSize(1);
 
         // orderItemId, productId, quantity, hubId 포함 여부 확인
