@@ -121,7 +121,9 @@ sequenceDiagram
             1. N건 배송 생성 도중 크래시: N건을 단일 트랜잭션으로 묶으면 DB에 일부만 저장되는 문제를 피할 수 있습니다.
             2. DB 저장은 됐는데 Kafka 발행 실패하는 경우: 해결하려면 DB에 `p_outbox` 테이블을 추가해야 합니다.
         - Hub와 Order에서도 같은 문제가 발생할 수 있기 때문에 따로따로 Outbox 패턴을 구현하는 것보다는 공통 모듈로 한꺼번에 적용하는 쪽이 더 효율적으로 보입니다.
-        - 일단 기능 구현을 1차 목표로 **단일 트랜잭션 + Kafka 실패 시 retry + 컨슈머에서 처리된 `event_id`를 DB에 저장해 중복 처리를 방지하는 방향**으로 구현을 하고, 기능이 모두 구현된 이후에 Outbox 패턴 도입을 논의해 보면 좋을 것 같습니다.
+        - 일단 기능 구현을 1차 목표로 **단일 트랜잭션 + Kafka 실패 시 retry** 방향으로 구현하였습니다. 컨슈머 측 중복 처리 방지는 현재 **상태 머신 가드(✅ 구현 완료)** 로 대응하고 있으며, **`event_id` 기반 처리 완료 테이블(⏳ 미구현)** 은 추후 도입 예정입니다.
+            - 상태 전이 연산 (PENDING→ACCEPTED, CANCELLING→CANCELLED 등)은 상태 가드(no-op)로 중복 수신을 막을 수 있어 dedup 테이블 없이도 안전합니다.
+            - 누적 연산 (재고 차감 `reserved - N` 등)은 동일 이벤트가 두 번 처리되면 이중 차감이 발생하므로, 진정한 멱등성을 위해 `event_id` 기반 처리 완료 테이블이 필요합니다. (⏳ 미구현)
         - Debezium을 사용한 CDC 인프라까지 구성하는 것은 오버스펙
 
 ### [Step 1-4] `delivery.created` 구독 → 주문 ACCEPTED 전이
@@ -133,7 +135,7 @@ sequenceDiagram
 | 구독 토픽 | `delivery.created` |
 | 위임 메서드 | `OrderService.acceptOrder()` |
 | 처리 내용 | 주문 상태 PENDING → ACCEPTED, `deliveryId` 저장 |
-| 멱등성 | PENDING이 아닌 경우 no-op |
+| 멱등성 | ✅ 상태 가드: PENDING이 아닌 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 - 비고
     - 동시성 제어
         - CANCELLING 상태 키가 존재하면 이벤트를 skip합니다. Orchestration Saga 취소가 진행 중인 상태에서 `delivery.created`가 수신되어 ACCEPTED로 잘못 전이되는 경합을 방지합니다.
@@ -209,7 +211,7 @@ sequenceDiagram
 | 구독 토픽 | `stock.reservation.failed` |
 | 위임 메서드 | `OrderService.cancelOrderByCompensation()` |
 | 처리 내용 | 주문 즉시 CANCELLED, `cancelReason` = 실패 사유 |
-| 멱등성 | 이미 CANCELLED인 경우 no-op |
+| 멱등성 | ✅ 상태 가드: 이미 CANCELLED인 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 - 비고
     - 동시성 제어
         - CANCELLING 상태 키가 존재하면 이벤트를 skip합니다. Orchestration Saga 취소가 이미 진행 중인 경우 Choreography 보상 취소가 중복으로 실행되지 않도록 방지합니다.
@@ -224,7 +226,7 @@ sequenceDiagram
 | 구독 토픽 | `delivery.creation.failed` |
 | 위임 메서드 | `OrderService.cancelOrderByCompensation()` |
 | 처리 내용 | 주문 즉시 CANCELLED, `cancelReason` = 실패 사유 |
-| 멱등성 | 이미 CANCELLED인 경우 no-op |
+| 멱등성 | ✅ 상태 가드: 이미 CANCELLED인 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 - 비고
     - 동시성 제어
         - Step 2-1과 동일한 패턴: CANCELLING 상태 키 존재 시 skip, 이외엔 PROCESSING 세팅 후 처리합니다. PROCESSING 키는 TTL 자동 만료에 위임합니다.
@@ -333,7 +335,7 @@ sequenceDiagram
 | 파티션 키 | `orderId` |
 | 처리 내용 | `OrderItem` 목록으로 복구 대상 상품·수량 구성 후 재고 복구 커맨드 발행 |
 | 이벤트 주요 필드 | `orderId`, `orderItems[]{orderItemId, productId, hubId, quantity}` |
-| 멱등성 | CANCELLING이 아닌 경우 no-op |
+| 멱등성 | ✅ 상태 가드: CANCELLING이 아닌 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 | 다음 단계 | Step 3-4: HubService 재고 복구 |
 
 ### [Step 3-4] `restore.stock.command` 구독 → `stock.restored.ack` 발행
@@ -359,7 +361,7 @@ sequenceDiagram
 | 구독 토픽 | `stock.restored.ack` |
 | 위임 메서드 | `OrderService.confirmOrderCancelled()` → `CancelOrderOrchestrator.onStockRestored()` |
 | 처리 내용 | 주문 상태 CANCELLING → CANCELLED, `cancelledAt` 기록 |
-| 멱등성 | CANCELLING이 아닌 경우 no-op |
+| 멱등성 | ✅ 상태 가드: CANCELLING이 아닌 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 | 비고 | `cancelledBy` 및 `cancelReason`은 Step 3-1에서 이미 저장되었으므로 기록하지 않음. Orchestration Saga 완료 시점에 CANCELLING 상태 키를 해제함 |
 
 ---
@@ -399,7 +401,7 @@ sequenceDiagram
 | 구독 토픽 | `delivery.cancellation.failed` |
 | 처리 내용 | `CANCELLING` → 이전 상태 복구, `cancelledBy` 및 `cancelReason` 초기화 |
 | 이전 상태 판별 | `deliveryId == null ? PENDING : ACCEPTED`  |
-| 멱등성 | CANCELLING이 아닌 경우 no-op |
+| 멱등성 | ✅ 상태 가드: CANCELLING이 아닌 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 | 비고 | 이 시점에서 재고·배송 모두 변경된 것이 없으므로 주문 상태만 복구하면 됨. 복구 완료 시 CANCELLING 상태 키를 해제하여 이후 `delivery.created` 등 Consumer 이벤트가 정상 처리될 수 있도록 함 |
 
 ### Step 3-4 실패 (재고 복구 실패)
@@ -428,7 +430,7 @@ sequenceDiagram
 | 컨슈머 | `StockRestorationFailedConsumer` |
 | 구독 토픽 | `stock.restoration.failed` |
 | 처리 내용 | Redis 재시도 카운터 증가 → 한도(`MAX_RESTORE_RETRY = 3`) 이내이면 `restore.stock.command` 재발행, 초과 시 재발행 중단 후 `log.warn` |
-| 멱등성 | CANCELLING이 아닌 경우 no-op |
+| 멱등성 | ✅ 상태 가드: CANCELLING이 아닌 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 | 비고 | 재고 복구는 `reserved` 차감 + `available` 증가로 멱등 연산이므로 재시도 안전<br>이 시점에서 배송 취소는 이미 완료되어 원복 불가<br>재시도 카운터는 Saga 정상 완료(`onStockRestored`) 또는 배송 취소 실패 복구(`onDeliveryCancellationFailed`) 시 삭제됨 |
 
 - 비고
