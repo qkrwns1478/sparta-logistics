@@ -1,4 +1,4 @@
-package com.sparta.logistics.delivery.entity;
+package com.sparta.logistics.delivery.entity.enums;
 
 import java.util.Map;
 import java.util.Set;

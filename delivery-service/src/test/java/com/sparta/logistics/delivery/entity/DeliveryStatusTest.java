@@ -1,5 +1,6 @@
 package com.sparta.logistics.delivery.entity;
 
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 

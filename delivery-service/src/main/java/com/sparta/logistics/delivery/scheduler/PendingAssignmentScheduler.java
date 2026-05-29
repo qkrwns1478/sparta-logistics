@@ -5,8 +5,11 @@ import com.sparta.logistics.delivery.repository.DeliveryRouteRepository;
 import com.sparta.logistics.delivery.service.DeliveryAssignmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +33,11 @@ public class PendingAssignmentScheduler {
     private final DeliveryAssignmentService assignmentService;
     private final DeliveryRepository deliveryRepository;
 
+    // self-injection: @Transactional(readOnly=true) 메서드가 Spring 프록시를 통해 호출되도록 보장
+    @Lazy
+    @Autowired
+    private PendingAssignmentScheduler self;
+
     @Scheduled(fixedDelay = 300_000)
     public void retryPendingAssignments() {
         List<UUID> pendingIds = routeRepository.findDeliveryIdsWithUnassignedRoutes();
@@ -37,16 +45,22 @@ public class PendingAssignmentScheduler {
 
         log.info("[스케줄러] 미배차 건 재시도 — {}건", pendingIds.size());
         for (UUID deliveryId : pendingIds) {
-            deliveryRepository.findById(deliveryId).ifPresent(d -> {
-                if (d.getCreatedAt().isBefore(LocalDateTime.now().minusHours(2))) {
-                    log.warn("[스케줄러] 2시간 이상 미배차 — deliveryId={}, 운영자 확인 필요", deliveryId);
-                }
-            });
+            self.checkLongPendingDelivery(deliveryId);
             try {
                 assignmentService.assignManagersForSystem(deliveryId);
             } catch (Exception e) {
                 log.warn("[스케줄러] 재시도 실패 — deliveryId={}", deliveryId, e);
             }
         }
+    }
+
+    // 2시간 이상 미배차 경고 — @Transactional(readOnly) 범위 내에서 엔티티 필드 접근 보장
+    @Transactional(readOnly = true)
+    public void checkLongPendingDelivery(UUID deliveryId) {
+        deliveryRepository.findById(deliveryId).ifPresent(d -> {
+            if (d.getCreatedAt().isBefore(LocalDateTime.now().minusHours(2))) {
+                log.warn("[스케줄러] 2시간 이상 미배차 — deliveryId={}, 운영자 확인 필요", deliveryId);
+            }
+        });
     }
 }

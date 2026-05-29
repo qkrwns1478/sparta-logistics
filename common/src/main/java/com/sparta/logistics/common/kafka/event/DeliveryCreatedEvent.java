@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -34,16 +34,8 @@ public class DeliveryCreatedEvent {
     private UUID companyDeliveryManagerId;
     // 해당 주문에 대해 생성된 배송 총 건수 (주문 1건 : 배송 N건 구조 대응)
     private Integer totalDeliveryCount;
-
-    private List<DeliveryRouteDto> routes;
-
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class DeliveryRouteDto {
-        private int sequence;
-        private UUID hubId;
-        private int estimatedDuration;
-    }
+    private String deliveryAddress;
+    private int totalEstimatedDuration;
+    private String receiverSlackId;
+    private LocalDateTime createdAt;
 }

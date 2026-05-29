@@ -67,6 +67,9 @@ public class DeliveryRouteEntity extends BaseEntity {
     @Column(nullable = false)
     private RouteStatus status = RouteStatus.WAITING;
 
+    @Version
+    private long version; // 낙관적 락 — 동시 배정 충돌 방지 (DeliveryManagerEntity와 동일 패턴)
+
     @Column
     private UUID hubDeliveryManagerId;
 

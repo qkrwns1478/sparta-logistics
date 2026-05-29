@@ -74,6 +74,10 @@ public class DeliveryManagerEntity extends BaseEntity {
         this.lastAssignedAt = LocalDateTime.now();
     }
 
+    public void completeAssignment() {
+        this.status = DeliveryManagerStatus.IDLE;
+    }
+
     public void delete(UUID actorId) {
         softDelete(actorId);
         this.status = DeliveryManagerStatus.WITHDRAWN;

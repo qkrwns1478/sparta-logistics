@@ -3,6 +3,7 @@ package com.sparta.logistics.delivery.entity;
 import com.sparta.logistics.common.domain.BaseEntity;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.delivery.dto.DeliveryUpdateRequest;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
