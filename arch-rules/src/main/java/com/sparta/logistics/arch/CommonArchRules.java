@@ -51,8 +51,10 @@ public class CommonArchRules {
                 .layer("Controller").definedBy(basePackage + "..controller..")
                 .layer("Service").definedBy(basePackage + "..service..")
                 .layer("DTO").definedBy(basePackage + "..dto..")
+                .layer("Config").definedBy(basePackage + "..config..")
                 .whereLayer("Controller").mayNotBeAccessedByAnyLayer()
-                .whereLayer("DTO").mayOnlyBeAccessedByLayers("Controller", "Service");
+                .whereLayer("Config").mayNotBeAccessedByAnyLayer()
+                .whereLayer("DTO").mayOnlyBeAccessedByLayers("Controller", "Service", "Config");
 
         // Saga 레이어가 있으면 Service에서만 접근 가능하도록 등록
         if (hasSaga) {
@@ -66,10 +68,10 @@ public class CommonArchRules {
             rule = rule
                     .layer("KafkaConsumer").definedBy(basePackage + "..kafka.consumer..")
                     .whereLayer("KafkaConsumer").mayNotBeAccessedByAnyLayer()
-                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "KafkaConsumer");
+                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "KafkaConsumer", "Config");
         } else {
             rule = rule
-                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller");
+                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "Config");
         }
 
         // client 패키지가 있을 때만 레이어 추가
