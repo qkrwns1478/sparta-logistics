@@ -34,7 +34,7 @@ public class DeliveryExceptionHandler {
 
     /**
      * 낙관적 락 충돌 예외 처리 (동시 수정 충돌)
-     * DeliveryEntity·DeliveryManagerEntity의 @Version 충돌 시 발생. 409 Conflict 반환.
+     * DeliveryEntity·DeliveryManagerEntity·DeliveryRouteEntity의 @Version 충돌 시 발생. 409 Conflict 반환.
      */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public void handleOptimisticLock(

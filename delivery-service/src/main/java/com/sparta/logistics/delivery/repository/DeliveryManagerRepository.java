@@ -4,13 +4,16 @@ import com.sparta.logistics.delivery.dto.manager.DeliveryManagerSearchCond;
 import com.sparta.logistics.delivery.entity.DeliveryManagerEntity;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerStatus;
 import com.sparta.logistics.delivery.entity.enums.DeliveryManagerType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,6 +21,8 @@ import java.util.UUID;
 public interface DeliveryManagerRepository extends JpaRepository<DeliveryManagerEntity, UUID> {
 
     // 라운드 로빈 배정: deliverySequence ASC, lastAssignedAt ASC (null 먼저)
+    // PESSIMISTIC_WRITE: 동시 배정 경쟁 시 SELECT FOR UPDATE로 동일 담당자 이중 배정 방지
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM DeliveryManagerEntity m " +
             "WHERE m.hubId = :hubId AND m.managerType = :managerType AND m.status = :status " +
             "AND m.deletedAt IS NULL " +
@@ -31,6 +36,8 @@ public interface DeliveryManagerRepository extends JpaRepository<DeliveryManager
     @Query("SELECT COALESCE(MAX(m.deliverySequence), -1) FROM DeliveryManagerEntity m " +
             "WHERE m.deletedAt IS NULL")
     int findMaxDeliverySequence();
+
+    List<DeliveryManagerEntity> findAllByHubIdAndDeletedAtIsNull(UUID hubId);
 
     @Query("SELECT m FROM DeliveryManagerEntity m WHERE " +
             "(:#{#cond.managerType} IS NULL OR m.managerType = :#{#cond.managerType}) AND " +

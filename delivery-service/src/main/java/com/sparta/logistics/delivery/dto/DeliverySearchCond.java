@@ -1,6 +1,6 @@
 package com.sparta.logistics.delivery.dto;
 
-import com.sparta.logistics.delivery.entity.DeliveryStatus;
+import com.sparta.logistics.delivery.entity.enums.DeliveryStatus;
 import lombok.Getter;
 import lombok.Setter;
 

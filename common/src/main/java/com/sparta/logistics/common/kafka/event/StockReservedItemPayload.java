@@ -13,6 +13,8 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class StockReservedItemPayload {
+    // 원래 주문 항목 ID (DeliveryOrderItemEntity → delivery.started 페이로드까지 전파)
+    private UUID orderItemId;
     private UUID productId;
     // 실제로 예약된 수량
     private Integer reservedQuantity;

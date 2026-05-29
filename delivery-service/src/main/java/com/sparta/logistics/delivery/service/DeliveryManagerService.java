@@ -14,6 +14,7 @@ import com.sparta.logistics.delivery.entity.enums.DeliveryManagerType;
 import com.sparta.logistics.delivery.exception.DeliveryErrorCode;
 import com.sparta.logistics.delivery.repository.DeliveryManagerRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeliveryManagerService {
@@ -117,6 +119,14 @@ public class DeliveryManagerService {
             throw new BusinessException(DeliveryErrorCode.MANAGER_IN_DELIVERY);
         }
         entity.delete(actorId);
+    }
+
+    // 허브 삭제 cascade — WORKING 상태 체크 없이 강제 soft delete
+    @Transactional
+    public void softDeleteManagersByHubId(UUID hubId, UUID deletedBy) {
+        List<DeliveryManagerEntity> managers = managerRepository.findAllByHubIdAndDeletedAtIsNull(hubId);
+        managers.forEach(m -> m.delete(deletedBy));
+        log.info("[hub.deleted] 배송 담당자 {}건 soft delete — hubId={}", managers.size(), hubId);
     }
 
     private DeliveryManagerEntity findActiveOrThrow(UUID managerId) {
