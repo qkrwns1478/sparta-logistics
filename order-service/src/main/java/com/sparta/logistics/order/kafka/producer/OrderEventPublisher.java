@@ -29,7 +29,7 @@ public class OrderEventPublisher {
      * Choreography Saga Step 1-1: order.created 발행
      * 파티션 키: orderId
      **/
-    public void publishOrderCreated(Order order) {
+    public void publishOrderCreated(Order order, UUID sourceHubId, UUID destinationHubId) {
         List<OrderItemPayload> payloads = order.getOrderItems().stream()
                 .map(item -> OrderItemPayload.builder()
                         .orderItemId(item.getId())
@@ -47,6 +47,8 @@ public class OrderEventPublisher {
                             .orderItems(payloads)
                             .requesterCompanyId(order.getRequesterCompanyId())
                             .receiverCompanyId(order.getReceiverCompanyId())
+                            .sourceHubId(sourceHubId)
+                            .destinationHubId(destinationHubId)
                             .build()
             );
             kafkaTemplate.send(KafkaTopics.ORDER_CREATED, order.getId().toString(), message);

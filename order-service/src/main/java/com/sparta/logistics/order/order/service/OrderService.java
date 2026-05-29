@@ -164,9 +164,11 @@ public class OrderService {
             List<OrderItemRequest> items,
             UUID userId
     ) {
-        // 업체가 존재하는지 검증
-        validateCompanyExists(requesterCompanyId);
-        validateCompanyExists(receiverCompanyId);
+        // 업체 조회 + 존재 검증 (hubId 추출 목적)
+        CompanyResponse requesterCompany = fetchCompanyOrThrow(requesterCompanyId);
+        CompanyResponse receiverCompany = fetchCompanyOrThrow(receiverCompanyId);
+        UUID sourceHubId = requesterCompany.hubId();
+        UUID destinationHubId = receiverCompany.hubId();
 
         // 동일 productId의 quantity 합산 (중복 OrderItem row 생성 방지)
         Map<UUID, Integer> mergedItems = items.stream()
@@ -199,7 +201,7 @@ public class OrderService {
         orderRepository.save(order);
 
         // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
-        orderEventPublisher.publishOrderCreated(order);
+        orderEventPublisher.publishOrderCreated(order, sourceHubId, destinationHubId);
 
         return OrderDetailResponse.from(order);
     }
@@ -429,9 +431,13 @@ public class OrderService {
         );
     }
 
-    private void validateCompanyExists(UUID companyId) {
+    private CompanyResponse fetchCompanyOrThrow(UUID companyId) {
         try {
-            companyServiceClient.checkCompanyExists(companyId);
+            CompanyResponse company = companyServiceClient.getCompany(companyId).data();
+            if (company == null) {
+                throw new BusinessException(OrderErrorCode.COMPANY_NOT_FOUND);
+            }
+            return company;
         } catch (FeignException.NotFound e) {
             throw new BusinessException(OrderErrorCode.COMPANY_NOT_FOUND);
         } catch (FeignException e) {
