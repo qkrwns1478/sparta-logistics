@@ -37,7 +37,7 @@ public class AiLog extends BaseEntity {
   private UUID orderId;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "Request_type", length = 50)
+  @Column(name = "request_type", length = 50)
   private AiRequestType requestType;
 
   @Column(name = "request_content", columnDefinition = "TEXT")

@@ -1,5 +1,6 @@
 package com.sparta.logistics.slack.ai.service;
 
+import com.sparta.logistics.common.kafka.event.AiDeadlineCalculatedEvent;
 import com.sparta.logistics.slack.ai.client.GeminiApiClient;
 import com.sparta.logistics.slack.ai.client.HubFeignClient;
 import com.sparta.logistics.slack.ai.client.OrderFeignClient;
@@ -14,8 +15,10 @@ import com.sparta.logistics.slack.sender.SlackApiSender;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -26,10 +29,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiMessageService {
 
+  private final KafkaTemplate<String, Object> kafkaTemplate;
   private final GeminiApiClient geminiApiClient;
   private final HubFeignClient hubFeignClient;
   private final OrderFeignClient orderFeignClient;
-  private final UserFeignClient userFeignClient;
+  //private final UserFeignClient userFeignClient; //아래 예외 로직 복구시 같이 복구
   private final DeliveryPromptTemplate promptTemplate;
   private final AiLogRepository aiLogRepository;
   private final SlackApiSender slackApiSender;
@@ -47,7 +51,7 @@ public class AiMessageService {
       try {
         String systemUserId = UUID.randomUUID().toString();
 
-        HubFeignClient.HubResponseDto sourceHub = hubFeignClient.getHub(event.getSourceHubId(), systemUserId,"MASTER").data();
+        HubFeignClient.HubResponseDto sourceHub = hubFeignClient.getHub(event.getSourceHubId(), systemUserId, "MASTER").data();
         HubFeignClient.HubResponseDto destHub = hubFeignClient.getHub(event.getDestinationHubId(), systemUserId, "MASTER").data();
 
         hubNameMap.put(sourceHub.hubId(), sourceHub.name());
@@ -55,7 +59,7 @@ public class AiMessageService {
       } catch (Exception e) {
         log.error("허브 서버 통신 실패로 출발/도착 허브 정보를 알 수 없습니다!");
         log.error("요청한 SourceHubId:{}, DestHubId: {}", event.getSourceHubId(), event.getDestinationHubId());
-        log.error("실패 원인: {}",e.getMessage());
+        log.error("실패 원인: {}", e.getMessage());
 
         throw new RuntimeException("필수 배송 정보(출발/도착 허브 이름) 누락으로 기사님 알림 발송이 취소되었습니다.");
       }
@@ -84,6 +88,8 @@ public class AiMessageService {
 
       //슬랙과 AI로그를 연결할 공통 ID 생성
       UUID slackMessageId = UUID.randomUUID();
+
+      LocalDateTime finalDeadlineAt = LocalDateTime.now().plusMinutes(event.getTotalEstimatedDuration() + 60);
 
       //4. AI 로그 저장 (성공)
       aiLogRepository.save(
@@ -117,7 +123,7 @@ public class AiMessageService {
           }
      */
 
-      if (targetSlackId == null || targetSlackId.isBlank()){
+      if (targetSlackId == null || targetSlackId.isBlank()) {
         log.warn("배송 담당자의 슬랙 ID가 null입니다. 테스트용 ID로 우회 발송합니다.");
         targetSlackId = receiverSlackId;
       }
@@ -131,6 +137,16 @@ public class AiMessageService {
           RelatedType.DELIVERY,
           event.getDeliveryId()
       );
+
+      AiDeadlineCalculatedEvent calculatedEvent = AiDeadlineCalculatedEvent.builder()
+          .eventId(UUID.randomUUID())
+          .deliveryId(event.getDeliveryId())
+          .orderId(event.getOrderId())
+          .finalDispatchDeadlineAt(finalDeadlineAt)
+          .build();
+
+      kafkaTemplate.send("ai.deadline.aclculated", calculatedEvent);
+      log.info("AI 마감 시한 산출 이벤트 발행 완료. DeliveryId {}", event.getDeliveryId());
 
       return aiResult.message();
 
@@ -159,6 +175,8 @@ public class AiMessageService {
     int fallbackDurationMin = event.getTotalEstimatedDuration() + 120;
     double fallbackHours = fallbackDurationMin / 60.0;
 
+    LocalDateTime fallbackDeadlineAt = LocalDateTime.now().plusMinutes(fallbackDurationMin);
+
     String fallbackMessage = """
         [시스템 자동 계산 안내]
         주문 번호: %s
@@ -182,11 +200,20 @@ public class AiMessageService {
             .slackMessageId(fallbackSlackMsgId)
             .orderId(event.getOrderId())
             .requestType(AiLog.AiRequestType.DEADLINE)
-            .responseContent("주문 도메인 데이터 누락으로 AI 프롬프트 생성 생략")
+            .requestContent("주문 도메인 데이터 누락으로 AI 프롬프트 생성 생략")
             .responseContent(fallbackMessage)
             .status(AiLog.AiLogStatus.FAILED)
             .build()
     );
+
+    AiDeadlineCalculatedEvent fallbackEvent = AiDeadlineCalculatedEvent.builder()
+        .eventId(UUID.randomUUID())
+        .deliveryId(event.getDeliveryId())
+        .orderId(event.getOrderId())
+        .finalDispatchDeadlineAt(fallbackDeadlineAt)
+        .build();
+
+    kafkaTemplate.send("ai.deadline.calculated", fallbackEvent);
 
     log.info("Fallback 슬랙 메시지 발송 및 DB 저장 완료: {}", event.getDeliveryId());
     return fallbackMessage;
