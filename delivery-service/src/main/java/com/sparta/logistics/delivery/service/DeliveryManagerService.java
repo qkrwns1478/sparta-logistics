@@ -93,8 +93,11 @@ public class DeliveryManagerService {
                                                   UUID userId, Role role, UUID hubId) {
         DeliveryManagerEntity entity = findActiveOrThrow(managerId);
         permissionChecker.checkManagerSelfWritePermission(entity, userId, role, hubId);
-        entity.updateInfo(req.hubId() != null ? req.hubId() : entity.getHubId(),
-                          req.slackId() != null ? req.slackId() : entity.getSlackId());
+        UUID hubIdToUpdate = entity.getHubId(); // 기본값: 현재 허브 유지
+        if (permissionChecker.canChangeHubId(role) && req.hubId() != null) {
+            hubIdToUpdate = req.hubId(); // MASTER/HUB_MANAGER만 허브 변경 가능
+        }
+        entity.updateInfo(hubIdToUpdate, req.slackId() != null ? req.slackId() : entity.getSlackId());
         return DeliveryManagerResponse.from(entity);
     }
 
