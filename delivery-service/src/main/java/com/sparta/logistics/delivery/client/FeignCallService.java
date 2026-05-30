@@ -32,24 +32,22 @@ public class FeignCallService {
     private final HubServiceClient hubServiceClient;
 
     @Retry(name = "feign-call", fallbackMethod = "recoverFetchUser")
-    public ApiResponse<UserResponse> fetchUser(UUID receiverId) {
-        return userServiceClient.getUser(receiverId);
+    public ApiResponse<UserResponse> fetchUser(UUID receiverId, String userId, String role) {
+        return userServiceClient.getUser(receiverId, userId, role);
     }
 
-    public ApiResponse<UserResponse> recoverFetchUser(UUID receiverId, Exception e) {
+    public ApiResponse<UserResponse> recoverFetchUser(UUID receiverId, Throwable t) {
         log.warn("[Feign] user-service 재시도 초과 — receiverId={}", receiverId);
         throw new BusinessException(DeliveryErrorCode.USER_SERVICE_UNAVAILABLE);
     }
 
     @Retry(name = "feign-call", fallbackMethod = "recoverFetchRouteSegments")
-    public List<HubRouteSegmentResponse> fetchRouteSegments(UUID sourceHubId, UUID destinationHubId) {
-        return hubServiceClient.getRouteSegments(sourceHubId, destinationHubId);
+    public List<HubRouteSegmentResponse> fetchRouteSegments(UUID sourceHubId, UUID destinationHubId, String userId, String role) {
+        return hubServiceClient.getRouteSegments(sourceHubId, destinationHubId, userId, role).data();
     }
 
-    public List<HubRouteSegmentResponse> recoverFetchRouteSegments(
-            UUID sourceHubId, UUID destinationHubId, Exception e) {
-        log.warn("[Feign] hub-service 재시도 초과 — sourceHubId={}, destinationHubId={}",
-                sourceHubId, destinationHubId);
+    public List<HubRouteSegmentResponse> recoverFetchRouteSegments(UUID sourceHubId, UUID destinationHubId, Throwable t){
+        log.warn("[Feign] hub-service 재시도 초과 — sourceHubId={}, destinationHubId={}", sourceHubId, destinationHubId);
         throw new BusinessException(DeliveryErrorCode.HUB_SERVICE_UNAVAILABLE);
     }
 }

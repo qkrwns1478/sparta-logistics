@@ -73,10 +73,13 @@ public class DeliveryEventHandler {
             return;
         }
 
+        String systemUserId = java.util.UUID.randomUUID().toString();
+
+
         // user-service Feign 호출 — 3회 retry 후 실패 시 BusinessException (CB 내부 예외 포함)
         ApiResponse<UserResponse> userResponse;
         try {
-            userResponse = feignCallService.fetchUser(event.receiverId());
+            userResponse = feignCallService.fetchUser(event.receiverId(), systemUserId, "MASTER");
         } catch (Exception e) {
             log.warn("[Kafka] user-service 호출 실패 — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "USER_SERVICE_UNAVAILABLE",
@@ -102,7 +105,7 @@ public class DeliveryEventHandler {
         // hub-service Feign 호출 — 3회 retry 후 실패 시 BusinessException (CB 내부 예외 포함)
         List<HubRouteSegmentResponse> routeSegments;
         try {
-            routeSegments = feignCallService.fetchRouteSegments(event.sourceHubId(), event.destinationHubId());
+            routeSegments = feignCallService.fetchRouteSegments(event.sourceHubId(), event.destinationHubId(), systemUserId, "MASTER");
         } catch (Exception e) {
             log.warn("[Kafka] hub-service 호출 실패 — orderId={}", event.orderId());
             eventPublisher.publishCreationFailed(event.orderId(), null, "HUB_SERVICE_UNAVAILABLE",
