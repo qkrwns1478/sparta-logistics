@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,7 +33,7 @@ public class DeliveryEventPublisher {
                                UUID companyDeliveryManagerId, int totalDeliveryCount,
                                String deliveryAddress, int totalEstimatedDuration,
                                String receiverSlackId, String sourceHubName, String destinationHubName,
-                               java.time.LocalDateTime createdAt) {
+                               LocalDateTime createdAt) {
         try {
             String message = objectMapper.writeValueAsString(
                     DeliveryCreatedEvent.builder()
