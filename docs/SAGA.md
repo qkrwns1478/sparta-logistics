@@ -40,6 +40,49 @@
 
 ---
 
+## Outbox 패턴
+
+OrderService가 발행하는 모든 Kafka 이벤트는 직접 발행하지 않고 `p_outbox` 테이블을 경유합니다.
+DB 커밋과 Kafka 발행을 분리하여, Kafka 장애 시에도 이벤트 유실 없이 at-least-once 발행을 보장합니다.
+
+```mermaid
+sequenceDiagram
+    participant S as OrderService / CancelOrderOrchestrator
+    participant P as OrderEventPublisher
+    participant O as OutboxEventPublisher (common)
+    participant DB as p_order + p_outbox (same TX)
+    participant R as OutboxEventRelay (@Scheduled)
+    participant K as Kafka
+
+    S->>P: publishOrderCreated() 등
+    P->>O: publish(topic, aggregateId, aggregateType, eventObject)
+    O->>DB: OutboxEvent 저장 (status=PENDING)
+    Note over DB: 엔티티 저장과 같은 트랜잭션 커밋
+    R-->>DB: findTop100 where status=PENDING (1초 주기)
+    R->>K: kafkaTemplate.send().get(5s)
+    alt 성공
+        R->>DB: status=SENT, processedAt=now
+    else 실패 (retryCount < 3)
+        R->>DB: retryCount++
+    else 실패 (retryCount >= 3)
+        R->>DB: status=FAILED, processedAt=now
+    end
+```
+
+| 재시도 조건 | 동작 |
+| --- | --- |
+| 발행 성공 | `status=SENT`, `processedAt` 기록 |
+| 발행 실패, retryCount < 3 | `retryCount++`, `status=PENDING` 유지 |
+| 발행 실패, retryCount ≥ 3 | `status=FAILED`, 수동 확인 필요 |
+
+- 비고
+  - at-least-once 보장: 릴레이가 `SENT` 저장 전에 크래시하면 중복 발행 가능
+    - 컨슈머 측 `eventId` dedup 테이블로 보완 필요 (⏳ 미구현)
+  - FAILED 이벤트: 현재 로그만 기록
+    - 운영 환경에서는 Slack 알림 또는 Dead Letter 토픽 연동으로 가시성 확보 가능
+
+---
+
 ## [Choreography Saga] 주문 생성
 
 ```mermaid
@@ -74,7 +117,7 @@ sequenceDiagram
 | 진입점 | `OrderService.createOrder()` |
 | 발행 토픽 | `order.created` |
 | 파티션 키 | `orderId` |
-| 처리 내용 | Order + OrderItem 생성(PENDING), `OrderCreatedEvent` 발행 |
+| 처리 내용 | Order + OrderItem 생성(PENDING), `OrderCreatedEvent`를 Outbox 테이블에 저장 (릴레이가 Kafka 발행) |
 | 이벤트 주요 필드 | `orderId`, `orderItems[]{orderItemId, productId, quantity, hubId}`, `requesterCompanyId`, `receiverCompanyId` |
 | 다음 단계 | Step 1-2: HubService 재고 예약 |
 
@@ -271,7 +314,7 @@ sequenceDiagram
 | 항목 | 내용 |
 | --- | --- |
 | 역할 | Orchestration Saga 중앙 조율자 |
-| 의존성 | `OrderRepository`, `KafkaTemplate` |
+| 의존성 | `OrderRepository`, `OrderEventPublisher` |
 | 메서드 | `start(Order, UUID, String)` / `onDeliveryCancelled(UUID)` / `onStockRestored(UUID)` / `onDeliveryCancellationFailed(UUID)` / `onStockRestorationFailed(UUID)` |
 | 트랜잭션 | 메서드별 `@Transactional` (각 단계 독립 트랜잭션) |
 | 멱등성 전략 | 주문 없음 → warn 후 no-op / CANCELLING 아님 → warn 후 no-op |
@@ -290,7 +333,7 @@ sequenceDiagram
 | 진입점 | `OrderService.cancelOrder()` → `CancelOrderOrchestrator.start()` |
 | 발행 토픽 | `cancel.delivery.command` |
 | 파티션 키 | `orderId` |
-| 처리 내용 | 주문 상태 → CANCELLING, `cancelledBy` 및 `cancelReason` 기록, 커맨드 발행 |
+| 처리 내용 | 주문 상태 → CANCELLING, `cancelledBy` 및 `cancelReason` 기록, 커맨드를 Outbox 테이블에 저장 (릴레이가 Kafka 발행) |
 | 이벤트 주요 필드 | `orderId`, `deliveryId` |
 | 전이 가능 상태 | PENDING, ACCEPTED (IN_DELIVERY 이상은 `ORDER_NOT_CANCELLABLE` 예외) |
 | 권한 검사 | `OrderService.cancelOrder()`에서 MASTER/HUB_MANAGER 여부 및 허브 담당 검사 후 위임 |
@@ -333,7 +376,7 @@ sequenceDiagram
 | 위임 메서드 | `OrderService.handleDeliveryCancelled()` → `CancelOrderOrchestrator.onDeliveryCancelled()` |
 | 발행 토픽 | `restore.stock.command` |
 | 파티션 키 | `orderId` |
-| 처리 내용 | `OrderItem` 목록으로 복구 대상 상품·수량 구성 후 재고 복구 커맨드 발행 |
+| 처리 내용 | `OrderItem` 목록으로 복구 대상 상품·수량 구성 후 재고 복구 커맨드를 Outbox 테이블에 저장 (릴레이가 Kafka 발행) |
 | 이벤트 주요 필드 | `orderId`, `orderItems[]{orderItemId, productId, hubId, quantity}` |
 | 멱등성 | ✅ 상태 가드: CANCELLING이 아닌 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 | 다음 단계 | Step 3-4: HubService 재고 복구 |
@@ -429,7 +472,7 @@ sequenceDiagram
 | 담당 컴포넌트 | `CancelOrderOrchestrator.onStockRestorationFailed()` |
 | 컨슈머 | `StockRestorationFailedConsumer` |
 | 구독 토픽 | `stock.restoration.failed` |
-| 처리 내용 | Redis 재시도 카운터 증가 → 한도(`MAX_RESTORE_RETRY = 3`) 이내이면 `restore.stock.command` 재발행, 초과 시 재발행 중단 후 `log.warn` |
+| 처리 내용 | Redis 재시도 카운터 증가 → 한도(`MAX_RESTORE_RETRY = 3`) 이내이면 `restore.stock.command`를 Outbox 테이블에 저장 (릴레이 재발행), 초과 시 중단 후 `log.warn` |
 | 멱등성 | ✅ 상태 가드: CANCELLING이 아닌 경우 no-op / ⏳ event_id dedup 테이블: 미구현 |
 | 비고 | 재고 복구는 `reserved` 차감 + `available` 증가로 멱등 연산이므로 재시도 안전<br>이 시점에서 배송 취소는 이미 완료되어 원복 불가<br>재시도 카운터는 Saga 정상 완료(`onStockRestored`) 또는 배송 취소 실패 복구(`onDeliveryCancellationFailed`) 시 삭제됨 |
 

@@ -202,9 +202,11 @@ public class OrderService {
         order.calculateTotalAmount();
         orderRepository.save(order);
 
+
         log.info("[오더-> 배송 직전] 출발 허브{}, 도착허브{}", sourceHubId, destinationHubId);
         // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
         orderEventPublisher.publishOrderCreated(order, sourceHubId, destinationHubId, deliveryAddress);
+
         return OrderDetailResponse.from(order);
     }
 

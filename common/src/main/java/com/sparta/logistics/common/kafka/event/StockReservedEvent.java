@@ -32,5 +32,11 @@ public class StockReservedEvent {
     // 예약 완료된 항목 목록 (각 항목이 sourceHubId를 개별로 보유)
     private List<StockReservedItemPayload> orderItems;
     private Integer totalDeliveryCount;
+    // 최종 배송지 - order.created에서 pass-through
     private String deliveryAddress;
+    // 출발 허브명 (AI 경로 계산용)
+    //private String sourceHubName;
+    // 도착 허브명 (AI 경로 계산용)
+    //private String destinationHubName;
+
 }

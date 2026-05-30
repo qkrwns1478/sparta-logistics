@@ -36,6 +36,6 @@ public class OrderCreatedEvent {
     private UUID sourceHubId;
     // 도착 허브 ID (수령 업체 소속 허브)
     private UUID destinationHubId;
-    //주소
+    // 최종 배송지
     private String deliveryAddress;
 }

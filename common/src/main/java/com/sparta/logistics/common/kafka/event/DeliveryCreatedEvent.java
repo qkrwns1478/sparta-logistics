@@ -37,5 +37,7 @@ public class DeliveryCreatedEvent {
     private String deliveryAddress;
     private int totalEstimatedDuration;
     private String receiverSlackId;
+    private String sourceHubName;
+    private String destinationHubName;
     private LocalDateTime createdAt;
 }

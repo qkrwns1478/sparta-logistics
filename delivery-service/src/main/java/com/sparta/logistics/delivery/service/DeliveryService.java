@@ -173,6 +173,9 @@ public class DeliveryService {
         int capturedCount = event.totalDeliveryCount() != null ? event.totalDeliveryCount() : 0;
         String capturedAddress = entity.getDeliveryAddress();
         String capturedSlackId = entity.getReceiverSlackId();
+        // 이벤트 record는 detach 무관하지만 스타일 통일
+        String capturedSourceHubName = event.sourceHubName();
+        String capturedDestinationHubName = event.destinationHubName();
         java.time.LocalDateTime capturedCreatedAt = entity.getCreatedAt();
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -191,7 +194,8 @@ public class DeliveryService {
                             capturedSourceHubId, capturedDestinationHubId,
                             capturedManagerId, capturedCount,
                             capturedAddress, totalEstimatedDuration,
-                            capturedSlackId, capturedCreatedAt
+                            capturedSlackId, capturedSourceHubName, capturedDestinationHubName,
+                            capturedCreatedAt
                     );
                 } catch (Exception e) {
                     log.error("[Kafka][수동처리 필요] delivery.created 발행 실패(afterCommit) — deliveryId={}",
