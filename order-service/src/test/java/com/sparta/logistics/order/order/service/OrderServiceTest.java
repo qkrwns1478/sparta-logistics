@@ -125,7 +125,7 @@ class OrderServiceTest {
         verify(companyServiceClient).getCompany(RECEIVER_COMPANY_ID);
         verify(orderRepository).save(any(Order.class));
         // order.created 이벤트가 Kafka로 발행되는지 검증
-        verify(orderEventPublisher).publishOrderCreated(any(Order.class), any(UUID.class), any(UUID.class));
+        verify(orderEventPublisher).publishOrderCreated(any(Order.class), any(UUID.class), any(UUID.class), any(String.class));
         assertThat(result).isNotNull();
     }
 
