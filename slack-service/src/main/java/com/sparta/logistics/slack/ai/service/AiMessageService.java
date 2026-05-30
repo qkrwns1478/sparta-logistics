@@ -45,8 +45,10 @@ public class AiMessageService {
       // 1. 허브 데이터 조회 (출발지/도착지 허브 이름 가져오기) 실패 시 기본값
       Map<UUID, String> hubNameMap = new HashMap<>();
       try {
-        HubFeignClient.HubResponseDto sourceHub = hubFeignClient.getHub(event.getSourceHubId()).data();
-        HubFeignClient.HubResponseDto destHub = hubFeignClient.getHub(event.getDestinationHubId()).data();
+        String systemUserId = UUID.randomUUID().toString();
+
+        HubFeignClient.HubResponseDto sourceHub = hubFeignClient.getHub(event.getSourceHubId(), systemUserId,"MASTER").data();
+        HubFeignClient.HubResponseDto destHub = hubFeignClient.getHub(event.getDestinationHubId(), systemUserId, "MASTER").data();
 
         hubNameMap.put(sourceHub.hubId(), sourceHub.name());
         hubNameMap.put(destHub.hubId(), destHub.name());
@@ -61,7 +63,8 @@ public class AiMessageService {
       //2. 주문 서비스에서 데이터 가져오기
       OrderFeignClient.OrderResponseDto orderData;
       try {
-        orderData = orderFeignClient.getOrder(event.getOrderId()).data();
+        String systemUserId = UUID.randomUUID().toString();
+        orderData = orderFeignClient.getOrder(event.getOrderId(), systemUserId, "MASTER").data();
         //필수 데이터가 비어있다면 강제로 에러를 던져 Fallback으로 넘김
         if (orderData == null || orderData.orderItems() == null || orderData.orderItems().isEmpty()) {
           throw new IllegalArgumentException("주문 상품 정보가 비어있습니다.");
@@ -94,21 +97,29 @@ public class AiMessageService {
               .build()
       );
 
-      //5. 슬랙 타겟 ID
+      //5. 슬랙 타겟 ID (현재는 테스트용으로 고정 ID 사용)
       String targetSlackId = receiverSlackId;
 
-      if (orderData.requesterUserId() != null) {
-        try {
-          UserFeignClient.UserResponseDto userData =
-              userFeignClient.getUser(UUID.fromString(orderData.requesterUserId())).data();
+      /*
+     if (orderData.requesterUserId() != null) {
+            try {
+              String systemUserId = java.util.UUID.randomUUID().toString();
+              UserFeignClient.UserWrapper userResponse =
+                  userFeignClient.getUser(UUID.fromString(orderData.requesterUserId()), systemUserId, "MASTER");
 
-          if (userData != null && userData.slackId() != null && !userData.slackId().isEmpty()) {
-            targetSlackId = userData.slackId();
-            log.info("유저 서버 통신 성공! 슬랙 ID 수신:{}", targetSlackId);
+              if (userResponse != null && userResponse.data() != null && userResponse.data().slackId() != null) {
+                targetSlackId = userResponse.data().slackId();
+                log.info("유저 서버 통신 성공! 슬랙 ID 수신:{}", targetSlackId);
+              }
+            } catch (Exception e) {
+              log.warn("유저 통신 실패 - 기본 슬랙 ID로 대체합니다. 원인: {}", e.getMessage());
+            }
           }
-        } catch (Exception e) {
-          log.warn("유저 통신 실패 - 기본 슬랙 ID로 대체합니다. 원인: {}", e.getMessage());
-        }
+     */
+
+      if (targetSlackId == null || targetSlackId.isBlank()){
+        log.warn("배송 담당자의 슬랙 ID가 null입니다. 테스트용 ID로 우회 발송합니다.");
+        targetSlackId = receiverSlackId;
       }
 
       //6. 최종 슬랙 발송

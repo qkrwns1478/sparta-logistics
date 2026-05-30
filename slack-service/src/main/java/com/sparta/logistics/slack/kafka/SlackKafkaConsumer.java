@@ -15,6 +15,7 @@ public class SlackKafkaConsumer {
 
   @KafkaListener(topics = "delivery.created", groupId = "slack-service-group")
   public void consumeDeliveryCreated(DeliveryCreatedEvent event) {
+    log.info("수신된 이벤트 상세:{}", event);
     log.info("카프카로부터 배송 생성 이벤트 수신 완료: {}", event.getDeliveryId());
 
     try {
