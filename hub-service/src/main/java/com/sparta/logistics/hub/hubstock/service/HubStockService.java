@@ -197,9 +197,35 @@ public class HubStockService {
     @Transactional
     public void reserveStock(OrderCreatedEvent event) {
 
-        // stock.reserved 발행 시 필요
-        UUID destinationHubId = companyClient
-                .getCompany(event.getReceiverCompanyId()).getHubId();
+        UUID destinationHubId;
+        // 허브 명
+        String sourceHubName;
+        String destinationHubName;
+
+        try {
+            destinationHubId = companyClient
+                    .getCompany(event.getReceiverCompanyId()).getHubId();
+
+            sourceHubName = hubRepository.findByIdAndDeletedAtIsNull(event.getSourceHubId())
+                    .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND))
+                    .getName();
+
+            destinationHubName = hubRepository.findByIdAndDeletedAtIsNull(destinationHubId)
+                    .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND))
+                    .getName();
+
+        } catch (BusinessException e) {
+
+            log.warn("[HubStock] 허브 조회 실패. orderId: {}, reason: {}", event.getOrderId(), e.getMessage());
+            // 허브 조회 실패는 특정 상품과 무관하므로 productId null 반환
+            registerStockReservationFailedEvent(
+                    event.getEventId(),
+                    event.getOrderId(),
+                    null,
+                    e.getMessage()
+            );
+            throw new KafkaSkipException("허브 조회 실패 - orderId: " + event.getOrderId());
+        }
 
         // stock.reserved 발행 시 필요한 리스트
         List<StockReservedItemPayload> reservedItems = new ArrayList<>();
@@ -254,6 +280,10 @@ public class HubStockService {
                 .orderId(event.getOrderId())
                 .destinationHubId(destinationHubId)
                 .orderItems(reservedItems)
+                .receiverId(event.getReceiverId())
+                .deliveryAddress(event.getDeliveryAddress())
+                .sourceHubName(sourceHubName)
+                .destinationHubName(destinationHubName)
                 .build();
         registerStockReservedEvent(reservedEvent);
     }
