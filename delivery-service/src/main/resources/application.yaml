@@ -6,10 +6,10 @@ spring:
     name: delivery-service
   config:
     import: optional:configserver:http://localhost:8888
-# TODO: h2 나 redis 필요하면 추가
-#  h2:
-#    console:
-#      enabled: true
+  # TODO: h2 나 redis 필요하면 추가
+  #  h2:
+  #    console:
+  #      enabled: true
   datasource:
     url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_delivery
     #url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}
@@ -31,12 +31,10 @@ spring:
       group-id: delivery-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   cloud:
     openfeign:
       circuitbreaker:

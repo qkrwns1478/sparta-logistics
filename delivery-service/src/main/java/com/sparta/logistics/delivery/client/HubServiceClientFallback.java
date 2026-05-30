@@ -21,7 +21,7 @@ public class HubServiceClientFallback implements HubServiceClient {
     }
 
     @Override
-    public ApiResponse<List<HubRouteSegmentResponse>> getRouteSegments(UUID sourceHubId, UUID destinationHubId, String userId, String role) {
+    public ApiResponse<List<HubRouteSegmentResponse>> getRouteSegments(UUID sourceHubId, UUID destinationHubId) {
         log.warn("[HubServiceClient Fallback] Hub Service 응답 없음. sourceHubId={}, destinationHubId={}", sourceHubId, destinationHubId);
         throw new BusinessException(DeliveryErrorCode.HUB_SERVICE_UNAVAILABLE);
     }

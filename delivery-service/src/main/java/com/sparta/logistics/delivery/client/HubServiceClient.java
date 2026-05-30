@@ -22,8 +22,6 @@ public interface HubServiceClient {
     @GetMapping("/api/v1/hub-routes/segments")
     ApiResponse<List<HubRouteSegmentResponse>> getRouteSegments(
             @RequestParam("sourceHubId") UUID sourceHubId,
-            @RequestParam("destinationHubId") UUID destinationHubId,
-            @RequestHeader("X-User-Id") String userId,
-            @RequestHeader("X-Role") String role
+            @RequestParam("destinationHubId") UUID destinationHubId
     );
 }

@@ -14,7 +14,7 @@ import java.util.UUID;
 public class UserServiceClientFallback implements UserServiceClient {
 
     @Override
-    public ApiResponse<UserResponse> getUser(UUID userId, String headerUserId, String role) {
+    public ApiResponse<UserResponse> getUser(UUID userId) {
         log.warn("[UserServiceClient Fallback] User Service 응답 없음. userId={}", userId);
         throw new BusinessException(DeliveryErrorCode.USER_SERVICE_UNAVAILABLE);
     }

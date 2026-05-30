@@ -14,8 +14,5 @@ import java.util.UUID;
 public interface UserServiceClient {
 
     @GetMapping("/api/v1/users/{userId}")
-    ApiResponse<UserResponse> getUser(
-        @PathVariable("userId") UUID userId,
-        @RequestHeader("X-User-Id") String headerUserId,
-        @RequestHeader("X-Role") String role);
+    ApiResponse<UserResponse> getUser(@PathVariable("userId") UUID userId);
 }
