@@ -164,6 +164,7 @@ public class OrderService {
             List<OrderItemRequest> items,
             UUID userId
     ) {
+        // 업체가 존재하는지 검증
         // 업체 조회 + 존재 검증 (hubId 추출 목적)
         CompanyResponse requesterCompany = fetchCompanyOrThrow(requesterCompanyId);
         CompanyResponse receiverCompany = fetchCompanyOrThrow(receiverCompanyId);
@@ -202,10 +203,8 @@ public class OrderService {
         orderRepository.save(order);
 
         log.info("[오더-> 배송 직전] 출발 허브{}, 도착허브{}", sourceHubId, destinationHubId);
-
         // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
         orderEventPublisher.publishOrderCreated(order, sourceHubId, destinationHubId, deliveryAddress);
-
         return OrderDetailResponse.from(order);
     }
 
@@ -477,9 +476,6 @@ public class OrderService {
             return company != null ? company.name() : null;
         } catch (FeignException e) {
             log.warn("[FeignClient] 업체 이름 조회 실패 companyId={} status={}", companyId, e.status());
-            return null;
-        } catch (BusinessException e) {
-            log.warn("[FeignClient] 업체 이름 조회 실패 (서비스 불가) companyId={}", companyId);
             return null;
         }
     }

@@ -30,7 +30,7 @@ public class OrderCreatedEvent {
     private List<OrderItemPayload> orderItems;
     // 요청 업체 ID
     private UUID requesterCompanyId;
-    // 수령 업체 ID
+    // 수령 업체 ID (HubService가 소속 허브를 조회해 destinationHubId 결정)
     private UUID receiverCompanyId;
     // 출발 허브 ID (요청 업체 소속 허브)
     private UUID sourceHubId;

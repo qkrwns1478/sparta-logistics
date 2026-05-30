@@ -29,7 +29,6 @@ public class OrderEventPublisher {
    * Choreography Saga Step 1-1: order.created 발행
    * 파티션 키: orderId
    **/
-
   public void publishOrderCreated(Order order, UUID sourceHubId, UUID destinationHubId, String deliveryAddress) {
     List<OrderItemPayload> payloads = order.getOrderItems().stream()
         .map(item -> OrderItemPayload.builder()
