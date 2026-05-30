@@ -22,11 +22,15 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class StockReservedEvent {
+    private UUID receiverId;
     private UUID eventId;
     private UUID orderId;
+
+    private UUID sourceHubId;
     // 도착 허브 ID (수령 업체 소속 허브)
     private UUID destinationHubId;
     // 예약 완료된 항목 목록 (각 항목이 sourceHubId를 개별로 보유)
     private List<StockReservedItemPayload> orderItems;
     private Integer totalDeliveryCount;
+    private String deliveryAddress;
 }

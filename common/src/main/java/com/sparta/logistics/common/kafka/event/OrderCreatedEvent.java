@@ -23,6 +23,7 @@ import java.util.UUID;
 @Builder
 public class OrderCreatedEvent {
     // 메시지 고유 ID (중복 소비 방지용)
+    private UUID receiverId;
     private UUID eventId;
     private UUID orderId;
     // 주문 항목 목록 (productId, quantity, hubId)
@@ -35,4 +36,6 @@ public class OrderCreatedEvent {
     private UUID sourceHubId;
     // 도착 허브 ID (수령 업체 소속 허브)
     private UUID destinationHubId;
+    //주소
+    private String deliveryAddress;
 }
