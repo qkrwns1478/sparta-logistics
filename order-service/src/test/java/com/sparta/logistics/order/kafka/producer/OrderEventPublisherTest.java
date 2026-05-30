@@ -55,7 +55,7 @@ class OrderEventPublisherTest {
         ReflectionTestUtils.setField(item, "id", ORDER_ITEM_ID);
         order.addOrderItem(item);
 
-        publisher.publishOrderCreated(order, SOURCE_HUB_ID, DESTINATION_HUB_ID);
+        publisher.publishOrderCreated(order, SOURCE_HUB_ID, DESTINATION_HUB_ID, "서울시 강남구 테헤란로 1");
 
         // OutboxEventPublisher에 전달된 이벤트 객체 캡처
         ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
