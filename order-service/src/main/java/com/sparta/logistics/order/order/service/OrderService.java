@@ -169,6 +169,7 @@ public class OrderService {
         CompanyResponse receiverCompany = fetchCompanyOrThrow(receiverCompanyId);
         UUID sourceHubId = requesterCompany.hubId();
         UUID destinationHubId = receiverCompany.hubId();
+        String deliveryAddress = receiverCompany.address();
 
         // 동일 productId의 quantity 합산 (중복 OrderItem row 생성 방지)
         Map<UUID, Integer> mergedItems = items.stream()
@@ -200,8 +201,10 @@ public class OrderService {
         order.calculateTotalAmount();
         orderRepository.save(order);
 
+        log.info("[오더-> 배송 직전] 출발 허브{}, 도착허브{}", sourceHubId, destinationHubId);
+
         // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
-        orderEventPublisher.publishOrderCreated(order, sourceHubId, destinationHubId);
+        orderEventPublisher.publishOrderCreated(order, sourceHubId, destinationHubId, deliveryAddress);
 
         return OrderDetailResponse.from(order);
     }

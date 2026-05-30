@@ -22,79 +22,82 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderEventPublisher {
 
-    private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
+  private final KafkaTemplate<String, String> kafkaTemplate;
+  private final ObjectMapper objectMapper;
 
-    /**
-     * Choreography Saga Step 1-1: order.created 발행
-     * 파티션 키: orderId
-     **/
-    public void publishOrderCreated(Order order, UUID sourceHubId, UUID destinationHubId) {
-        List<OrderItemPayload> payloads = order.getOrderItems().stream()
-                .map(item -> OrderItemPayload.builder()
-                        .orderItemId(item.getId())
-                        .productId(item.getProductId())
-                        .quantity(item.getQuantity())
-                        .hubId(item.getHubId())
-                        .build())
-                .toList();
+  /**
+   * Choreography Saga Step 1-1: order.created 발행
+   * 파티션 키: orderId
+   **/
 
-        try {
-            String message = objectMapper.writeValueAsString(
-                    OrderCreatedEvent.builder()
-                            .eventId(UUID.randomUUID())
-                            .orderId(order.getId())
-                            .orderItems(payloads)
-                            .requesterCompanyId(order.getRequesterCompanyId())
-                            .receiverCompanyId(order.getReceiverCompanyId())
-                            .sourceHubId(sourceHubId)
-                            .destinationHubId(destinationHubId)
-                            .build()
-            );
-            kafkaTemplate.send(KafkaTopics.ORDER_CREATED, order.getId().toString(), message);
-            log.info("[order.created] 발행 orderId={} itemCount={}", order.getId(), payloads.size());
-        } catch (JsonProcessingException e) {
-            log.error("[order.created] 직렬화 실패 orderId={}", order.getId(), e);
-        }
+  public void publishOrderCreated(Order order, UUID sourceHubId, UUID destinationHubId, String deliveryAddress) {
+    List<OrderItemPayload> payloads = order.getOrderItems().stream()
+        .map(item -> OrderItemPayload.builder()
+            .orderItemId(item.getId())
+            .productId(item.getProductId())
+            .quantity(item.getQuantity())
+            .hubId(item.getHubId())
+            .build())
+        .toList();
+
+    try {
+      String message = objectMapper.writeValueAsString(
+          OrderCreatedEvent.builder()
+              .receiverId(order.getRequesterUserId())
+              .eventId(UUID.randomUUID())
+              .orderId(order.getId())
+              .orderItems(payloads)
+              .requesterCompanyId(order.getRequesterCompanyId())
+              .receiverCompanyId(order.getReceiverCompanyId())
+              .sourceHubId(sourceHubId)
+              .destinationHubId(destinationHubId)
+              .deliveryAddress(deliveryAddress)
+              .build()
+      );
+      kafkaTemplate.send(KafkaTopics.ORDER_CREATED, order.getId().toString(), message);
+      log.info("[order.created] 발행 orderId={} itemCount={}", order.getId(), payloads.size());
+    } catch (JsonProcessingException e) {
+      log.error("[order.created] 직렬화 실패 orderId={}", order.getId(), e);
     }
+  }
 
-    /**
-     * Orchestration Saga Step 3-1: cancel.delivery.command 발행
-     * 파티션 키: orderId
-     **/
-    public void publishCancelDeliveryCommand(UUID orderId, UUID deliveryId) {
-        try {
-            String message = objectMapper.writeValueAsString(
-                    CancelDeliveryCommand.builder()
-                            .eventId(UUID.randomUUID())
-                            .orderId(orderId)
-                            .deliveryId(deliveryId)
-                            .build()
-            );
-            kafkaTemplate.send(KafkaTopics.CANCEL_DELIVERY_COMMAND, orderId.toString(), message);
-            log.info("[cancel.delivery.command] 발행 orderId={}", orderId);
-        } catch (JsonProcessingException e) {
-            log.error("[cancel.delivery.command] 직렬화 실패 orderId={}", orderId, e);
-        }
+  /**
+   * Orchestration Saga Step 3-1: cancel.delivery.command 발행
+   * 파티션 키: orderId
+   **/
+  public void publishCancelDeliveryCommand(UUID orderId, UUID deliveryId) {
+    try {
+      String message = objectMapper.writeValueAsString(
+          CancelDeliveryCommand.builder()
+              .eventId(UUID.randomUUID())
+              .orderId(orderId)
+              .deliveryId(deliveryId)
+              .build()
+      );
+      kafkaTemplate.send(KafkaTopics.CANCEL_DELIVERY_COMMAND, orderId.toString(), message);
+      log.info("[cancel.delivery.command] 발행 orderId={}", orderId);
+    } catch (JsonProcessingException e) {
+      log.error("[cancel.delivery.command] 직렬화 실패 orderId={}", orderId, e);
     }
+  }
 
-    /**
-     * Orchestration Saga Step 3-3 / 보상 Step 4-2: restore.stock.command 발행
-     * 파티션 키: orderId
-     **/
-    public void publishRestoreStockCommand(UUID orderId, List<RestoreStockItemPayload> items) {
-        try {
-            String message = objectMapper.writeValueAsString(
-                    RestoreStockCommand.builder()
-                            .eventId(UUID.randomUUID())
-                            .orderId(orderId)
-                            .orderItems(items)
-                            .build()
-            );
-            kafkaTemplate.send(KafkaTopics.RESTORE_STOCK_COMMAND, orderId.toString(), message);
-            log.info("[restore.stock.command] 발행 orderId={} itemCount={}", orderId, items.size());
-        } catch (JsonProcessingException e) {
-            log.error("[restore.stock.command] 직렬화 실패 orderId={}", orderId, e);
-        }
+  /**
+   * Orchestration Saga Step 3-3 / 보상 Step 4-2: restore.stock.command 발행
+   * 파티션 키: orderId
+   **/
+  public void publishRestoreStockCommand(UUID orderId, List<RestoreStockItemPayload> items) {
+    try {
+      String message = objectMapper.writeValueAsString(
+          RestoreStockCommand.builder()
+              .eventId(UUID.randomUUID())
+              .orderId(orderId)
+              .orderItems(items)
+              .build()
+      );
+      kafkaTemplate.send(KafkaTopics.RESTORE_STOCK_COMMAND, orderId.toString(), message);
+      log.info("[restore.stock.command] 발행 orderId={} itemCount={}", orderId, items.size());
+    } catch (JsonProcessingException e) {
+      log.error("[restore.stock.command] 직렬화 실패 orderId={}", orderId, e);
     }
+  }
 }
