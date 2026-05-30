@@ -59,11 +59,19 @@ public class OutboxEvent {
         return event;
     }
 
+    /**
+     * Kafka 발행 성공 시 호출
+     * processedAt을 기록해 발행 완료 시점 추적 가능
+     * */
     public void markSent() {
         this.status = OutboxEventStatus.SENT;
         this.processedAt = LocalDateTime.now();
     }
 
+    /**
+     * 발행 실패 시 호출
+     * MAX_RETRY 도달 시 무한 재시도 방지를 위해 FAILED로 전이함
+     * */
     public void incrementRetry() {
         this.retryCount++;
         if (this.retryCount >= MAX_RETRY) {

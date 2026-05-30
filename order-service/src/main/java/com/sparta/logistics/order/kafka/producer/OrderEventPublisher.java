@@ -37,7 +37,7 @@ public class OrderEventPublisher {
                 .toList();
 
         OrderCreatedEvent event = OrderCreatedEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(UUID.randomUUID()) // 컨슈머 측 중복 제거(dedup)에 사용됨
                 .orderId(order.getId())
                 .orderItems(payloads)
                 .requesterCompanyId(order.getRequesterCompanyId())
@@ -52,7 +52,7 @@ public class OrderEventPublisher {
 
     public void publishCancelDeliveryCommand(UUID orderId, UUID deliveryId) {
         CancelDeliveryCommand command = CancelDeliveryCommand.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(UUID.randomUUID()) // 컨슈머 측 중복 제거(dedup)에 사용됨
                 .orderId(orderId)
                 .deliveryId(deliveryId)
                 .build();
@@ -63,7 +63,7 @@ public class OrderEventPublisher {
 
     public void publishRestoreStockCommand(UUID orderId, List<RestoreStockItemPayload> items) {
         RestoreStockCommand command = RestoreStockCommand.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(UUID.randomUUID()) // 컨슈머 측 중복 제거(dedup)에 사용됨
                 .orderId(orderId)
                 .orderItems(items)
                 .build();

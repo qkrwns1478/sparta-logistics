@@ -26,8 +26,11 @@ public class OutboxEventRelay {
     private final OutboxEventRepository outboxEventRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
+    // 컨텍스트 종료 시 릴레이 발화를 차단
+    // create-drop DDL이 테이블을 삭제한 뒤 @Scheduled가 발화하는 race condition 방지
     private final AtomicBoolean running = new AtomicBoolean(true);
 
+    // Spring 컨텍스트 종료 시 가장 먼저 호출되어 이후 relay() 발화를 차단함
     @PreDestroy
     public void shutdown() {
         running.set(false);
@@ -42,7 +45,7 @@ public class OutboxEventRelay {
         for (OutboxEvent event : pending) {
             try {
                 kafkaTemplate.send(event.getTopic(), event.getAggregateId(), event.getPayload())
-                        .get(5, TimeUnit.SECONDS);
+                        .get(5, TimeUnit.SECONDS); // 5초 초과 시 Kafka 장애로 간주
                 event.markSent();
                 log.info("[Outbox] 발행 완료 id={} topic={}", event.getId(), event.getTopic());
             } catch (Exception e) {
