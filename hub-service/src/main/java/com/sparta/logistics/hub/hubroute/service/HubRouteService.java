@@ -6,6 +6,7 @@ import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.exception.HubRouteErrorCode;
 import com.sparta.logistics.hub.hub.entity.Hub;
 import com.sparta.logistics.hub.hub.repository.HubRepository;
+import com.sparta.logistics.hub.hubroute.dto.HubRouteSegmentListCacheDto;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.request.UpdateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.response.*;
@@ -142,10 +143,10 @@ public class HubRouteService {
 
     @Cacheable(value = "hubRouteSegments", key = "#sourceHubId + ':' + #destinationHubId")
     @Transactional(readOnly = true)
-    public List<HubRouteSegmentResponse> getHubRouteSegments(UUID sourceHubId, UUID destinationHubId) {
+    public HubRouteSegmentListCacheDto getHubRouteSegments(UUID sourceHubId, UUID destinationHubId) {
 
         if (sourceHubId.equals(destinationHubId)) {
-            return List.of();
+            return new HubRouteSegmentListCacheDto(List.of());
         }
 
         List<HubRoute> allRoutes = hubRouteRepository.findAllWithHubs();
@@ -215,7 +216,7 @@ public class HubRouteService {
             result.add(HubRouteSegmentResponse.of(i, path.get(i)));
         }
 
-        return result;
+        return new HubRouteSegmentListCacheDto(result);
     }
 
     private Hub findHubById(UUID hubId) {
