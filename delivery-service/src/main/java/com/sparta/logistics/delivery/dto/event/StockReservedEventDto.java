@@ -12,6 +12,8 @@ public record StockReservedEventDto(
         UUID sourceHubId,        // 출발 허브 (order-service가 그룹핑 후 발행)
         UUID destinationHubId,   // 도착 허브
         String deliveryAddress,
+        String sourceHubName,
+        String destinationHubName,
         List<StockReservedItemPayload> orderItems,  // 이 허브 소속 주문 상품 목록
         Integer totalDeliveryCount
 ) {}

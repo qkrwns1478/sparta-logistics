@@ -31,7 +31,8 @@ public class DeliveryEventPublisher {
                                UUID sourceHubId, UUID destinationHubId,
                                UUID companyDeliveryManagerId, int totalDeliveryCount,
                                String deliveryAddress, int totalEstimatedDuration,
-                               String receiverSlackId, java.time.LocalDateTime createdAt) {
+                               String receiverSlackId, String sourceHubName, String destinationHubName,
+                               java.time.LocalDateTime createdAt) {
         try {
             String message = objectMapper.writeValueAsString(
                     DeliveryCreatedEvent.builder()
@@ -45,6 +46,8 @@ public class DeliveryEventPublisher {
                             .deliveryAddress(deliveryAddress)
                             .totalEstimatedDuration(totalEstimatedDuration)
                             .receiverSlackId(receiverSlackId)
+                            .sourceHubName(sourceHubName)
+                            .destinationHubName(destinationHubName)
                             .createdAt(createdAt)
                             .build()
             );
