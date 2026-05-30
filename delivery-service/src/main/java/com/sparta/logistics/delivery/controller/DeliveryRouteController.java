@@ -9,6 +9,7 @@ import com.sparta.logistics.delivery.service.DeliveryRouteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -62,5 +63,17 @@ public class DeliveryRouteController {
             @RequestHeader(value = "X-User-CompanyId", required = false) UUID companyId
     ) {
         return ResponseEntity.ok(logService.getLogs(deliveryId, userId, role, hubId, companyId));
+    }
+
+    // 경로 담당자 강제 재배정
+    @PatchMapping("/routes/{routeId}/reassign")
+    public ResponseEntity<DeliveryRouteResponse> reassignManager(
+            @PathVariable UUID deliveryId,
+            @PathVariable UUID routeId,
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") Role role,
+            @RequestHeader(value = "X-User-HubId", required = false) UUID hubId
+    ) {
+        return ResponseEntity.ok(routeService.reassignManager(routeId, userId, role, hubId));
     }
 }
