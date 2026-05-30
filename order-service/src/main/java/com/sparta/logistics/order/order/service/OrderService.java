@@ -200,8 +200,11 @@ public class OrderService {
         order.calculateTotalAmount();
         orderRepository.save(order);
 
+        // order.created 이벤트 발행 시 전달 목적의 receiverCompanyAddress
+        String receiverCompanyAddress = receiverCompany.address();
+
         // Choreography Saga Step 1-1: order.created 이벤트 발행 → HubService 재고 예약 트리거
-        orderEventPublisher.publishOrderCreated(order, sourceHubId, destinationHubId);
+        orderEventPublisher.publishOrderCreated(order, sourceHubId, destinationHubId, receiverCompanyAddress);
 
         return OrderDetailResponse.from(order);
     }

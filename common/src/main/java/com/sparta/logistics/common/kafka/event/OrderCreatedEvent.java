@@ -35,4 +35,8 @@ public class OrderCreatedEvent {
     private UUID sourceHubId;
     // 도착 허브 ID (수령 업체 소속 허브)
     private UUID destinationHubId;
+    // 수령인 ID (Slack ID 조회용)
+    private UUID receiverId;
+    // 최종 배송지
+    private String deliveryAddress;
 }

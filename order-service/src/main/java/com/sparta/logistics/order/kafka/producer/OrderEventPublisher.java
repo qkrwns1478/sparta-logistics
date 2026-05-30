@@ -26,7 +26,11 @@ public class OrderEventPublisher {
 
     private final OutboxEventPublisher outboxEventPublisher;
 
-    public void publishOrderCreated(Order order, UUID sourceHubId, UUID destinationHubId) {
+    /**
+     * Choreography Saga Step 1-1: order.created 발행
+     * 파티션 키: orderId
+     **/
+    public void publishOrderCreated(Order order, UUID sourceHubId, UUID destinationHubId, String receiverCompanyAddress) {
         List<OrderItemPayload> payloads = order.getOrderItems().stream()
                 .map(item -> OrderItemPayload.builder()
                         .orderItemId(item.getId())
@@ -44,12 +48,18 @@ public class OrderEventPublisher {
                 .receiverCompanyId(order.getReceiverCompanyId())
                 .sourceHubId(sourceHubId)
                 .destinationHubId(destinationHubId)
+                .receiverId(order.getRequesterUserId())
+                .deliveryAddress(receiverCompanyAddress)
                 .build();
 
         outboxEventPublisher.publish(KafkaTopics.ORDER_CREATED, order.getId().toString(), "ORDER", event);
         log.info("[Outbox] order.created 저장 orderId={} itemCount={}", order.getId(), payloads.size());
     }
 
+    /**
+     * Orchestration Saga Step 3-1: cancel.delivery.command 발행
+     * 파티션 키: orderId
+     **/
     public void publishCancelDeliveryCommand(UUID orderId, UUID deliveryId) {
         CancelDeliveryCommand command = CancelDeliveryCommand.builder()
                 .eventId(UUID.randomUUID()) // 컨슈머 측 중복 제거(dedup)에 사용됨
@@ -61,6 +71,10 @@ public class OrderEventPublisher {
         log.info("[Outbox] cancel.delivery.command 저장 orderId={}", orderId);
     }
 
+    /**
+     * Orchestration Saga Step 3-3 / Step 4-2(재시도): restore.stock.command 발행
+     * 파티션 키: orderId
+     **/
     public void publishRestoreStockCommand(UUID orderId, List<RestoreStockItemPayload> items) {
         RestoreStockCommand command = RestoreStockCommand.builder()
                 .eventId(UUID.randomUUID()) // 컨슈머 측 중복 제거(dedup)에 사용됨
