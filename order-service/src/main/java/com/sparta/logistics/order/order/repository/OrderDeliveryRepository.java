@@ -10,4 +10,6 @@ public interface OrderDeliveryRepository extends JpaRepository<OrderDelivery, UU
     long countByOrderId(UUID orderId);
 
     boolean existsByOrderIdAndDeliveryId(UUID orderId, UUID deliveryId);
+
+    void deleteByOrderId(UUID orderId);
 }

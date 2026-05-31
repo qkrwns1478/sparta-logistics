@@ -184,6 +184,7 @@ public class Order extends BaseEntity {
 
     public void delete(UUID deletedBy) {
         softDelete(deletedBy);
+        orderItems.forEach(item -> item.softDelete(deletedBy));
     }
 
     // 상태 전이 유효성 테이블

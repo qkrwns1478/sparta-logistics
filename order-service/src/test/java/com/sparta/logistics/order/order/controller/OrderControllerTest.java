@@ -22,8 +22,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,7 +76,8 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body)
-                        .header("X-User-Id", USER_ID.toString()))
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", Role.MASTER.name()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.status").value(201));
@@ -93,7 +97,8 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body)
-                        .header("X-User-Id", USER_ID.toString()))
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", Role.MASTER.name()))
                 .andExpect(status().isBadRequest());
     }
 
@@ -112,7 +117,8 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body)
-                        .header("X-User-Id", USER_ID.toString()))
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", Role.MASTER.name()))
                 .andExpect(status().isBadRequest());
     }
 
@@ -242,11 +248,17 @@ class OrderControllerTest {
         verify(orderService).deleteOrder(eq(ORDER_ID), eq(USER_ID), eq(Role.MASTER));
     }
 
-    // X-User-Role 헤더 없이 삭제 요청 시 400이 반환되는지 검증
+    // X-User-Role 헤더 없이 삭제 요청 시 GatewayAuthFilter가 인증을 설정하지 않아 401이 반환되는지 검증
     @Test
-    void deleteOrder_missingRoleHeader_returns400() throws Exception {
+    void deleteOrder_missingRoleHeader_returns401() throws Exception {
+        doAnswer(invocation -> {
+            HttpServletResponse resp = invocation.getArgument(1);
+            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return null;
+        }).when(gatewayAuthEntryPoint).commence(any(), any(), any());
+
         mockMvc.perform(delete("/api/v1/orders/{orderId}", ORDER_ID)
                         .header("X-User-Id", USER_ID.toString()))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
     }
 }
