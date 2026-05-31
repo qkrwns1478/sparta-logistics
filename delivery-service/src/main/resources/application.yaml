@@ -6,13 +6,11 @@ spring:
     name: delivery-service
   config:
     import: optional:configserver:http://localhost:8888
-  # TODO: h2 나 redis 필요하면 추가
   #  h2:
   #    console:
   #      enabled: true
   datasource:
     url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_delivery
-    #url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver

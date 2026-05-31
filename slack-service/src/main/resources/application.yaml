@@ -26,8 +26,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_slack
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -53,3 +53,7 @@ slack:
     token: ${SLACK_BOT_TOKEN}
   receiver:
     test-id: ${TEST_SLACK_ID}
+
+gemini:
+  api:
+    key: ${GEMINI_API_KEY}
