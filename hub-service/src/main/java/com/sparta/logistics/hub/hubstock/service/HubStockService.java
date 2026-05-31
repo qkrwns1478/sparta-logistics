@@ -3,7 +3,6 @@ package com.sparta.logistics.hub.hubstock.service;
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.kafka.event.*;
-import com.sparta.logistics.hub.client.CompanyClient;
 import com.sparta.logistics.hub.exception.HubErrorCode;
 import com.sparta.logistics.hub.exception.HubStockErrorCode;
 import com.sparta.logistics.hub.hub.entity.Hub;
@@ -47,7 +46,6 @@ public class HubStockService {
     private final HubStockLockHelper hubStockLockHelper;
     private final HubStockLogRepository hubStockLogRepository;
     private final HubStockEventPublisher hubStockEventPublisher;
-    private final CompanyClient companyClient;
 
     private static final int MAX_RETRY = 3;
 
@@ -198,26 +196,16 @@ public class HubStockService {
     @Transactional
     public void reserveStock(OrderCreatedEvent event) {
 
-        UUID destinationHubId;
-        // 허브 명
-        String sourceHubName;
-        String destinationHubName;
-
         try {
-            destinationHubId = companyClient
-                    .getCompany(event.getReceiverCompanyId()).getHubId();
+            hubRepository.findByIdAndDeletedAtIsNull(event.getSourceHubId())
+                    .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
 
-            sourceHubName = hubRepository.findByIdAndDeletedAtIsNull(event.getSourceHubId())
-                    .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND))
-                    .getName();
-
-            destinationHubName = hubRepository.findByIdAndDeletedAtIsNull(destinationHubId)
-                    .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND))
-                    .getName();
+            hubRepository.findByIdAndDeletedAtIsNull(event.getDestinationHubId())
+                    .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
 
         } catch (BusinessException e) {
-
-            log.warn("[HubStock] 허브 조회 실패. orderId: {}, reason: {}", event.getOrderId(), e.getMessage());
+            log.warn("[HubStock] 허브 조회 실패. orderId: {}, sourceHubId: {}, destinationHubId: {}",
+                    event.getOrderId(), event.getSourceHubId(), event.getDestinationHubId());
             // 허브 조회 실패는 특정 상품과 무관하므로 productId null 반환
             registerStockReservationFailedEvent(
                     event.getEventId(),
