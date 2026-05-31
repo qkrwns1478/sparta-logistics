@@ -7,10 +7,10 @@ import org.springframework.context.annotation.Bean;
 
 /**
  * OutboxEventRepository 빈이 등록된 서비스(= p_outbox 테이블을 갖는 서비스)에서만
- * OutboxEventPublisher를 활성화한다.
+ * OutboxEventPublisher를 활성함
  * Auto-configuration은 사용자 정의 빈(@Configuration)이 모두 처리된 후 실행되므로
- * @ConditionalOnBean 조건 평가 시점에 JPA 레포지토리 빈 정의가 이미 존재함이 보장된다.
- */
+ * &#064;ConditionalOnBean  조건 평가 시점에 JPA 레포지토리 빈 정의가 이미 존재함이 보장됨
+ * */
 @AutoConfiguration
 @ConditionalOnBean(OutboxEventRepository.class)
 public class OutboxAutoConfiguration {
