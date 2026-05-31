@@ -87,4 +87,4 @@ public class OrderEventPublisher {
         outboxEventPublisher.publish(KafkaTopics.RESTORE_STOCK_COMMAND, orderId.toString(), "ORDER", command);
         log.info("[Outbox] restore.stock.command 저장 orderId={} itemCount={}", orderId, items.size());
     }
-}
+  }
