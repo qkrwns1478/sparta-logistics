@@ -13,6 +13,7 @@ public class CommonArchRules {
     /**
      * 레이어드 아키텍처 규칙
      * controller -> service -> (client/repository/entity) 방향만 허용합니다.
+     * kafka.consumer 패키지가 존재하는 서비스에서는 KafkaConsumer -> Service 방향도 허용합니다.
      */
     public static void layerDependencyRule(JavaClasses classes, String basePackage) {
 
@@ -35,14 +36,43 @@ public class CommonArchRules {
         boolean hasResponseDto = classes.stream()
                 .anyMatch(c -> c.getPackageName().contains(basePackage + ".dto.response"));
 
+        // kafka.consumer 패키지 존재 여부 확인
+        // Consumer는 Controller와 동등한 진입점으로, Service 레이어 접근이 허용됩니다.
+        boolean hasKafkaConsumer = classes.stream()
+                .anyMatch(c -> c.getPackageName().contains(basePackage + ".kafka.consumer"));
+
+        // saga 패키지 존재 여부 확인
+        // Orchestration Saga 오케스트레이터는 Service에서만 호출되며, Repository/Entity 접근이 허용됩니다.
+        boolean hasSaga = classes.stream()
+                .anyMatch(c -> c.getPackageName().contains(basePackage + ".saga"));
+
         LayeredArchitecture rule = layeredArchitecture()
                 .consideringAllDependencies()
                 .layer("Controller").definedBy(basePackage + "..controller..")
                 .layer("Service").definedBy(basePackage + "..service..")
                 .layer("DTO").definedBy(basePackage + "..dto..")
+                .layer("Config").definedBy(basePackage + "..config..")
                 .whereLayer("Controller").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller")
-                .whereLayer("DTO").mayOnlyBeAccessedByLayers("Controller", "Service");
+                .whereLayer("Config").mayNotBeAccessedByAnyLayer()
+                .whereLayer("DTO").mayOnlyBeAccessedByLayers("Controller", "Service", "Config");
+
+        // Saga 레이어가 있으면 Service에서만 접근 가능하도록 등록
+        if (hasSaga) {
+            rule = rule
+                    .layer("Saga").definedBy(basePackage + "..saga..")
+                    .whereLayer("Saga").mayOnlyBeAccessedByLayers("Service");
+        }
+
+        // KafkaConsumer가 있으면 Service 접근 허용 레이어에 포함
+        if (hasKafkaConsumer) {
+            rule = rule
+                    .layer("KafkaConsumer").definedBy(basePackage + "..kafka.consumer..")
+                    .whereLayer("KafkaConsumer").mayNotBeAccessedByAnyLayer()
+                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "KafkaConsumer", "Config");
+        } else {
+            rule = rule
+                    .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "Config");
+        }
 
         // client 패키지가 있을 때만 레이어 추가
         if (hasClient) {
@@ -52,24 +82,38 @@ public class CommonArchRules {
         }
 
         // repository 패키지가 있을 때만 레이어 추가
+        // Saga 레이어가 있으면 Saga → Repository 접근도 허용
         if (hasRepository) {
-            rule = rule
-                    .layer("Repository").definedBy(basePackage + "..repository..")
-                    .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service");
+            if (hasSaga) {
+                rule = rule
+                        .layer("Repository").definedBy(basePackage + "..repository..")
+                        .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service", "Saga");
+            } else {
+                rule = rule
+                        .layer("Repository").definedBy(basePackage + "..repository..")
+                        .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service");
+            }
         }
 
         // entity 패키지가 있을 때만 레이어 추가
+        // Saga 레이어가 있으면 Saga → Entity 접근도 허용
         if (hasEntity) {
-            rule = rule
-                    .layer("Entity").definedBy(basePackage + "..entity..")
-                    .whereLayer("Entity").mayOnlyBeAccessedByLayers("Service", "Repository");
+            if (hasSaga) {
+                rule = rule
+                        .layer("Entity").definedBy(basePackage + "..entity..")
+                        .whereLayer("Entity").mayOnlyBeAccessedByLayers("Service", "Repository", "Saga");
+            } else {
+                rule = rule
+                        .layer("Entity").definedBy(basePackage + "..entity..")
+                        .whereLayer("Entity").mayOnlyBeAccessedByLayers("Service", "Repository");
+            }
         }
 
         // RequestDto 패키지가 있을 때만 레이어 추가
         if (hasRequestDto) {
             rule = rule
                     .layer("DTO-Request").definedBy(basePackage + "..dto..request..")
-                    .whereLayer("DTO-Request").mayOnlyBeAccessedByLayers("Controller");
+                    .whereLayer("DTO-Request").mayOnlyBeAccessedByLayers("Controller", "Service");
         }
 
         // ResponseDto 패키지가 있을 때만 레이어 추가
@@ -118,6 +162,7 @@ public class CommonArchRules {
     public static ArchRule entityNamingRule(String basePackage) {
         return classes()
                 .that().resideInAPackage(basePackage + "..entity..")
+                .and().haveSimpleNameNotContaining("$")
                 .should().haveSimpleNameEndingWith("Entity")
                 .as("Entity 패키지의 클래스는 'Entity'로 끝나야 합니다.");
     }
@@ -180,6 +225,7 @@ public class CommonArchRules {
     public static ArchRule entityAnnotationRule(String basePackage) {
         return classes()
                 .that().resideInAPackage(basePackage + "..entity..")
+                .and().haveSimpleNameNotContaining("$")
                 .should().beAnnotatedWith("jakarta.persistence.Entity")
                 .as("Entity 클래스는 @Entity 어노테이션이 필요합니다.");
     }

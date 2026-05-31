@@ -1,0 +1,67 @@
+server:
+  port: 19096
+
+spring:
+  application:
+    name: delivery-service
+  config:
+    import: optional:configserver:http://localhost:8888
+  #  h2:
+  #    console:
+  #      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_delivery
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        default_schema: schema_delivery
+  sql:
+    init:
+      mode: always
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: delivery-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+
+resilience4j:
+  retry:
+    instances:
+      assignment:
+        max-attempts: 3
+        wait-duration: 100ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.orm.ObjectOptimisticLockingFailureException
+      feign-call:
+        max-attempts: 3
+        wait-duration: 500ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - feign.FeignException
+  circuitbreaker:
+    instances:
+      hub-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
+      user-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${server.port}

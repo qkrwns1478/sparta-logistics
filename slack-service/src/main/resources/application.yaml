@@ -1,0 +1,59 @@
+server:
+  port: 19097
+
+spring:
+  application:
+    name: slack-service
+  config:
+    import:
+      - optional:configserver:http://localhost:8888
+      - optional:classpath:application-secret.yaml
+  kafka:
+    bootstrap-servers: localhost:9092 # 도커 컴포즈 카프카 포트 [cite: 2433]
+    consumer:
+      group-id: slack-service-group-v3
+      auto-offset-reset: earliest
+      # Key는 String, Value는 JSON 객체를 자바 DTO로 역직렬화하도록 설정
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*" # 모든 패키지의 DTO 허용 (보안 필요 시 패키지 제한)
+        spring.json.use.typa.headers: false
+        spring.json.value.default.type: com.sparta.logistics.slack.kafka.DeliveryCreatedEvent
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_slack
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: schema_slack
+        hbm2ddl:
+          create_namespaces: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    instance-id: ${spring.application.name}:${server.port}
+
+slack:
+  bot:
+    token: ${SLACK_BOT_TOKEN}
+  receiver:
+    test-id: ${TEST_SLACK_ID}
+
+gemini:
+  api:
+    key: ${GEMINI_API_KEY}

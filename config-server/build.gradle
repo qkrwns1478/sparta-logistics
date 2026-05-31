@@ -1,0 +1,25 @@
+plugins {
+    // 루트에서 apply false로 해두었으니, 실행 파일인 여기서는 플러그인을 활성화합니다.
+    id 'org.springframework.boot'
+}
+
+description = 'config-server'
+
+bootRun {
+    environment 'JWT_SECRET', project.findProperty('JWT_SECRET') ?: ''
+    environment 'POSTGRES_DB', project.findProperty('POSTGRES_DB') ?: 'logistics'
+    environment 'POSTGRES_USER', project.findProperty('POSTGRES_USER') ?: 'postgres'
+    environment 'POSTGRES_PASSWORD', project.findProperty('POSTGRES_PASSWORD') ?: 'postgres'
+}
+
+dependencies {
+    // 1. 모니터링 및 기본 웹 기능
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // 2. Config Server 핵심 기능
+    implementation 'org.springframework.cloud:spring-cloud-config-server'
+
+    // 3. 유레카 클라이언트 연동
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+}

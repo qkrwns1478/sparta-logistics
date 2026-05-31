@@ -1,0 +1,16 @@
+spring:
+  config:
+    import: ""
+  main:
+    web-application-type: reactive
+
+eureka:
+  client:
+    enabled: false
+
+jwt:
+  secret-key: dGVzdFNlY3JldEtleUZvckpXVEF1dGhUZXN0MTIzNDU2Nzg=
+
+management:
+  tracing:
+    enabled: false

@@ -1,0 +1,222 @@
+package com.sparta.logistics.hub.hub.service;
+
+import com.sparta.logistics.common.domain.Role;
+import com.sparta.logistics.common.exception.BusinessException;
+import com.sparta.logistics.hub.exception.HubErrorCode;
+import com.sparta.logistics.hub.hub.dto.request.CreateHubRequest;
+import com.sparta.logistics.hub.hub.dto.request.UpdateHubRequest;
+import com.sparta.logistics.hub.hub.dto.response.*;
+import com.sparta.logistics.hub.hub.entity.Hub;
+import com.sparta.logistics.hub.hub.enums.HubStatus;
+import com.sparta.logistics.hub.hub.repository.HubRepository;
+import com.sparta.logistics.hub.hub.service.util.HubDistanceCalculator;
+import com.sparta.logistics.hub.hubroute.entity.HubRoute;
+import com.sparta.logistics.hub.hubroute.repository.HubRouteRepository;
+import com.sparta.logistics.hub.kafka.publisher.HubStockEventPublisher;
+import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.List;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class HubService {
+
+    private final HubRepository hubRepository;
+    private final HubRouteRepository hubRouteRepository;
+    private final HubDistanceCalculator hubDistanceCalculator;
+    private final HubStockEventPublisher eventPublisher;
+
+    @Caching(evict = {
+            @CacheEvict(value = "hubList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
+    })
+    @Transactional
+    public HubCreateResponse createHub(CreateHubRequest request, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubErrorCode.HUB_FORBIDDEN);
+        }
+
+        // 허브 이름 중복 체크
+        if (hubRepository.existsByName(request.getName())) {
+            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+        }
+
+        Hub hub = Hub.create(
+                request.getName(),
+                request.getAddress(),
+                request.getLatitude(),
+                request.getLongitude()
+        );
+
+        // 동시 요청으로 인한 레이스 컨디션 처리
+        try {
+            Hub savedHub = hubRepository.save(hub);
+            hubRepository.flush();
+
+            // 인접 허브 경로 자동 생성
+            List<Hub> existingHubs = hubRepository.findAllByDeletedAtIsNull();
+            for (Hub existingHub : existingHubs) {
+                if (existingHub.getId().equals(savedHub.getId())) continue;
+
+                double distance = hubDistanceCalculator.calculate(
+                        savedHub.getLatitude().doubleValue(), savedHub.getLongitude().doubleValue(),
+                        existingHub.getLatitude().doubleValue(), existingHub.getLongitude().doubleValue()
+                );
+
+                if (hubDistanceCalculator.isWithinRange(distance)) {
+                    int duration = (int) (distance / 80.0 * 60);
+                    BigDecimal distanceBd = BigDecimal.valueOf(distance).setScale(3, RoundingMode.HALF_UP);
+
+                    hubRouteRepository.save(HubRoute.create(savedHub, existingHub, distanceBd, duration));
+                    hubRouteRepository.save(HubRoute.create(existingHub, savedHub, distanceBd, duration));
+                }
+            }
+
+            return HubCreateResponse.from(savedHub);
+        } catch (DataIntegrityViolationException e) {
+            String message = e.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("p_hub_name_key")) {
+                throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            }
+            throw e;
+        }
+
+    }
+
+    @Cacheable(
+            value = "hubList",
+            key = "#name +" +
+                    " ':' + #address +" +
+                    " ':' + #status +" +
+                    " ':' + #pageable.pageNumber +" +
+                    " ':' + #pageable.pageSize +" +
+                    " ':' + #pageable.sort.toString()"
+    )
+    @Transactional(readOnly = true)
+    public Page<HubListResponse> getHubList(String name, String address, HubStatus status, Pageable pageable) {
+
+        return hubRepository.findAllByCondition(name, address, status, pageable)
+                .map(HubListResponse::from);
+    }
+
+    @Cacheable(value = "hubs", key = "#hubId")
+    @Transactional(readOnly = true)
+    public HubDetailResponse getHub(UUID hubId) {
+
+        return HubDetailResponse.from(findByHubId(hubId));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsHub(UUID hubId) {
+
+        return hubRepository.existsByIdAndDeletedAtIsNull(hubId);
+    }
+
+    @Caching(evict = {
+            @CacheEvict(value = "hubs", key = "#hubId"),
+            @CacheEvict(value = "hubList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
+    })
+    @Transactional
+    public HubUpdateResponse updateHub(UUID hubId, UpdateHubRequest request, Role role) {
+
+        // master 검증
+        if (!isMaster(role)) {
+            throw new BusinessException(HubErrorCode.HUB_FORBIDDEN);
+        }
+
+        Hub hub = findByHubId(hubId);
+
+        // 허브 이름 중복 본인 제외 체크
+        if (hubRepository.existsByNameAndIdNot(request.getName(), hubId)) {
+            throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+        }
+
+        hub.update(
+                request.getName(),
+                request.getAddress(),
+                request.getLatitude(),
+                request.getLongitude(),
+                request.getStatus()
+        );
+
+        // 동시 요청으로 인한 레이스 컨디션 처리
+        try {
+            hubRepository.flush();
+            return HubUpdateResponse.from(hub);
+        } catch (DataIntegrityViolationException e) {
+            String message = e.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("p_hub_name_key")) {
+                throw new BusinessException(HubErrorCode.HUB_NAME_DUPLICATED);
+            }
+            throw e;
+        }
+
+    }
+
+    @Caching(evict = {
+            @CacheEvict(value = "hubs", key = "#hubId"),
+            @CacheEvict(value = "hubList", allEntries = true),
+            @CacheEvict(value = "hubRouteSegments", allEntries = true)
+    })
+    @Transactional
+    public HubDeleteResponse deleteHub(UUID hubId, UUID userId, Role role) {
+
+        if (!isMaster(role)) {
+            throw new BusinessException(HubErrorCode.HUB_FORBIDDEN);
+        }
+
+        Hub hub = findByHubId(hubId);
+        hub.delete(userId);
+
+        List<HubRoute> routes = hubRouteRepository.findAllByHubAndDeletedAtIsNull(hub);
+        routes.forEach(route -> route.delete(userId));
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                eventPublisher.publishHubDeleted(hubId, userId);
+            }
+        });
+
+        return HubDeleteResponse.from(hub);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HubBatchResponse> getHubsByIds(List<UUID> hubIds) {
+
+        return hubRepository.findAllByIdInAndDeletedAtIsNull(hubIds)
+                .stream()
+                .map(HubBatchResponse::from)
+                .toList();
+    }
+
+    public int count() {
+        return hubRepository.countByDeletedAtIsNull();
+    }
+
+    private Hub findByHubId(UUID hubId) {
+
+        return hubRepository.findByIdAndDeletedAtIsNull(hubId)
+                .orElseThrow(() -> new BusinessException(HubErrorCode.HUB_NOT_FOUND));
+    }
+
+    private boolean isMaster(Role role) {
+        return role.equals(Role.MASTER);
+    }
+}
