@@ -5,6 +5,13 @@ plugins {
 
 description = 'config-server'
 
+bootRun {
+    environment 'JWT_SECRET', project.findProperty('JWT_SECRET') ?: ''
+    environment 'POSTGRES_DB', project.findProperty('POSTGRES_DB') ?: 'logistics'
+    environment 'POSTGRES_USER', project.findProperty('POSTGRES_USER') ?: 'postgres'
+    environment 'POSTGRES_PASSWORD', project.findProperty('POSTGRES_PASSWORD') ?: 'postgres'
+}
+
 dependencies {
     // 1. 모니터링 및 기본 웹 기능
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
