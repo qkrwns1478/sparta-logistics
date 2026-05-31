@@ -1,5 +1,6 @@
 package com.sparta.logistics.company.client.feign;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparta.logistics.company.client.model.HubResponse;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class HubCacheService {
     private static final Duration TTL = Duration.ofMinutes(10);
 
     // @Cacheable 사용 시 타입 캐스팅 문제로 인해 RedisTemplate 기반 수동 캐시 처리
+    // 단건 조회
     public HubResponse getHub(UUID hubId) {
         String key = HUB_CACHE_PREFIX + hubId;
         String cached = redisTemplate.opsForValue().get(key);
@@ -54,9 +56,27 @@ public class HubCacheService {
         return response;
     }
 
+    // 배치 조회
     public Map<UUID, String> getHubNameMap(List<UUID> hubIds) {
-        return hubFeignClient.getHubsByIds(hubIds)
+        String key = "hubs-batch::" + hubIds.stream()
+                .sorted().map(UUID::toString).collect(Collectors.joining(","));
+        String cached = redisTemplate.opsForValue().get(key);
+        if (cached != null) {
+            try {
+                return objectMapper.readValue(cached, new TypeReference<Map<UUID, String>>() {});
+            } catch (Exception e) {
+                redisTemplate.delete(key);
+            }
+        }
+        Map<UUID, String> result = hubFeignClient.getHubsByIds(hubIds)
                 .stream()
                 .collect(Collectors.toMap(HubResponse::hubId, HubResponse::name));
+        try {
+            redisTemplate.opsForValue().set(
+                    key, objectMapper.writeValueAsString(result), Duration.ofMinutes(10));
+        } catch (Exception e) {
+            log.warn("[HubCacheService] 배치 캐시 저장 실패");
+        }
+        return result;
     }
 }
