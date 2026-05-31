@@ -9,7 +9,6 @@ import java.util.UUID;
 @Getter
 @Setter
 public class DeliverySearchCond {
-    // TODO: field check
     private UUID orderId;
     private DeliveryStatus status;
     private UUID sourceHubId;

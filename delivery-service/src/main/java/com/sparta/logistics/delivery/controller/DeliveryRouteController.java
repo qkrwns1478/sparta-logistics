@@ -1,6 +1,7 @@
 package com.sparta.logistics.delivery.controller;
 
 import com.sparta.logistics.common.domain.Role;
+import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.delivery.dto.log.DeliveryLogResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteResponse;
 import com.sparta.logistics.delivery.dto.route.DeliveryRouteUpdateRequest;
@@ -28,21 +29,19 @@ public class DeliveryRouteController {
     private final DeliveryRouteService routeService;
     private final DeliveryLogService logService;
 
-    // 배송경로 목록 조회
     @GetMapping("/routes")
-    public ResponseEntity<List<DeliveryRouteResponse>> getRouteList(
+    public ResponseEntity<ApiResponse<List<DeliveryRouteResponse>>> getRouteList(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestHeader(value = "X-User-CompanyId", required = false) UUID companyId
     ) {
-        return ResponseEntity.ok(routeService.getRouteList(deliveryId, userId, role, hubId, companyId));
+        return ResponseEntity.ok(ApiResponse.ok(routeService.getRouteList(deliveryId, userId, role, hubId, companyId)));
     }
 
-    // 배송경로 수정
     @PutMapping("/routes/{routeId}")
-    public ResponseEntity<DeliveryRouteResponse> updateRoute(
+    public ResponseEntity<ApiResponse<DeliveryRouteResponse>> updateRoute(
             @PathVariable UUID deliveryId,
             @PathVariable UUID routeId,
             @RequestHeader("X-User-Id") UUID userId,
@@ -50,30 +49,28 @@ public class DeliveryRouteController {
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestBody DeliveryRouteUpdateRequest request
     ) {
-        return ResponseEntity.ok(routeService.updateRoute(deliveryId, routeId, request, userId, role, hubId));
+        return ResponseEntity.ok(ApiResponse.ok(routeService.updateRoute(deliveryId, routeId, request, userId, role, hubId)));
     }
 
-    // 배송 이벤트 로그 조회
     @GetMapping("/logs")
-    public ResponseEntity<List<DeliveryLogResponse>> getLogs(
+    public ResponseEntity<ApiResponse<List<DeliveryLogResponse>>> getLogs(
             @PathVariable UUID deliveryId,
             @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId,
             @RequestHeader(value = "X-User-CompanyId", required = false) UUID companyId
     ) {
-        return ResponseEntity.ok(logService.getLogs(deliveryId, userId, role, hubId, companyId));
+        return ResponseEntity.ok(ApiResponse.ok(logService.getLogs(deliveryId, userId, role, hubId, companyId)));
     }
 
-    // 경로 담당자 강제 재배정
     @PatchMapping("/routes/{routeId}/reassign")
-    public ResponseEntity<DeliveryRouteResponse> reassignManager(
+    public ResponseEntity<ApiResponse<DeliveryRouteResponse>> reassignManager(
             @PathVariable UUID deliveryId,
             @PathVariable UUID routeId,
             @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader("X-User-Role") Role role,
             @RequestHeader(value = "X-User-HubId", required = false) UUID hubId
     ) {
-        return ResponseEntity.ok(routeService.reassignManager(routeId, userId, role, hubId));
+        return ResponseEntity.ok(ApiResponse.ok(routeService.reassignManager(routeId, userId, role, hubId)));
     }
 }
