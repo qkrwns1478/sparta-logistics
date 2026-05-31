@@ -8,7 +8,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 		"com.sparta.logistics.user",
 		"com.sparta.logistics.common"
 })
-@EnableFeignClients
+@EnableFeignClients(basePackages = "com.sparta.logistics.user.client")
 public class UserServiceApplication {
 
 	public static void main(String[] args) {

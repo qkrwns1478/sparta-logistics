@@ -1,0 +1,42 @@
+package com.sparta.logistics.user.auth.internal.command;
+
+import com.sparta.logistics.user.user.entity.UserEntity;
+import com.sparta.logistics.common.domain.Role;
+import com.sparta.logistics.user.user.enums.UserStatus;
+import lombok.Builder;
+
+import java.util.UUID;
+
+@Builder
+public record SignupCommand(
+        String username,
+        String password,
+        String name,
+        String email,
+        String slackId,
+        Role role,
+        UUID hubId,
+        UUID companyId
+
+) {
+
+    public UserEntity toEntity(String encodedPassword) {
+
+        UserEntity user = UserEntity.builder()
+                .username(username)
+                .password(encodedPassword)
+                .name(name)
+                .email(email)
+                .slackId(slackId)
+                .role(role)
+                .hubId(hubId)
+                .companyId(companyId)
+                .status(UserStatus.PENDING)
+                .build();
+
+        user.validateRoleConstraints();
+
+        return user;
+
+    }
+}

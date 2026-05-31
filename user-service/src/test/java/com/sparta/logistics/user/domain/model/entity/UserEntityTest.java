@@ -2,8 +2,9 @@ package com.sparta.logistics.user.domain.model.entity;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.user.domain.model.enums.UserStatus;
+import com.sparta.logistics.user.user.enums.UserStatus;
 import com.sparta.logistics.user.exception.UserErrorCode;
+import com.sparta.logistics.user.user.entity.UserEntity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

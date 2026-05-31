@@ -1,7 +1,7 @@
 package com.sparta.logistics.user.client;
 
 import com.sparta.logistics.common.exception.BusinessException;
-import com.sparta.logistics.user.application.validator.HubCompanyValidator;
+import com.sparta.logistics.user.user.service.validator.HubCompanyValidator;
 import com.sparta.logistics.user.client.support.FeignClientsTestBootApp;
 import com.sparta.logistics.user.exception.UserErrorCode;
 import feign.FeignException;

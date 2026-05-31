@@ -23,7 +23,7 @@ import org.springframework.context.annotation.ComponentScan;
 @EnableFeignClients(basePackageClasses = HubServiceClient.class)
 @ComponentScan(basePackages = {
         "com.sparta.logistics.user.client",
-        "com.sparta.logistics.user.application.validator"
+        "com.sparta.logistics.user.user.service.validator"
 })
 public class FeignClientsTestBootApp {
 }

@@ -32,7 +32,7 @@
 
 | 분류 | 기술                                                                                                                                                                                                                                                                                                                                 |
 |---|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Language / Framework | ![Java 17](https://img.shields.io/badge/Java_17-007396?style=flat&logo=java&logoColor=white) ![Spring Boot 3](https://img.shields.io/badge/Spring_Boot_3-6DB33F?style=flat&logo=springboot&logoColor=white) ![Spring Cloud](https://img.shields.io/badge/Spring_Cloud-6DB33F?style=flat&logo=spring&logoColor=white) |
+| Language / Framework | ![Java 17](https://img.shields.io/badge/Java_17-007396?style=flat&logo=java&logoColor=white) ![Spring Boot 3](https://img.shields.io/badge/Spring_Boot_3-6DB33F?style=flat&logo=springboot&logoColor=white) ![Spring Cloud](https://img.shields.io/badge/Spring_Cloud-6DB33F?style=flat&logo=spring&logoColor=white)  ![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat&logo=springsecurity&logoColor=white)|
 | Service Mesh | ![Netflix Eureka](https://img.shields.io/badge/Netflix_Eureka-20232A?style=flat&logo=netflix&logoColor=white) ![Spring Cloud Gateway](https://img.shields.io/badge/Spring_Cloud_Gateway-6DB33F?style=flat&logo=spring&logoColor=white) ![OpenFeign](https://img.shields.io/badge/OpenFeign-20232A?style=flat) |
 | Messaging | ![Apache Kafka 7.6](https://img.shields.io/badge/Apache_Kafka_7.6-231F20?style=flat&logo=apachekafka&logoColor=white)                                                                                                                                                                                                       |
 | Database | ![PostgreSQL 15](https://img.shields.io/badge/PostgreSQL_15-4169E1?style=flat&logo=postgresql&logoColor=white) ![Redis 7.2](https://img.shields.io/badge/Redis_7.2-DC382D?style=flat&logo=redis&logoColor=white)                                                                                                     |
@@ -112,6 +112,7 @@ Gradle로 기동하는 경우:
 | Eureka 대시보드 (서비스 등록 확인) | http://localhost:8761 |
 | API Gateway 헬스체크 | http://localhost:8080/actuator/health |
 | Zipkin 분산 추적 | http://localhost:9411 |
+| Swagger UI (Gateway 통합) | http://localhost:8080/swagger-ui.html |
 
 ---
 
