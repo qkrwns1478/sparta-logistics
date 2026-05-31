@@ -1,0 +1,25 @@
+package com.sparta.logistics.user.auth.dto.request;
+
+import com.sparta.logistics.user.auth.internal.command.LoginCommand;
+
+import jakarta.validation.constraints.NotBlank;
+
+public record LoginRequest( // 로그인 요청
+
+        @NotBlank(message = "아이디는 필수 입력값 입니다.")
+        String username,
+
+        @NotBlank(message = "비밀번호는 필수 입력값 입니다.")
+        String password
+){
+    public LoginCommand toCommand(){
+        return LoginCommand.builder()
+                .username(username)
+                .password(password)
+                .build();
+    }
+
+
+}
+
+
