@@ -1,51 +1,5 @@
-server:
-  port: 19091
-
 spring:
   application:
     name: user-service
   config:
     import: optional:configserver:http://localhost:8888
-
-  datasource:
-    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}?currentSchema=schema_user
-    username: ${POSTGRES_USER:postgres}
-    password: ${POSTGRES_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    properties:
-      hibernate:
-        default_schema: schema_user
-
-  data:
-    web:
-      pageable:
-        max-page-size: 50
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-
-  cloud:
-    openfeign:
-      circuitbreaker:
-        enabled: true
-        client:
-          config:
-            default:
-              connectTimeout: 3000
-              readTimeout: 5000
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      hub-service:
-        ignore-exceptions:
-          - feign.FeignException.NotFound
-      company-service:
-        ignore-exceptions:
-          - feign.FeignException.NotFound
-
-eureka:
-  instance:
-    instance-id: ${spring.application.name}:${server.port}

@@ -1,0 +1,42 @@
+server:
+  port: 19091
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}?currentSchema=schema_user
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    properties:
+      hibernate:
+        default_schema: schema_user
+
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+
+  data:
+    web:
+      pageable:
+        max-page-size: 50
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      hub-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
+      company-service:
+        ignore-exceptions:
+          - feign.FeignException.NotFound
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${server.port}
