@@ -7,7 +7,7 @@ import com.sparta.logistics.common.exception.GlobalExceptionHandler;
 import com.sparta.logistics.user.auth.internal.result.Token;
 import com.sparta.logistics.user.auth.internal.result.UserResult;
 import com.sparta.logistics.user.auth.service.AuthService;
-import com.sparta.logistics.user.validator.HubCompanyValidator;
+import com.sparta.logistics.user.user.service.validator.HubCompanyValidator;
 import com.sparta.logistics.user.auth.controller.AuthController;
 import com.sparta.logistics.user.user.enums.UserStatus;
 import com.sparta.logistics.user.exception.UserErrorCode;

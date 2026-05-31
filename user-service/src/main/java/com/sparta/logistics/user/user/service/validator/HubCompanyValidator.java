@@ -1,4 +1,4 @@
-package com.sparta.logistics.user.validator;
+package com.sparta.logistics.user.user.service.validator;
 
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.user.client.CompanyServiceClient;

@@ -26,7 +26,7 @@ import static com.sparta.logistics.common.domain.Role.HUB_MANAGER;
 import static com.sparta.logistics.common.domain.Role.MASTER;
 
 
-import com.sparta.logistics.user.validator.HubCompanyValidator;
+import com.sparta.logistics.user.user.service.validator.HubCompanyValidator;
 
 @RequiredArgsConstructor
 @RestController

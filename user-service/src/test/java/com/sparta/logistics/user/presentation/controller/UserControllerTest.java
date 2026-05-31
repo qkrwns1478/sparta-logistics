@@ -5,7 +5,7 @@ import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.common.exception.GlobalExceptionHandler;
 import com.sparta.logistics.user.user.service.UserService;
-import com.sparta.logistics.user.validator.HubCompanyValidator;
+import com.sparta.logistics.user.user.service.validator.HubCompanyValidator;
 import com.sparta.logistics.user.user.enums.UserStatus;
 import com.sparta.logistics.user.exception.UserErrorCode;
 import com.sparta.logistics.user.user.dto.response.DeleteResponse;

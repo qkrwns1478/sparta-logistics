@@ -24,7 +24,7 @@ import java.util.UUID;
 
 import static com.sparta.logistics.common.domain.Role.MASTER;
 
-import com.sparta.logistics.user.validator.HubCompanyValidator;
+import com.sparta.logistics.user.user.service.validator.HubCompanyValidator;
 
 @RestController
 @RequiredArgsConstructor
