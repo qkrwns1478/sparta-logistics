@@ -21,19 +21,36 @@ class DeliveryManagerEntityTest {
     }
 
     @Test
-    void assign호출시_WORKING으로_전환되고_sequence_증가() {
+    void assign호출시_WORKING으로_전환되고_sequence가_maxPlus1로_설정() {
         DeliveryManagerEntity m = manager();
-        int before = m.getDeliverySequence();
-        m.assign();
+        m.assign(5);
         assertThat(m.getStatus()).isEqualTo(DeliveryManagerStatus.WORKING);
-        assertThat(m.getDeliverySequence()).isEqualTo(before + 1);
+        assertThat(m.getDeliverySequence()).isEqualTo(6);
         assertThat(m.getLastAssignedAt()).isNotNull();
+    }
+
+    @Test
+    void assign시_sequence는_현재값_무관하게_maxPlus1() {
+        // A(seq=0), B(seq=0), C(seq=0) 상황에서 A 배정 후 max=2 → A.seq=3
+        DeliveryManagerEntity m = manager(); // seq=0
+        m.assign(2);
+        assertThat(m.getDeliverySequence()).isEqualTo(3);
+    }
+
+    @Test
+    void 순환_라운드로빈_배정_후_맨뒤로_이동() {
+        // A(0), B(1), C(2) 상황에서 A 배정 시 max=2 → A.seq=3
+        // 다음 선택 대상은 B(1)
+        DeliveryManagerEntity a = new DeliveryManagerEntity(UUID.randomUUID(), UUID.randomUUID(), "slack",
+                DeliveryManagerType.HUB_DELIVERY, 0);
+        a.assign(2); // max=2 (B=1, C=2)
+        assertThat(a.getDeliverySequence()).isEqualTo(3); // 맨 뒤로 이동
     }
 
     @Test
     void completeAssignment호출시_IDLE로_복귀() {
         DeliveryManagerEntity m = manager();
-        m.assign();
+        m.assign(0);
         m.completeAssignment();
         assertThat(m.getStatus()).isEqualTo(DeliveryManagerStatus.IDLE);
     }
@@ -49,7 +66,7 @@ class DeliveryManagerEntityTest {
     @Test
     void WORKING_중_삭제시_WITHDRAWN_유지_IDLE_아님() {
         DeliveryManagerEntity m = manager();
-        m.assign();
+        m.assign(0);
         m.delete(UUID.randomUUID());
         assertThat(m.getStatus()).isEqualTo(DeliveryManagerStatus.WITHDRAWN);
     }

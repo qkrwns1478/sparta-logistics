@@ -121,6 +121,7 @@ class DeliveryAssignmentServiceTest {
 
         // 이미 배정된 route라 새 manager 조회 안 함
         verify(deliveryManagerRepository, never()).findNextAssignee(any(), any(), any());
+        verify(deliveryManagerRepository, never()).findMaxDeliverySequence();
         assertThat(assigned.getHubDeliveryManagerId()).isEqualTo(existingManagerId);
     }
 
@@ -157,6 +158,7 @@ class DeliveryAssignmentServiceTest {
                 .thenReturn(List.of(secondRead)); // 2차(retry): 이미 배정됨
         when(deliveryManagerRepository.findNextAssignee(any(), any(), any()))
                 .thenReturn(Optional.of(manager));
+        when(deliveryManagerRepository.findMaxDeliverySequence()).thenReturn(0);
         when(deliveryLogRepository.save(any())).thenReturn(null);
 
         // 1차 배차 — 정상 배정
@@ -169,6 +171,61 @@ class DeliveryAssignmentServiceTest {
 
         // findNextAssignee는 1차에서 1회만 호출되어야 함 (2차에서 호출되면 이중 배정 위험)
         verify(deliveryManagerRepository, times(1)).findNextAssignee(any(), any(), any());
+    }
+
+    // ── 순환 라운드 로빈 — 배정 후 맨 뒤로 이동 ────────────────────────────────
+
+    @Test
+    void 배정된_담당자의_sequence는_maxPlus1로_설정() {
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryEntity d = delivery();
+        DeliveryRouteEntity r = route(d, RouteType.HUB_TO_HUB);
+
+        DeliveryManagerEntity manager = new DeliveryManagerEntity(
+                UUID.randomUUID(), r.getSourceHubId(), "slack", DeliveryManagerType.HUB_DELIVERY, 0);
+
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(d));
+        when(deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId))
+                .thenReturn(List.of(r));
+        when(deliveryManagerRepository.findNextAssignee(any(), any(), any()))
+                .thenReturn(Optional.of(manager));
+        when(deliveryManagerRepository.findMaxDeliverySequence()).thenReturn(3); // 현재 최대 순번
+        when(deliveryLogRepository.save(any())).thenReturn(null);
+
+        service.doAssignManagersForSystem(deliveryId);
+
+        // max=3 이므로 배정 후 sequence = 4 (맨 뒤로 이동)
+        assertThat(manager.getDeliverySequence()).isEqualTo(4);
+        assertThat(manager.getStatus()).isEqualTo(DeliveryManagerStatus.WORKING);
+    }
+
+    @Test
+    void 여러_구간_배정시_각각_maxPlus1로_순차_이동() {
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryEntity d = delivery();
+        DeliveryRouteEntity r1 = route(d, RouteType.HUB_TO_HUB);
+        DeliveryRouteEntity r2 = route(d, RouteType.HUB_TO_HUB);
+
+        DeliveryManagerEntity m1 = new DeliveryManagerEntity(
+                UUID.randomUUID(), r1.getSourceHubId(), "slack", DeliveryManagerType.HUB_DELIVERY, 0);
+        DeliveryManagerEntity m2 = new DeliveryManagerEntity(
+                UUID.randomUUID(), r2.getSourceHubId(), "slack", DeliveryManagerType.HUB_DELIVERY, 1);
+
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(d));
+        when(deliveryRouteRepository.findAllByDelivery_IdOrderBySequenceAsc(deliveryId))
+                .thenReturn(List.of(r1, r2));
+        when(deliveryManagerRepository.findNextAssignee(any(), any(), any()))
+                .thenReturn(Optional.of(m1))
+                .thenReturn(Optional.of(m2));
+        when(deliveryManagerRepository.findMaxDeliverySequence())
+                .thenReturn(2)  // r1 배정 시 max=2 → m1.seq=3
+                .thenReturn(3); // r2 배정 시 max=3 → m2.seq=4
+        when(deliveryLogRepository.save(any())).thenReturn(null);
+
+        service.doAssignManagersForSystem(deliveryId);
+
+        assertThat(m1.getDeliverySequence()).isEqualTo(3);
+        assertThat(m2.getDeliverySequence()).isEqualTo(4);
     }
 
     @Test
@@ -188,6 +245,7 @@ class DeliveryAssignmentServiceTest {
                 .thenReturn(List.of(assigned, unassigned));
         when(deliveryManagerRepository.findNextAssignee(any(), any(), any()))
                 .thenReturn(Optional.of(manager));
+        when(deliveryManagerRepository.findMaxDeliverySequence()).thenReturn(0);
         when(deliveryLogRepository.save(any())).thenReturn(null);
 
         service.doAssignManagersForSystem(deliveryId);
