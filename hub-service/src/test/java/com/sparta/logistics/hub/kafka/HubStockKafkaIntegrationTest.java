@@ -43,7 +43,6 @@ import static org.mockito.Mockito.when;
  *
  * - EmbeddedKafka: 실제 Kafka 브로커 없이 인메모리로 동작
  * - DirtiesContext: 테스트마다 컨텍스트 초기화 (토픽 오염 방지)
- * - CompanyClient: FeignClient라 실제 호출 불가 → MockBean으로 대체
  *
  * 의존성 필요:
  *   testImplementation 'org.springframework.kafka:spring-kafka-test'
@@ -89,10 +88,6 @@ class HubStockKafkaIntegrationTest {
     private Consumer<String, String> hubStockUpdatedConsumer;
     private Consumer<String, String> stockRestorationFailedConsumer;
 
-    // FeignClient는 실제 서버 없이 호출 불가 → Mock
-    @MockitoBean
-    private CompanyClient companyClient;
-
     private UUID hubId;
     private UUID productId;
     private UUID orderId;
@@ -108,7 +103,11 @@ class HubStockKafkaIntegrationTest {
         orderId = UUID.randomUUID();
         eventId = UUID.randomUUID();
         receiverCompanyId = UUID.randomUUID();
-        destinationHubId = UUID.randomUUID();
+
+        Hub destinationHub = Hub.create("목적지 허브 " + UUID.randomUUID(), "부산시 해운대구",
+                new BigDecimal("35.1"), new BigDecimal("129.1"));
+        destinationHub = hubRepository.save(destinationHub);
+        destinationHubId = destinationHub.getId();
 
         // Hub 저장 (name unique 제약으로 인해 매 테스트마다 다른 이름 사용)
         Hub hub = Hub.create("테스트 허브 " + UUID.randomUUID(), "서울시 강남구", new BigDecimal("37.5"), new BigDecimal("127.0"));
@@ -118,11 +117,6 @@ class HubStockKafkaIntegrationTest {
         // HubStock 저장 (재고 100개)
         HubStock hubStock = HubStock.create(hub, productId, 100);
         hubStockRepository.save(hubStock);
-
-        // CompanyClient 모킹: receiverCompanyId → destinationHubId 반환
-        // FeignClient는 실제 서버 없이 호출 불가하므로 Mock으로 대체
-        CompanyResponse companyResponse = new CompanyResponse(destinationHubId);
-        when(companyClient.getCompany(receiverCompanyId)).thenReturn(companyResponse);
 
         // stock.reserved 검증용 테스트 Consumer
         // HubStockEventConsumer(@KafkaListener)와 별개로 발행된 메시지를 직접 읽기 위해 생성
@@ -179,6 +173,8 @@ class HubStockKafkaIntegrationTest {
                 .eventId(eventId)
                 .orderId(orderId)
                 .receiverCompanyId(receiverCompanyId)
+                .sourceHubId(hubId)
+                .destinationHubId(destinationHubId)
                 .orderItems(List.of(
                         OrderItemPayload.builder()
                                 .orderItemId(orderItemId)
@@ -228,6 +224,8 @@ class HubStockKafkaIntegrationTest {
                 .eventId(eventId)
                 .orderId(orderId)
                 .receiverCompanyId(receiverCompanyId)
+                .sourceHubId(hubId)
+                .destinationHubId(destinationHubId)
                 .orderItems(List.of(
                         OrderItemPayload.builder()
                                 .orderItemId(orderItemId)
@@ -414,6 +412,8 @@ class HubStockKafkaIntegrationTest {
                 .eventId(eventId)
                 .orderId(orderId)
                 .receiverCompanyId(receiverCompanyId)
+                .sourceHubId(hubId)
+                .destinationHubId(destinationHubId)
                 .orderItems(List.of(
                         OrderItemPayload.builder()
                                 .orderItemId(orderItemId)
