@@ -43,13 +43,13 @@ public class FeignCallService {
 
     @Retry(name = "feign-call", fallbackMethod = "recoverFetchRouteSegments")
     public List<HubRouteSegmentResponse> fetchRouteSegments(UUID sourceHubId, UUID destinationHubId) {
-        return hubServiceClient.getRouteSegments(sourceHubId, destinationHubId);
+        return hubServiceClient.getRouteSegments(sourceHubId, destinationHubId).data();
     }
 
     public List<HubRouteSegmentResponse> recoverFetchRouteSegments(
-            UUID sourceHubId, UUID destinationHubId, Exception e) {
+        UUID sourceHubId, UUID destinationHubId, Exception e) {
         log.warn("[Feign] hub-service 재시도 초과 — sourceHubId={}, destinationHubId={}",
-                sourceHubId, destinationHubId);
+            sourceHubId, destinationHubId);
         throw new BusinessException(DeliveryErrorCode.HUB_SERVICE_UNAVAILABLE);
     }
 }

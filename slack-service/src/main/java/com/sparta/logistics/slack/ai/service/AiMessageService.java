@@ -1,5 +1,6 @@
 package com.sparta.logistics.slack.ai.service;
 
+import com.sparta.logistics.common.kafka.event.AiDeadlineCalculatedEvent;
 import com.sparta.logistics.slack.ai.client.GeminiApiClient;
 import com.sparta.logistics.slack.ai.client.HubFeignClient;
 import com.sparta.logistics.slack.ai.client.OrderFeignClient;
@@ -14,8 +15,10 @@ import com.sparta.logistics.slack.sender.SlackApiSender;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -26,10 +29,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiMessageService {
 
+  private final KafkaTemplate<String, Object> kafkaTemplate;
   private final GeminiApiClient geminiApiClient;
   private final HubFeignClient hubFeignClient;
   private final OrderFeignClient orderFeignClient;
-  private final UserFeignClient userFeignClient;
+  //private final UserFeignClient userFeignClient; //아래 예외 로직 복구시 같이 복구
   private final DeliveryPromptTemplate promptTemplate;
   private final AiLogRepository aiLogRepository;
   private final SlackApiSender slackApiSender;
@@ -45,15 +49,17 @@ public class AiMessageService {
       // 1. 허브 데이터 조회 (출발지/도착지 허브 이름 가져오기) 실패 시 기본값
       Map<UUID, String> hubNameMap = new HashMap<>();
       try {
-        HubFeignClient.HubResponseDto sourceHub = hubFeignClient.getHub(event.getSourceHubId()).data();
-        HubFeignClient.HubResponseDto destHub = hubFeignClient.getHub(event.getDestinationHubId()).data();
+        String systemUserId = UUID.randomUUID().toString();
+
+        HubFeignClient.HubResponseDto sourceHub = hubFeignClient.getHub(event.getSourceHubId(), systemUserId, "MASTER").data();
+        HubFeignClient.HubResponseDto destHub = hubFeignClient.getHub(event.getDestinationHubId(), systemUserId, "MASTER").data();
 
         hubNameMap.put(sourceHub.hubId(), sourceHub.name());
         hubNameMap.put(destHub.hubId(), destHub.name());
       } catch (Exception e) {
         log.error("허브 서버 통신 실패로 출발/도착 허브 정보를 알 수 없습니다!");
         log.error("요청한 SourceHubId:{}, DestHubId: {}", event.getSourceHubId(), event.getDestinationHubId());
-        log.error("실패 원인: {}",e.getMessage());
+        log.error("실패 원인: {}", e.getMessage());
 
         throw new RuntimeException("필수 배송 정보(출발/도착 허브 이름) 누락으로 기사님 알림 발송이 취소되었습니다.");
       }
@@ -61,7 +67,8 @@ public class AiMessageService {
       //2. 주문 서비스에서 데이터 가져오기
       OrderFeignClient.OrderResponseDto orderData;
       try {
-        orderData = orderFeignClient.getOrder(event.getOrderId()).data();
+        String systemUserId = UUID.randomUUID().toString();
+        orderData = orderFeignClient.getOrder(event.getOrderId(), systemUserId, "MASTER").data();
         //필수 데이터가 비어있다면 강제로 에러를 던져 Fallback으로 넘김
         if (orderData == null || orderData.orderItems() == null || orderData.orderItems().isEmpty()) {
           throw new IllegalArgumentException("주문 상품 정보가 비어있습니다.");
@@ -79,42 +86,67 @@ public class AiMessageService {
       //3-2. Gemini API 호출
       GeminiApiClient.AiMessageResult aiResult = geminiApiClient.generateDeliveryDeadlineMessage(fullPrompt);
 
+      //슬랙과 AI로그를 연결할 공통 ID 생성
+      UUID slackMessageId = UUID.randomUUID();
+
+      LocalDateTime finalDeadlineAt = LocalDateTime.now().plusMinutes(event.getTotalEstimatedDuration() + 60);
+
       //4. AI 로그 저장 (성공)
       aiLogRepository.save(
           AiLog.builder()
-              .promptData(fullPrompt)
-              .responseMessage(aiResult.message())
-              .totalTokens(aiResult.totalTokens())
-              .success(true)
+              .slackMessageId(slackMessageId)
+              .orderId(event.getOrderId())
+              .requestType(AiLog.AiRequestType.DEADLINE)
+              .requestContent(fullPrompt)
+              .responseContent(aiResult.message())
+              .status(AiLog.AiLogStatus.SUCCESS)
               .build()
       );
 
-      //5. 슬랙 발송
+      //5. 슬랙 타겟 ID (현재는 테스트용으로 고정 ID 사용)
       String targetSlackId = receiverSlackId;
 
-      if (orderData.requesterUserId() != null) {
-        try {
-          UserFeignClient.UserResponseDto userData =
-              userFeignClient.getUser(UUID.fromString(orderData.requesterUserId())).data();
+      /*
+     if (orderData.requesterUserId() != null) {
+            try {
+              String systemUserId = java.util.UUID.randomUUID().toString();
+              UserFeignClient.UserWrapper userResponse =
+                  userFeignClient.getUser(UUID.fromString(orderData.requesterUserId()), systemUserId, "MASTER");
 
-          if (userData != null && userData.slackId() != null && !userData.slackId().isEmpty()) {
-            targetSlackId = userData.slackId();
-            log.info("유저 서버 통신 성공! 슬랙 ID 수신:{}", targetSlackId);
+              if (userResponse != null && userResponse.data() != null && userResponse.data().slackId() != null) {
+                targetSlackId = userResponse.data().slackId();
+                log.info("유저 서버 통신 성공! 슬랙 ID 수신:{}", targetSlackId);
+              }
+            } catch (Exception e) {
+              log.warn("유저 통신 실패 - 기본 슬랙 ID로 대체합니다. 원인: {}", e.getMessage());
+            }
           }
-        } catch (Exception e) {
-          log.warn("유저 통신 실패 - 기본 슬랙 ID로 대체합니다. 원인: {}", e.getMessage());
-        }
+     */
+
+      if (targetSlackId == null || targetSlackId.isBlank()) {
+        log.warn("배송 담당자의 슬랙 ID가 null입니다. 테스트용 ID로 우회 발송합니다.");
+        targetSlackId = receiverSlackId;
       }
 
-      //최종 슬랙 발송
+      //6. 최종 슬랙 발송
       slackApiSender.send(
-          UUID.randomUUID(),
+          slackMessageId,
           targetSlackId,
           aiResult.message(),
           MessageType.AI_DELIVERY_DEADLINE,
           RelatedType.DELIVERY,
           event.getDeliveryId()
       );
+
+      AiDeadlineCalculatedEvent calculatedEvent = AiDeadlineCalculatedEvent.builder()
+          .eventId(UUID.randomUUID())
+          .deliveryId(event.getDeliveryId())
+          .orderId(event.getOrderId())
+          .finalDispatchDeadlineAt(finalDeadlineAt)
+          .build();
+
+      kafkaTemplate.send("ai.deadline.aclculated", calculatedEvent);
+      log.info("AI 마감 시한 산출 이벤트 발행 완료. DeliveryId {}", event.getDeliveryId());
 
       return aiResult.message();
 
@@ -123,15 +155,15 @@ public class AiMessageService {
       log.error("Gemini API 서버 오류 발생! 카프카 재시도를 위해 예외를 던집니다.");
       throw e;
     } catch (Exception e) {
-      //6. AI 로그 저장 (실패) DB에 저장
+      //7. AI 로그 저장 (실패) DB에 저장
       log.error("AI 배송 마감 메시지 생성 중 예외 발생: ", e);
       aiLogRepository.save(
           AiLog.builder()
-              .promptData(fullPrompt.isEmpty() ? "데이터 조합 실패" : fullPrompt)
-              .responseMessage("AI 메시지 생성 실패")
-              .totalTokens(0)
-              .success(false)
-              .errorMessage(e.getMessage())
+              .orderId(event.getOrderId())
+              .requestType(AiLog.AiRequestType.DEADLINE)
+              .requestContent(fullPrompt.isEmpty() ? "데이터 조합 실패" : fullPrompt)
+              .responseContent("AI 메시지 생성 실패" + e.getMessage())
+              .status(AiLog.AiLogStatus.FAILED)
               .build()
       );
       throw e;
@@ -143,6 +175,8 @@ public class AiMessageService {
     int fallbackDurationMin = event.getTotalEstimatedDuration() + 120;
     double fallbackHours = fallbackDurationMin / 60.0;
 
+    LocalDateTime fallbackDeadlineAt = LocalDateTime.now().plusMinutes(fallbackDurationMin);
+
     String fallbackMessage = """
         [시스템 자동 계산 안내]
         주문 번호: %s
@@ -151,23 +185,36 @@ public class AiMessageService {
         담당자께서는 해당 시간 내에 처리를 부탁드립니다.
         """.formatted(event.getOrderId(), fallbackHours);
 
+    //Fallback ID
+    UUID fallbackSlackMsgId = UUID.randomUUID();
+
     //Fallback 메시지를 슬랙으로 발송 (배송 흐름 정상화)
     slackApiSender.send(
         UUID.randomUUID(), receiverSlackId, fallbackMessage,
         MessageType.AI_DELIVERY_DEADLINE, RelatedType.DELIVERY, event.getDeliveryId()
     );
 
+    //Fallback 로그 저장
     aiLogRepository.save(
         AiLog.builder()
-            .promptData("주문 도메인 데이터 누락으로 AI 프롬프트 생성 생략")
-            .responseMessage(fallbackMessage)
-            .totalTokens(0)
-            .success(false)
-            .errorMessage("Fallback 로직 발동 (주문 데이터 조회 실패)")
+            .slackMessageId(fallbackSlackMsgId)
+            .orderId(event.getOrderId())
+            .requestType(AiLog.AiRequestType.DEADLINE)
+            .requestContent("주문 도메인 데이터 누락으로 AI 프롬프트 생성 생략")
+            .responseContent(fallbackMessage)
+            .status(AiLog.AiLogStatus.FAILED)
             .build()
     );
 
-    //Fallback 로그
+    AiDeadlineCalculatedEvent fallbackEvent = AiDeadlineCalculatedEvent.builder()
+        .eventId(UUID.randomUUID())
+        .deliveryId(event.getDeliveryId())
+        .orderId(event.getOrderId())
+        .finalDispatchDeadlineAt(fallbackDeadlineAt)
+        .build();
+
+    kafkaTemplate.send("ai.deadline.calculated", fallbackEvent);
+
     log.info("Fallback 슬랙 메시지 발송 및 DB 저장 완료: {}", event.getDeliveryId());
     return fallbackMessage;
   }
@@ -178,7 +225,6 @@ public class AiMessageService {
       OrderFeignClient.OrderResponseDto orderData) {
 
     double durationHours = event.getTotalEstimatedDuration() / 60.0;
-
     String customerRequest = orderData.customerRequest() != null ? orderData.customerRequest() : "없음";
     String productInfo = orderData.orderItems().stream()
         .map(item -> item.productName() + " " + item.quantity() + "개")

@@ -22,34 +22,37 @@ import java.time.Duration;
 @Configuration
 public class CacheConfig {
 
-    @Bean
-    public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+  @Bean
+  public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
 
-        BasicPolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType("com.sparta.logistics")
-                .allowIfSubType("org.springframework.data.domain")
-                .build();
+    BasicPolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+        .allowIfSubType("com.sparta.logistics")
+        .allowIfSubType("org.springframework.data.domain")
+        .allowIfSubType("java.util")
+        .allowIfSubType("java.math")
+        .allowIfBaseType(java.lang.Object.class)
+        .build();
 
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        objectMapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
+    ObjectMapper objectMapper = new ObjectMapper();
+    objectMapper.registerModule(new JavaTimeModule());
+    objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    objectMapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.EVERYTHING, JsonTypeInfo.As.PROPERTY);
 
-        GenericJackson2JsonRedisSerializer serializer =
-                new GenericJackson2JsonRedisSerializer(objectMapper);
+    GenericJackson2JsonRedisSerializer serializer =
+        new GenericJackson2JsonRedisSerializer(objectMapper);
 
-        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofHours(6))
-                .serializeKeysWith(
-                        RedisSerializationContext.SerializationPair
-                                .fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(
-                        RedisSerializationContext.SerializationPair
-                                .fromSerializer(serializer));
+    RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+        .entryTtl(Duration.ofHours(6))
+        .serializeKeysWith(
+            RedisSerializationContext.SerializationPair
+                .fromSerializer(new StringRedisSerializer()))
+        .serializeValuesWith(
+            RedisSerializationContext.SerializationPair
+                .fromSerializer(serializer));
 
-        return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(config)
-                .build();
-    }
+    return RedisCacheManager.builder(connectionFactory)
+        .cacheDefaults(config)
+        .build();
+  }
 }

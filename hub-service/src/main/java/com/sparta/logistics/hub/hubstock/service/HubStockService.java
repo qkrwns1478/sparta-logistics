@@ -194,6 +194,7 @@ public class HubStockService {
         }
     }
 
+
     @Transactional
     public void reserveStock(OrderCreatedEvent event) {
 
@@ -227,10 +228,11 @@ public class HubStockService {
             throw new KafkaSkipException("허브 조회 실패 - orderId: " + event.getOrderId());
         }
 
-        // stock.reserved 발행 시 필요한 리스트
-        List<StockReservedItemPayload> reservedItems = new ArrayList<>();
 
-        List<OrderItemPayload> succeededItems = new ArrayList<>();
+    // stock.reserved 발행 시 필요한 리스트
+    List<StockReservedItemPayload> reservedItems = new ArrayList<>();
+
+    List<OrderItemPayload> succeededItems = new ArrayList<>();
 
         for (OrderItemPayload item : event.getOrderItems()) {
 
@@ -265,28 +267,27 @@ public class HubStockService {
                 throw new KafkaSkipException("재고 예약 실패 - orderId: " + event.getOrderId());
             }
 
-            reservedItems.add(StockReservedItemPayload.builder()
-                    .orderItemId(item.getOrderItemId())
-                    .productId(item.getProductId())
-                    .reservedQuantity(item.getQuantity())
-                    .sourceHubId(item.getHubId())
-                    .build()
-            );
-        }
-
-        // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)
-        StockReservedEvent reservedEvent = StockReservedEvent.builder()
-                .eventId(event.getEventId())
-                .orderId(event.getOrderId())
-                .destinationHubId(destinationHubId)
-                .orderItems(reservedItems)
-                .receiverId(event.getReceiverId())
-                .deliveryAddress(event.getDeliveryAddress())
-                .sourceHubName(sourceHubName)
-                .destinationHubName(destinationHubName)
-                .build();
-        registerStockReservedEvent(reservedEvent);
+      reservedItems.add(StockReservedItemPayload.builder()
+          .orderItemId(item.getOrderItemId())
+          .productId(item.getProductId())
+          .reservedQuantity(item.getQuantity())
+          .sourceHubId(item.getHubId())
+          .build()
+      );
     }
+
+    // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)
+    StockReservedEvent reservedEvent = StockReservedEvent.builder()
+        .eventId(event.getEventId())
+        .orderId(event.getOrderId())
+        .receiverId(event.getReceiverId())
+        .sourceHubId(event.getSourceHubId())
+        .destinationHubId(event.getDestinationHubId())
+        .deliveryAddress(event.getDeliveryAddress())
+        .orderItems(reservedItems)
+        .build();
+    registerStockReservedEvent(reservedEvent);
+  }
 
     @Transactional
     public void deductReservedStock(DeliveryStartedEvent event) {
@@ -426,17 +427,17 @@ public class HubStockService {
 
     private <T> T executeWithLock(Supplier<T> optimistic, Supplier<T> pessimistic) {
 
-        for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
-            try {
-                return optimistic.get();
-            } catch (OptimisticLockingFailureException e) {
-                if (attempt == MAX_RETRY - 1) {
-                    return pessimistic.get();
-                }
-            }
+    for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
+      try {
+        return optimistic.get();
+      } catch (OptimisticLockingFailureException e) {
+        if (attempt == MAX_RETRY - 1) {
+          return pessimistic.get();
         }
-        throw new BusinessException(HubStockErrorCode.HUB_STOCK_ADJUST_FAILED);
+      }
     }
+    throw new BusinessException(HubStockErrorCode.HUB_STOCK_ADJUST_FAILED);
+  }
 
     private void checkHubStockPermission(Role role, UUID userHubId, UUID hubId) {
 

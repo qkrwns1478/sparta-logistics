@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -13,6 +14,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class DeliveryCreatedEvent {
   private String eventId;
   private UUID deliveryId;
@@ -23,8 +25,6 @@ public class DeliveryCreatedEvent {
   private Integer totalDeliveryCount;
   private String deliveryAddress; //최종 배송지 주소
   private int totalEstimatedDuration; // 총 소요시간
-
-  @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
   private LocalDateTime createdAt; //소요 시간 계산 기준
 
 }

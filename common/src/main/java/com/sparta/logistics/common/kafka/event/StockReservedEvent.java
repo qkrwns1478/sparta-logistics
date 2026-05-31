@@ -22,19 +22,21 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class StockReservedEvent {
+    private UUID receiverId;
     private UUID eventId;
     private UUID orderId;
+
+    private UUID sourceHubId;
     // 도착 허브 ID (수령 업체 소속 허브)
     private UUID destinationHubId;
     // 예약 완료된 항목 목록 (각 항목이 sourceHubId를 개별로 보유)
     private List<StockReservedItemPayload> orderItems;
     private Integer totalDeliveryCount;
-    // 수령인 ID (Slack ID 조회용) - order.created에서 pass-through
-    private UUID receiverId;
     // 최종 배송지 - order.created에서 pass-through
     private String deliveryAddress;
     // 출발 허브명 (AI 경로 계산용)
-    private String sourceHubName;
+    //private String sourceHubName;
     // 도착 허브명 (AI 경로 계산용)
-    private String destinationHubName;
+    //private String destinationHubName;
+
 }

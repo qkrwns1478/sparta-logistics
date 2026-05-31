@@ -3,6 +3,8 @@ package com.sparta.logistics.slack.ai.entity;
 import com.sparta.logistics.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -13,6 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -20,24 +23,46 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@Table(name = "p_ai_logs")
+@Table(name = "p_ai_log")
 public class AiLog extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
-  @Column(nullable = false, columnDefinition = "TEXT")
-  private String promptData;
+  @Column(name = "slack_message_id")
+  private UUID slackMessageId;
 
-  @Column(nullable = false, columnDefinition = "TEXT")
-  private String responseMessage;
+  @Column(name = "order_id")
+  private UUID orderId;
 
-  @Column(nullable = false)
-  private Integer totalTokens;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "request_type", length = 50)
+  private AiRequestType requestType;
 
-  @Column(nullable = false)
-  private  Boolean success;
+  @Column(name = "request_content", columnDefinition = "TEXT")
+  private String requestContent;
 
-  private String errorMessage;
+  @Column(name ="response_content", columnDefinition = "TEXT")
+  private String responseContent;
+
+  @Column(name ="system_prompt", columnDefinition = "TEXT")
+  private String systemPrompt;
+
+  @Column(name ="final_deadline_at")
+  private LocalDateTime finalDeadLineAt;
+
+  @Enumerated(EnumType.STRING)
+  @Column(length = 50)
+  private AiLogStatus status;
+
+  public enum AiRequestType{
+    DEADLINE, ROUTE
+  }
+
+  public enum AiLogStatus{
+    PENDING, SUCCESS, RETRY, FAILED
+  }
+
+
 }

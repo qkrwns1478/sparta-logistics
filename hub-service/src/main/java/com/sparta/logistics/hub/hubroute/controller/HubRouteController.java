@@ -2,6 +2,7 @@ package com.sparta.logistics.hub.hubroute.controller;
 
 import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.response.ApiResponse;
+import com.sparta.logistics.hub.hubroute.dto.HubRouteSegmentListCacheDto;
 import com.sparta.logistics.hub.hubroute.dto.request.CreateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.request.UpdateHubRouteRequest;
 import com.sparta.logistics.hub.hubroute.dto.response.*;
@@ -84,8 +85,8 @@ public class HubRouteController {
             @RequestParam UUID sourceHubId,
             @RequestParam UUID destinationHubId) {
 
-        List<HubRouteSegmentResponse> response = hubRouteService.getHubRouteSegments(sourceHubId, destinationHubId);
+        HubRouteSegmentListCacheDto cacheDto = hubRouteService.getHubRouteSegments(sourceHubId, destinationHubId);
 
-        return ResponseEntity.ok(ApiResponse.ok(response));
+        return ResponseEntity.ok(ApiResponse.ok(cacheDto.getSegments()));
     }
 }

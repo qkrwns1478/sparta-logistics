@@ -1,9 +1,11 @@
 package com.sparta.logistics.delivery.client;
 
+import com.sparta.logistics.common.response.ApiResponse;
 import com.sparta.logistics.delivery.client.response.HubRouteSegmentResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
@@ -18,7 +20,7 @@ public interface HubServiceClient {
     void checkHubExists(@PathVariable("hubId") UUID hubId);
 
     @GetMapping("/api/v1/hub-routes/segments")
-    List<HubRouteSegmentResponse> getRouteSegments(
+    ApiResponse<List<HubRouteSegmentResponse>> getRouteSegments(
             @RequestParam("sourceHubId") UUID sourceHubId,
             @RequestParam("destinationHubId") UUID destinationHubId
     );
