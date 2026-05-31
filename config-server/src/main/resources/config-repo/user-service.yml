@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}?currentSchema=schema_user
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_user
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver

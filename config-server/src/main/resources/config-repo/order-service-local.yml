@@ -8,9 +8,9 @@ spring:
       port: ${REDIS_PORT:6379}
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}?currentSchema=schema_order
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:logistics}?currentSchema=schema_order
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
