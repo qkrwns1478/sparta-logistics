@@ -119,7 +119,8 @@ public class DeliveryAssignmentService {
                         return new BusinessException(DeliveryErrorCode.NO_AVAILABLE_MANAGER);
                     });
 
-            manager.assign();
+            int maxSeq = deliveryManagerRepository.findMaxDeliverySequence();
+            manager.assign(maxSeq);
             route.assignManager(manager.getId());
 
             // COMPANY_DELIVERY 담당자는 Delivery 본체에도 기록
@@ -195,7 +196,8 @@ public class DeliveryAssignmentService {
                 continue;
             }
 
-            manager.assign();
+            int maxSeq = deliveryManagerRepository.findMaxDeliverySequence();
+            manager.assign(maxSeq);
             route.assignManager(manager.getId());
 
             if (managerType == DeliveryManagerType.COMPANY_DELIVERY) {

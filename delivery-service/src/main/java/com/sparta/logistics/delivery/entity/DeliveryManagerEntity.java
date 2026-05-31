@@ -68,9 +68,9 @@ public class DeliveryManagerEntity extends BaseEntity {
         this.status = next;
     }
 
-    public void assign() {
+    public void assign(int maxSequence) {
         this.status = DeliveryManagerStatus.WORKING;
-        this.deliverySequence += 1;
+        this.deliverySequence = maxSequence + 1;
         this.lastAssignedAt = LocalDateTime.now();
     }
 
