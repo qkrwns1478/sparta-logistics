@@ -154,7 +154,8 @@ public class DeliveryRouteService {
                     return new BusinessException(DeliveryErrorCode.NO_AVAILABLE_MANAGER);
                 });
 
-        newManager.assign();
+        int maxSeq = managerRepository.findMaxDeliverySequence();
+        newManager.assign(maxSeq);
         route.assignManager(newManager.getId());
 
         if (managerType == DeliveryManagerType.COMPANY_DELIVERY) {

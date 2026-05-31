@@ -170,7 +170,7 @@ class DeliveryRouteServiceTest {
 
         DeliveryManagerEntity manager = new DeliveryManagerEntity(managerId, UUID.randomUUID(),
                 "slack", DeliveryManagerType.HUB_DELIVERY, 0);
-        manager.assign();
+        manager.assign(0);
         when(managerRepository.findById(managerId)).thenReturn(Optional.of(manager));
 
         service.updateRoute(deliveryId, routeId,
