@@ -66,7 +66,7 @@ public class AuthController {
 
         return ResponseEntity.ok()
                 .headers(headers)
-                .body(ApiResponse.ok("로그인이 성공적으로 완료되었습니다..",LoginResponse.from(token.accessToken() ,token.userResult())));
+                .body(ApiResponse.ok("로그인이 성공적으로 완료되었습니다.",LoginResponse.from(token.accessToken() ,token.userResult())));
     }
 
     // 토큰 갱신
