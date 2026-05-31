@@ -55,7 +55,6 @@ public class OrderEventPublisher {
         outboxEventPublisher.publish(KafkaTopics.ORDER_CREATED, order.getId().toString(), "ORDER", event);
         log.info("[Outbox] order.created 저장 orderId={} itemCount={}", order.getId(), payloads.size());
     }
-  }
 
 
     /**
@@ -72,7 +71,6 @@ public class OrderEventPublisher {
         outboxEventPublisher.publish(KafkaTopics.CANCEL_DELIVERY_COMMAND, orderId.toString(), "ORDER", command);
         log.info("[Outbox] cancel.delivery.command 저장 orderId={}", orderId);
     }
-  }
 
 
     /**
@@ -90,4 +88,3 @@ public class OrderEventPublisher {
         log.info("[Outbox] restore.stock.command 저장 orderId={} itemCount={}", orderId, items.size());
     }
   }
-}
