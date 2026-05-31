@@ -133,8 +133,7 @@ public class OrderService {
             throw new BusinessException(OrderErrorCode.ORDER_DELETE_PERMISSION_DENIED);
         }
 
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+        Order order = findOrder(orderId);
 
         // CANCELLED 또는 COMPLETED 상태의 주문만 삭제 가능
         if (!order.isDeletable()) {
@@ -142,6 +141,7 @@ public class OrderService {
         }
 
         order.delete(userId);
+        orderDeliveryRepository.deleteByOrderId(orderId);
     }
 
     // ===== 주문 생성 Choreography Saga =====
