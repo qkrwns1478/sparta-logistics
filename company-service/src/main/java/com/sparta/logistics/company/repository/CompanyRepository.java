@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -41,15 +40,4 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
      * - deleted_at IS NULL 조건은 @SQLRestriction 자동 적용
      */
     boolean existsById(UUID id);
-
-    /**
-     * 삭제된 업체 포함 단건 조회 (논리 삭제 처리 시 사용)
-     * - @SQLRestriction을 위회하기 위해 nativeQuery
-     */
-    @Query(value = """
-            SELECT * FROM schema_company.p_company WHERE id = :id
-            """, nativeQuery = true)
-    Optional<Company> findByIncludingDeleted(@Param("id") UUID id);
-
-
 }

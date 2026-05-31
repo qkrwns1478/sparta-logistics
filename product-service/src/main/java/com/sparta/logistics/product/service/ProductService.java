@@ -161,14 +161,6 @@ public class ProductService {
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
     }
 
-    private void validateCompanyExists(UUID companyId) {
-        try {
-            companyFeignClient.checkCompanyExists(companyId);
-        } catch (FeignException.NotFound e) {
-            throw new BusinessException(ProductErrorCode.EXTERNAL_COMPANY_NOT_FOUND);
-        }
-    }
-
     private void validateCreatePermission(
             Role role, UUID userHubId, UUID userCompanyId,
             UUID targetHubId, UUID targetCompanyId) {
