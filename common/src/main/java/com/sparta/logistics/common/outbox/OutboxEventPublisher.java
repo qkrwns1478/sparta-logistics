@@ -4,14 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 /**
  * 호출 시점 트랜잭션에 참여해 Outbox 이벤트를 DB에 저장하는 공통 컴포넌트
  * 실제 Kafka 발행은 OutboxEventRelay가 별도 스케줄로 담당함
+ * 빈 등록은 OutboxAutoConfiguration이 담당함 (OutboxEventRepository 빈이 있을 때만 활성화)
  **/
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class OutboxEventPublisher {
 
