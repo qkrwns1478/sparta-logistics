@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCreatedEvent;
+import com.sparta.logistics.common.outbox.EventDeduplicator;
 import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.lock.OrderProcessStatus;
@@ -32,6 +33,7 @@ public class DeliveryCreatedConsumer {
     private final OrderService orderService;
     private final KafkaMessageParser parser;
     private final OrderLockManager orderLockManager;
+    private final EventDeduplicator deduplicator;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CREATED,
@@ -39,6 +41,9 @@ public class DeliveryCreatedConsumer {
     )
     public void consume(String message) {
         parser.parse(message, DeliveryCreatedEvent.class).ifPresent(event -> {
+            if (deduplicator.isDuplicate(event.getEventId(), KafkaTopics.DELIVERY_CREATED)) {
+                return;
+            }
             UUID orderId = event.getOrderId();
 
             if (isCancelling(orderId)) {

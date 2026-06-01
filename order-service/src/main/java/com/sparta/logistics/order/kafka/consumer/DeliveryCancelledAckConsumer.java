@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCancelledAckEvent;
+import com.sparta.logistics.common.outbox.EventDeduplicator;
 import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class DeliveryCancelledAckConsumer {
 
     private final OrderService orderService;
     private final KafkaMessageParser parser;
+    private final EventDeduplicator deduplicator;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CANCELLED_ACK,
@@ -31,6 +33,9 @@ public class DeliveryCancelledAckConsumer {
     )
     public void consume(String message) {
         parser.parse(message, DeliveryCancelledAckEvent.class).ifPresent(event -> {
+            if (deduplicator.isDuplicate(event.getEventId(), KafkaTopics.DELIVERY_CANCELLED_ACK)) {
+                return;
+            }
             log.info("[delivery.cancelled.ack] 수신 orderId={} deliveryId={}",
                     event.getOrderId(), event.getDeliveryId());
             orderService.handleDeliveryCancelled(event.getOrderId());

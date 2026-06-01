@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockRestoredAckEvent;
+import com.sparta.logistics.common.outbox.EventDeduplicator;
 import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class StockRestoredAckConsumer {
 
     private final OrderService orderService;
     private final KafkaMessageParser parser;
+    private final EventDeduplicator deduplicator;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESTORED_ACK,
@@ -31,6 +33,9 @@ public class StockRestoredAckConsumer {
     )
     public void consume(String message) {
         parser.parse(message, StockRestoredAckEvent.class).ifPresent(event -> {
+            if (deduplicator.isDuplicate(event.getEventId(), KafkaTopics.STOCK_RESTORED_ACK)) {
+                return;
+            }
             log.info("[stock.restored.ack] 수신 orderId={}", event.getOrderId());
             orderService.confirmOrderCancelled(event.getOrderId());
         });

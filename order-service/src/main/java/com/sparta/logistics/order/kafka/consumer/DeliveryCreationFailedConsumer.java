@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCreationFailedEvent;
+import com.sparta.logistics.common.outbox.EventDeduplicator;
 import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.lock.OrderProcessStatus;
@@ -33,6 +34,7 @@ public class DeliveryCreationFailedConsumer {
     private final OrderService orderService;
     private final KafkaMessageParser parser;
     private final OrderLockManager orderLockManager;
+    private final EventDeduplicator deduplicator;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CREATION_FAILED,
@@ -40,6 +42,9 @@ public class DeliveryCreationFailedConsumer {
     )
     public void consume(String message) {
         parser.parse(message, DeliveryCreationFailedEvent.class).ifPresent(event -> {
+            if (deduplicator.isDuplicate(event.getEventId(), KafkaTopics.DELIVERY_CREATION_FAILED)) {
+                return;
+            }
             UUID orderId = event.getOrderId();
 
             if (isCancelling(orderId)) {

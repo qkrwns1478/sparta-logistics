@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.DeliveryCancellationFailedEvent;
+import com.sparta.logistics.common.outbox.EventDeduplicator;
 import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class DeliveryCancellationFailedConsumer {
 
     private final OrderService orderService;
     private final KafkaMessageParser parser;
+    private final EventDeduplicator deduplicator;
 
     @KafkaListener(
             topics = KafkaTopics.DELIVERY_CANCELLATION_FAILED,
@@ -31,6 +33,9 @@ public class DeliveryCancellationFailedConsumer {
     )
     public void consume(String message) {
         parser.parse(message, DeliveryCancellationFailedEvent.class).ifPresent(event -> {
+            if (deduplicator.isDuplicate(event.getEventId(), KafkaTopics.DELIVERY_CANCELLATION_FAILED)) {
+                return;
+            }
             log.info("[delivery.cancellation.failed] 수신 orderId={} deliveryId={} reason={}",
                     event.getOrderId(), event.getDeliveryId(), event.getReason());
             orderService.handleDeliveryCancellationFailed(event.getOrderId());
