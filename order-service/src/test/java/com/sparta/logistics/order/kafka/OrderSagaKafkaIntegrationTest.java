@@ -14,6 +14,7 @@ import com.sparta.logistics.order.order.service.OrderService;
 import com.sparta.logistics.order.orderitem.entity.OrderItem;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -114,13 +116,20 @@ class OrderSagaKafkaIntegrationTest {
         cancelDeliveryCommandConsumer = new DefaultKafkaConsumerFactory<>(
                 cancelProps, new StringDeserializer(), new StringDeserializer()
         ).createConsumer();
-        embeddedKafkaBroker.consumeFromAnEmbeddedTopic(cancelDeliveryCommandConsumer, KafkaTopics.CANCEL_DELIVERY_COMMAND);
+        assignAndSeekToEnd(cancelDeliveryCommandConsumer, KafkaTopics.CANCEL_DELIVERY_COMMAND);
 
         Map<String, Object> restoreProps = KafkaTestUtils.consumerProps("test-restore-cmd", "true", embeddedKafkaBroker);
         restoreStockCommandConsumer = new DefaultKafkaConsumerFactory<>(
                 restoreProps, new StringDeserializer(), new StringDeserializer()
         ).createConsumer();
-        embeddedKafkaBroker.consumeFromAnEmbeddedTopic(restoreStockCommandConsumer, KafkaTopics.RESTORE_STOCK_COMMAND);
+        assignAndSeekToEnd(restoreStockCommandConsumer, KafkaTopics.RESTORE_STOCK_COMMAND);
+    }
+
+    private void assignAndSeekToEnd(Consumer<String, String> consumer, String topic) {
+        TopicPartition tp = new TopicPartition(topic, 0);
+        consumer.assign(Collections.singletonList(tp));
+        long endOffset = consumer.endOffsets(Collections.singletonList(tp)).getOrDefault(tp, 0L);
+        consumer.seek(tp, endOffset);
     }
 
     @AfterEach
