@@ -12,13 +12,19 @@ import org.springframework.context.annotation.Bean;
  * &#064;ConditionalOnBean  조건 평가 시점에 JPA 레포지토리 빈 정의가 이미 존재함이 보장됨
  * */
 @AutoConfiguration
-@ConditionalOnBean(OutboxEventRepository.class)
 public class OutboxAutoConfiguration {
 
     @Bean
+    @ConditionalOnBean(OutboxEventRepository.class)
     public OutboxEventPublisher outboxEventPublisher(
             OutboxEventRepository outboxEventRepository,
             ObjectMapper objectMapper) {
         return new OutboxEventPublisher(outboxEventRepository, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnBean(ProcessedEventRepository.class)
+    public EventDeduplicator eventDeduplicator(ProcessedEventRepository processedEventRepository) {
+        return new EventDeduplicator(processedEventRepository);
     }
 }
