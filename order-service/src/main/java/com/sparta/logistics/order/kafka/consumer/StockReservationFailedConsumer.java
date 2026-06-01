@@ -2,6 +2,7 @@ package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.KafkaTopics;
 import com.sparta.logistics.common.kafka.event.StockReservationFailedEvent;
+import com.sparta.logistics.common.outbox.EventDeduplicator;
 import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.lock.OrderProcessStatus;
@@ -31,6 +32,7 @@ public class StockReservationFailedConsumer {
     private final OrderService orderService;
     private final KafkaMessageParser parser;
     private final OrderLockManager orderLockManager;
+    private final EventDeduplicator deduplicator;
 
     @KafkaListener(
             topics = KafkaTopics.STOCK_RESERVATION_FAILED,
@@ -38,6 +40,9 @@ public class StockReservationFailedConsumer {
     )
     public void consume(String message) {
         parser.parse(message, StockReservationFailedEvent.class).ifPresent(event -> {
+            if (deduplicator.isDuplicate(event.getEventId(), KafkaTopics.STOCK_RESERVATION_FAILED)) {
+                return;
+            }
             UUID orderId = event.getOrderId();
 
             if (isCancelling(orderId)) {

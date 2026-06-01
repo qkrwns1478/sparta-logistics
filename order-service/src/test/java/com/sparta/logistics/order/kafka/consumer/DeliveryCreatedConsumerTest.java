@@ -1,6 +1,7 @@
 package com.sparta.logistics.order.kafka.consumer;
 
 import com.sparta.logistics.common.kafka.event.DeliveryCreatedEvent;
+import com.sparta.logistics.common.outbox.EventDeduplicator;
 import com.sparta.logistics.order.kafka.KafkaMessageParser;
 import com.sparta.logistics.order.order.lock.OrderLockManager;
 import com.sparta.logistics.order.order.lock.OrderProcessStatus;
@@ -38,15 +39,34 @@ class DeliveryCreatedConsumerTest {
     @Mock
     private OrderLockManager orderLockManager;
 
+    @Mock
+    private EventDeduplicator deduplicator;
+
     private final UUID ORDER_ID = UUID.randomUUID();
     private final UUID DELIVERY_ID = UUID.randomUUID();
+    private final UUID EVENT_ID = UUID.randomUUID();
+
+    // 중복 이벤트이면 dedup 이후 모든 처리가 skip되는지 검증
+    @Test
+    void consume_whenDuplicate_skipsAll() {
+        DeliveryCreatedEvent event = DeliveryCreatedEvent.builder()
+                .eventId(EVENT_ID).orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(1).build();
+        doReturn(Optional.of(event)).when(parser).parse(anyString(), any());
+        when(deduplicator.isDuplicate(eq(EVENT_ID), any())).thenReturn(true);
+
+        consumer.consume("{}");
+
+        verify(orderService, never()).acceptOrder(any(), any(), anyInt());
+        verify(orderLockManager, never()).setStatusKey(any(), any());
+    }
 
     // CANCELLING 상태 키 존재 시 서비스 호출 없이 skip되는지 검증
     @Test
     void consume_whenCancelling_skipsOrderService() {
         DeliveryCreatedEvent event = DeliveryCreatedEvent.builder()
-                .orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(1).build();
+                .eventId(EVENT_ID).orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(1).build();
         doReturn(Optional.of(event)).when(parser).parse(anyString(), any());
+        when(deduplicator.isDuplicate(any(), any())).thenReturn(false);
         when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.CANCELLING));
 
         consumer.consume("{}");
@@ -59,8 +79,9 @@ class DeliveryCreatedConsumerTest {
     @Test
     void consume_whenNotCancelling_setsProcessingAndClearsAfterService() {
         DeliveryCreatedEvent event = DeliveryCreatedEvent.builder()
-                .orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(2).build();
+                .eventId(EVENT_ID).orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(2).build();
         doReturn(Optional.of(event)).when(parser).parse(anyString(), any());
+        when(deduplicator.isDuplicate(any(), any())).thenReturn(false);
         when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.empty());
 
         consumer.consume("{}");
@@ -75,8 +96,9 @@ class DeliveryCreatedConsumerTest {
     @Test
     void consume_whenServiceThrows_stillClearsProcessingKey() {
         DeliveryCreatedEvent event = DeliveryCreatedEvent.builder()
-                .orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(1).build();
+                .eventId(EVENT_ID).orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(1).build();
         doReturn(Optional.of(event)).when(parser).parse(anyString(), any());
+        when(deduplicator.isDuplicate(any(), any())).thenReturn(false);
         when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.empty());
         org.mockito.Mockito.doThrow(new RuntimeException("DB 오류"))
                 .when(orderService).acceptOrder(any(), any(), anyInt());
@@ -91,8 +113,9 @@ class DeliveryCreatedConsumerTest {
     @Test
     void consume_whenProcessing_doesNotSkip() {
         DeliveryCreatedEvent event = DeliveryCreatedEvent.builder()
-                .orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(1).build();
+                .eventId(EVENT_ID).orderId(ORDER_ID).deliveryId(DELIVERY_ID).totalDeliveryCount(1).build();
         doReturn(Optional.of(event)).when(parser).parse(anyString(), any());
+        when(deduplicator.isDuplicate(any(), any())).thenReturn(false);
         when(orderLockManager.getStatusKey(ORDER_ID)).thenReturn(Optional.of(OrderProcessStatus.PROCESSING));
 
         consumer.consume("{}");
