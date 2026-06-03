@@ -16,6 +16,9 @@ dependencies {
     // external communication
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
+    // messaging
+    implementation 'org.springframework.kafka:spring-kafka'
+
     // test
     testImplementation 'com.h2database:h2'
 }
