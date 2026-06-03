@@ -20,11 +20,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -420,6 +423,43 @@ public class ProductServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ProductErrorCode.PRODUCT_ACCESS_DENIED);
+        }
+    }
+
+    // -------------------------------------------------------
+    // 업체 기준 일괄 삭제 (Kafka 연동)
+    // -------------------------------------------------------
+    @Nested
+    @DisplayName("업체 소속 상품 일괄 삭제")
+    class CascadeDeleteProducts {
+
+        @Test
+        @DisplayName("업체 삭제 이벤트를 트리거로 소속 상품 일괄 Soft Delete 레포지토리를 직접 호출한다")
+        void deleteAllByCompanyId_success() {
+            // when
+            productService.deleteAllByCompanyId(companyId);
+
+            // then — 3번째 파라미터가 null인 실패 현상 방지를 위해 isNull() 적용
+            then(productRepository).should().bulkDeleteByCompanyId(
+                    any(UUID.class),
+                    any(LocalDateTime.class),
+                    isNull());
+        }
+
+        @Test
+        @DisplayName("일괄 삭제 처리 중 런타임 예외 발생 시 상위 컨슈머 핸들러로 예외를 그대로 전파한다")
+        void deleteAllByCompanyId_fail_throwException() {
+            // given
+            doThrow(new RuntimeException("데이터베이스 장애 상황"))
+                    .when(productRepository).bulkDeleteByCompanyId(
+                            any(UUID.class),
+                            any(LocalDateTime.class),
+                            isNull());
+
+            // when & then
+            assertThatThrownBy(() ->
+                    productService.deleteAllByCompanyId(companyId))
+                    .isInstanceOf(RuntimeException.class);
         }
     }
 }

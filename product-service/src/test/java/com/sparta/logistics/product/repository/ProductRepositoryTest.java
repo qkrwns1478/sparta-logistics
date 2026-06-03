@@ -224,7 +224,7 @@ public class ProductRepositoryTest {
             UUID deletedBy = UUID.randomUUID();
             LocalDateTime now = LocalDateTime.now();
 
-            // when
+            // when — clearAutomatically = true 에 의해 영속성 컨텍스트가 자동으로 초기화됨
             productRepository.bulkDeleteByCompanyId(companyId1, now, deletedBy);
 
             // then — companyId1 소속 상품 2개 삭제 확인
@@ -245,7 +245,6 @@ public class ProductRepositoryTest {
             LocalDateTime now = LocalDateTime.now();
 
             // when
-            // companyId1만 삭제
             productRepository.bulkDeleteByCompanyId(companyId1, now, deletedBy);
 
             // then
