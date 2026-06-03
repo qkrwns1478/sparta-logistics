@@ -4,7 +4,6 @@ import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.company.client.feign.HubCacheService;
 import com.sparta.logistics.company.client.feign.HubFeignClient;
-import com.sparta.logistics.company.client.feign.ProductFeignClient;
 import com.sparta.logistics.company.client.model.HubResponse;
 import com.sparta.logistics.company.dto.request.CreateRequest;
 import com.sparta.logistics.company.dto.request.UpdateRequest;
@@ -14,6 +13,7 @@ import com.sparta.logistics.company.enums.CompanyStatus;
 import com.sparta.logistics.company.enums.CompanyType;
 import com.sparta.logistics.company.exception.CompanyErrorCode;
 import com.sparta.logistics.company.fixture.CompanyFixture;
+import com.sparta.logistics.company.kafka.producer.CompanyEventProducer;
 import com.sparta.logistics.company.repository.CompanyRepository;
 import feign.FeignException;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,9 +42,8 @@ public class CompanyServiceTest {
 
     @Mock private CompanyRepository companyRepository;
     @Mock private HubFeignClient hubFeignClient;
-    @Mock private ProductFeignClient productFeignClient;
     @Mock private HubCacheService hubCacheService;
-
+    @Mock private CompanyEventProducer companyEventProducer;
     @InjectMocks private CompanyService companyService;
 
     private UUID userId;
@@ -351,68 +350,42 @@ public class CompanyServiceTest {
     // 업체 삭제
     // -------------------------------------------------------
     @Nested
-    @DisplayName("업체 삭제")
+    @DisplayName("업체 삭제 및 비동기 연동")
     class DeleteCompany {
 
         @Test
-        @DisplayName("MASTER는 업체를 삭제할 수 있다")
+        @DisplayName("MASTER는 업체를 삭제(Soft Delete)하고 Kafka 이벤트를 발행한다")
         void deleteCompany_master_success() {
             // given
             Company company = CompanyFixture.create("테스트 업체", hubId);
-
-            given(companyRepository.findById(companyId))
-                    .willReturn(Optional.of(company));
+            given(companyRepository.findById(companyId)).willReturn(Optional.of(company));
 
             // when
-            companyService.deleteCompany(
-                    companyId,
-                    userId,
-                    Role.MASTER,
-                    null);
+            companyService.deleteCompany(companyId, userId, Role.MASTER, null);
 
             // then
-            assertThat(company.getDeletedAt()).isNotNull();
+            assertThat(company.getDeletedAt()).isNotNull(); // Soft Delete 확인
             assertThat(company.getDeletedBy()).isEqualTo(userId);
+
+            // Feign 대신 비동기 이벤트 발행 함수가 호출되었는지 행위 검증
+            then(companyEventProducer).should().publishCompanyDeleted(companyId, userId);
         }
 
         @Test
-        @DisplayName("COMPANY_MANAGER는 업체를 삭제할 수 없다")
+        @DisplayName("COMPANY_MANAGER는 업체를 삭제할 수 없으며 이벤트도 발행되지 않는다")
         void deleteCompany_companyManager_fail() {
             // given
             Company company = CompanyFixture.create("테스트 업체", hubId);
-
-            given(companyRepository.findById(companyId))
-                    .willReturn(Optional.of(company));
+            given(companyRepository.findById(companyId)).willReturn(Optional.of(company));
 
             // when & then
-            assertThatThrownBy(() ->
-                    companyService.deleteCompany(companyId, userId,
-                            Role.COMPANY_MANAGER, null))
+            assertThatThrownBy(() -> companyService.deleteCompany(companyId, userId, Role.COMPANY_MANAGER, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(CompanyErrorCode.COMPANY_ACCESS_DENIED);
-        }
 
-        @Test
-        @DisplayName("업체 삭제 시 연관 상품도 일괄 삭제 요청한다")
-        void deleteCompany_cascadeDeleteProducts() {
-            // given
-            Company company = mock(Company.class);
-            given(company.getId()).willReturn(companyId);
-
-            given(companyRepository.findById(companyId))
-                    .willReturn(Optional.of(company));
-
-            // when
-            companyService.deleteCompany(
-                    companyId,
-                    userId,
-                    Role.MASTER,
-                    null);
-
-            // then - Product Service Feign 호출 확인
-            then(productFeignClient).should()
-                    .deleteProductsByCompanyId(companyId);
+            // 이벤트가 절대 발행되지 않아야 함
+            then(companyEventProducer).should(never()).publishCompanyDeleted(any(), any());
         }
     }
 
