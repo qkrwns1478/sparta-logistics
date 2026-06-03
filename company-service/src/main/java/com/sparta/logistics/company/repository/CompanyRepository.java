@@ -6,9 +6,11 @@ import com.sparta.logistics.company.enums.CompanyType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -40,4 +42,13 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
      * - deleted_at IS NULL 조건은 @SQLRestriction 자동 적용
      */
     boolean existsById(UUID id);
+
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        UPDATE schema_company.p_company
+        SET deleted_at = NULL, deleted_by = NULL
+        WHERE id = :companyId
+        """, nativeQuery = true)
+    int restoreById(@Param("companyId") UUID companyId);
 }

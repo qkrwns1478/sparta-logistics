@@ -4,7 +4,6 @@ import com.sparta.logistics.common.domain.Role;
 import com.sparta.logistics.common.exception.BusinessException;
 import com.sparta.logistics.company.client.feign.HubCacheService;
 import com.sparta.logistics.company.client.feign.HubFeignClient;
-import com.sparta.logistics.company.client.feign.ProductFeignClient;
 import com.sparta.logistics.company.client.model.HubResponse;
 import com.sparta.logistics.company.exception.CompanyErrorCode;
 import com.sparta.logistics.company.dto.request.CreateRequest;
@@ -15,6 +14,7 @@ import com.sparta.logistics.company.dto.response.DeleteResponse;
 import com.sparta.logistics.company.entity.Company;
 import com.sparta.logistics.company.enums.CompanyStatus;
 import com.sparta.logistics.company.enums.CompanyType;
+import com.sparta.logistics.company.kafka.producer.CompanyEventProducer;
 import com.sparta.logistics.company.repository.CompanyRepository;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +37,7 @@ public class CompanyService {
     private final CompanyRepository companyRepository;
     private final HubFeignClient hubFeignClient;
     private final HubCacheService hubCacheService;
-    private final ProductFeignClient productFeignClient;
+    private final CompanyEventProducer companyEventProducer;
 
     // -------------------------------------------------------
     // 생성: MASTER, HUB_MANAGER(담당 허브)
@@ -153,18 +153,11 @@ public class CompanyService {
 
         company.delete(requestUserId);
 
-        // 연관 상품 일괄 Soft Delete 요청
-        // 실패해도 업체 삭제는 유지 (보상 트랜잭션 범위 밖)
-        // → SA 문서 기준 Orchestration Saga 미적용 범위이므로 try-catch로 처리
-        try {
-            productFeignClient.deleteProductsByCompanyId(companyId);
-        } catch (Exception e) {
-            log.error("[CompanyService] 연관 상품 삭제 실패. companyId={}", companyId, e);
-        }
+        // 업체 삭제 이벤트 발행
+        // Product Service에서 연관 상품 삭제 처리 후, 실패 시 보상 이벤트를 통해 업체 삭제 롤백
+        companyEventProducer.publishCompanyDeleted(companyId, requestUserId);
 
-        log.info("[CompanyService] 업체 논리 삭제. companyId={}, deletedBy={}",
-                companyId, requestUserId);
-
+        log.info("[CompanyService] 업체 논리 삭제. companyId={}", companyId);
         return new DeleteResponse(company.getId(), company.getDeletedAt());
     }
 
