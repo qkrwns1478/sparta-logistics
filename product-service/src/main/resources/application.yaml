@@ -16,6 +16,23 @@ spring:
       hibernate:
         default_schema: schema_product
 
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    listener:
+      ack-mode: manual
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+    consumer:
+      auto-offset-reset: earliest
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "com.sparta.logistics.*"
+
 eureka:
   instance:
     instance-id: ${spring.application.name}:${server.port}
@@ -23,4 +40,4 @@ eureka:
 logging:
   level:
     com.sparta.logistics.product: DEBUG
-    org.hibernate.sql: DEBUG
+    org.hibernate.SQL: DEBUG
