@@ -217,24 +217,30 @@ public class HubStockService {
         }
 
 
-    // stock.reserved 발행 시 필요한 리스트
-    List<StockReservedItemPayload> reservedItems = new ArrayList<>();
+        // stock.reserved 발행 시 필요한 리스트
+        List<StockReservedItemPayload> reservedItems = new ArrayList<>();
 
-    List<OrderItemPayload> succeededItems = new ArrayList<>();
+        List<OrderItemPayload> succeededItems = new ArrayList<>();
 
         for (OrderItemPayload item : event.getOrderItems()) {
 
             // 낙관적 락으로 재고 예약 시도, 충돌 시 비관적 락으로 폴백
             try {
                 executeWithLock(
-                        () -> { hubStockLockHelper.reserveWithOptimisticLock(
-                                item.getHubId(), item.getProductId(),
-                                item.getQuantity(), item.getOrderItemId()
-                        ); return null; },
-                        () -> { hubStockLockHelper.reserveWithPessimisticLock(
-                                item.getHubId(), item.getProductId(),
-                                item.getQuantity(), item.getOrderItemId()
-                        ); return null; }
+                        () -> {
+                            hubStockLockHelper.reserveWithOptimisticLock(
+                                    item.getHubId(), item.getProductId(),
+                                    item.getQuantity(), item.getOrderItemId()
+                            );
+                            return null;
+                        },
+                        () -> {
+                            hubStockLockHelper.reserveWithPessimisticLock(
+                                    item.getHubId(), item.getProductId(),
+                                    item.getQuantity(), item.getOrderItemId()
+                            );
+                            return null;
+                        }
                 );
 
                 succeededItems.add(item);
@@ -255,27 +261,28 @@ public class HubStockService {
                 throw new KafkaSkipException("재고 예약 실패 - orderId: " + event.getOrderId());
             }
 
-      reservedItems.add(StockReservedItemPayload.builder()
-          .orderItemId(item.getOrderItemId())
-          .productId(item.getProductId())
-          .reservedQuantity(item.getQuantity())
-          .sourceHubId(item.getHubId())
-          .build()
-      );
-    }
+            reservedItems.add(StockReservedItemPayload.builder()
+                    .orderItemId(item.getOrderItemId())
+                    .productId(item.getProductId())
+                    .reservedQuantity(item.getQuantity())
+                    .sourceHubId(item.getHubId())
+                    .build()
+            );
+        }
 
-    // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)
-    StockReservedEvent reservedEvent = StockReservedEvent.builder()
-        .eventId(event.getEventId())
-        .orderId(event.getOrderId())
-        .receiverId(event.getReceiverId())
-        .sourceHubId(event.getSourceHubId())
-        .destinationHubId(event.getDestinationHubId())
-        .deliveryAddress(event.getDeliveryAddress())
-        .orderItems(reservedItems)
-        .build();
-    registerStockReservedEvent(reservedEvent);
-  }
+        // DB 커밋 성공 후 stock.reserved 발행 (커밋 전 발행 시 정합성 문제 방지)
+
+        StockReservedEvent reservedEvent = StockReservedEvent.builder()
+                .eventId(event.getEventId())
+                .orderId(event.getOrderId())
+                .receiverId(event.getReceiverId())
+                .sourceHubId(event.getSourceHubId())
+                .destinationHubId(event.getDestinationHubId())
+                .deliveryAddress(event.getDeliveryAddress())
+                .orderItems(reservedItems)
+                .build();
+        registerStockReservedEvent(reservedEvent);
+    }
 
     @Transactional
     public void deductReservedStock(DeliveryStartedEvent event) {
