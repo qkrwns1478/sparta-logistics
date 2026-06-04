@@ -1,6 +1,6 @@
 ## Kafka 메시지 DTO
 
-``text
+```text
 common/src/main/java/com/sparta/logistics/common/kafka/
 ├── event/
 │   ├── OrderCreatedEvent.java                # order.created
