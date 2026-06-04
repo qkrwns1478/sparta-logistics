@@ -130,7 +130,7 @@ public class CompanyController {
         DeleteResponse response = companyService.deleteCompany(
                 companyId, userId, userRole, userHubId);
 
-        return ResponseEntity.ok(ApiResponse.ok("업체가 삭제되었습니다.", response));
+        return ResponseEntity.ok(ApiResponse.ok("업체 삭제가 요청되었습니다.", response));
     }
 
 
