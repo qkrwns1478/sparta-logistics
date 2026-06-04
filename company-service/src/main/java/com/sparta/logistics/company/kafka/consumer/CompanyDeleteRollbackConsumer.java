@@ -74,6 +74,7 @@ public class CompanyDeleteRollbackConsumer {
 
         } catch (Exception e) {
 
+            // 시스템 예외 로깅 후 DefaultErrorHandler로 위임
             log.error("[Rollback] 롤백 시스템 실패. companyId={}",
                     event != null ? event.getCompanyId() : null, e);
 
