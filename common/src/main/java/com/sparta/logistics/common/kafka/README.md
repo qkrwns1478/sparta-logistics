@@ -1,6 +1,6 @@
 ## Kafka 메시지 DTO
 
-```text
+``text
 common/src/main/java/com/sparta/logistics/common/kafka/
 ├── event/
 │   ├── OrderCreatedEvent.java                # order.created
@@ -17,6 +17,8 @@ common/src/main/java/com/sparta/logistics/common/kafka/
 │   ├── StockRestorationFailedEvent.java      # stock.restoration.failed
 │   ├── HubStockUpdatedEvent.java             # hub.stock.updated
 │   ├── AiDeadlineCalculatedEvent.java        # ai.deadline.calculated
+│   ├── CompanyDeletedEvent.java              # company.deleted
+│   ├── CompanyDeleteRollbackEvent.java       # company.delete.rollback
 │   ├── RestoreStockItemPayload.java          # RestoreStockCommand 내부 페이로드
 │   └── DeliveryOrderItemPayload.java         # DeliveryStartedEvent 내부 페이로드
 └── KafkaTopics.java                          # 토픽명 상수 모음
@@ -24,8 +26,13 @@ common/src/main/java/com/sparta/logistics/common/kafka/
 
 ### 공통 필드
 
-모든 이벤트/커맨드는 `eventId(UUID)`를 첫 번째 필드로 가진다.
-컨슈머에서 중복 소비 방지를 위해 사용하며, 발행 측에서 `UUID.randomUUID()`로 생성한다.
+대부분의 Saga 이벤트/커맨드는 `eventId(UUID)`를 포함한다.
+- 발행 측에서 `UUID.randomUUID()`로 생성
+- Consumer의 중복 소비 방지 및 이벤트 추적 용도
+
+단, 업체 삭제 Saga에서 사용하는 아래 이벤트는 업무 식별자인 companyId를 기준으로 처리한다.
+- `CompanyDeletedEvent`
+- `CompanyDeleteRollbackEvent`
 
 ### 주요 필드 요약
 
@@ -45,3 +52,5 @@ common/src/main/java/com/sparta/logistics/common/kafka/
 | `StockRestorationFailedEvent` | `eventId`, `orderId`, `reason` |
 | `HubStockUpdatedEvent` | `eventId`, `productId`, `hubId`, `available`, `hubStockVersion` |
 | `AiDeadlineCalculatedEvent` | `eventId`, `deliveryId`, `orderId`, `finalDeadlineAt` |
+| `CompanyDeletedEvent` | `companyId`, `deletedBy`, `deletedAt` |
+| `CompanyDeleteRollbackEvent` | `companyId`, `reason` |
